@@ -1,0 +1,56 @@
+---
+title: "Errors"
+description: "Error response format, status codes, and current public error codes."
+---
+
+## Error response format
+
+MemoryOS returns structured JSON errors:
+
+```json
+{
+  "error": "unauthorized",
+  "code": "AUTH_001",
+  "request_id": "420a0c64-eabd-4fc3-ad78-e043677a8359",
+  "details": null
+}
+```
+
+## HTTP status codes
+
+| Status | Meaning |
+| --- | --- |
+| `200` | Request succeeded, or a non-fatal add outcome such as passthrough or quality-gate block |
+| `400` | Invalid cursor or malformed tenant-specific request |
+| `401` | Authentication failed |
+| `403` | Tenant context exists but is not allowed for the request |
+| `404` | Resource not found |
+| `422` | Request validation failed |
+| `429` | Rate limited |
+| `500` | Internal server error |
+| `503` | Dependency unavailable |
+
+## Error codes
+
+Current public and semi-public API surfaces emit the following codes.
+
+| Code | Meaning | Typical cause |
+| --- | --- | --- |
+| `AUTH_001` | Unauthorized | Missing or invalid API key |
+| `AUTH_002` | Tenant not found | JWT org is valid but not mapped to a MemoryOS tenant |
+| `AUTH_003` | Organization required | Clerk JWT is valid but no org is active |
+| `AUTH_403` | Tenant auth required | Route expected tenant context but none was resolved |
+| `REQ_422` | Validation error | Missing required fields, wrong types, or empty content |
+| `MEM_404` | Memory not found | Memory id does not exist or is out of scope |
+| `JOB_404` | Job not found | Extraction job id does not exist or is not visible to the tenant |
+| `PRX_403` | Proxy user blocked | End user is blocked from new writes |
+| `PRX_404` | Proxy user not found | Tenant-scoped user does not exist |
+| `PRX_500` | Proxy user resolution failed | Proxy-user service unavailable or failed |
+| `TEN_400` | Tenant request error | Invalid cursor or missing webhook configuration |
+| `TEN_404` | Tenant budget not found | Tenant budget row missing |
+| `EMB_503` | Embedding unavailable | Embedding dependency failed |
+| `SRV_500` | Internal server error | Unhandled backend error |
+| `SRV_503` | Service unavailable | Dependency fallback or temporary infrastructure issue |
+| `HTTP_ERROR` | Generic HTTP exception | Framework-level HTTP exception |
+
+> Current releases do **not** emit `VAL_*` codes. Validation failures are returned as `REQ_422`.

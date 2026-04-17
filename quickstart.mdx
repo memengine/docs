@@ -1,0 +1,233 @@
+---
+title: "Quickstart"
+description: "Install the SDK, store a memory, retrieve it, and use MemoryOS in a real AI call."
+---
+
+This quickstart shows the fastest end-to-end path:
+
+1. Install the SDK
+2. Store a memory
+3. Retrieve memories
+4. Use the returned context in an OpenAI call
+
+## Step 1: Install the SDK
+
+### Python
+
+```bash
+pip install memoryos openai
+```
+
+### TypeScript
+
+```bash
+npm install @memoryos/sdk openai
+```
+
+## Step 2: Store your first memory
+
+### Python
+
+```python
+import os
+
+from memoryos import Memory
+
+
+def main() -> None:
+    client = Memory(api_key=os.environ["MEMORYOS_API_KEY"])
+
+    result = client.add(
+        messages=[
+            {
+                "role": "user",
+                "content": "Please remember that I prefer concise technical explanations and Python examples.",
+            }
+        ],
+        external_user_id="customer-123",
+        metadata={"source": "quickstart"},
+    )
+
+    print(result.status)
+    print(result.quota_mode)
+    client.close()
+
+
+if __name__ == "__main__":
+    main()
+```
+
+### TypeScript
+
+```ts
+import { MemoryOS } from "@memoryos/sdk";
+
+async function main(): Promise<void> {
+  const client = new MemoryOS(process.env.MEMORYOS_API_KEY!);
+
+  const result = await client.add(
+    [
+      {
+        role: "user",
+        content: "Please remember that I prefer concise technical explanations and Python examples.",
+      },
+    ],
+    "customer-123",
+    undefined,
+    { source: "quickstart" },
+  );
+
+  console.log(result.status);
+  console.log(result.quotaMode);
+}
+
+void main();
+```
+
+## Step 3: Retrieve memories
+
+### Python
+
+```python
+import os
+
+from memoryos import Memory
+
+
+def main() -> None:
+    client = Memory(api_key=os.environ["MEMORYOS_API_KEY"])
+
+    memories = client.get(
+        query="How should I answer this user?",
+        external_user_id="customer-123",
+        limit=5,
+    )
+
+    print(memories.quota_mode)
+    print(memories.system_prompt_addition)
+    for item in memories.items:
+        print(item.content)
+
+    client.close()
+
+
+if __name__ == "__main__":
+    main()
+```
+
+### TypeScript
+
+```ts
+import { MemoryOS } from "@memoryos/sdk";
+
+async function main(): Promise<void> {
+  const client = new MemoryOS(process.env.MEMORYOS_API_KEY!);
+
+  const memories = await client.get(
+    "How should I answer this user?",
+    "customer-123",
+    5,
+  );
+
+  console.log(memories.quotaMode);
+  console.log(memories.systemPromptAddition);
+  for (const item of memories.items) {
+    console.log(item.content);
+  }
+}
+
+void main();
+```
+
+## Step 4: Use MemoryOS in an AI call
+
+This is the production pattern:
+
+1. Retrieve memories before the model call
+2. If `is_passthrough` is `true`, skip memory context
+3. Otherwise prepend `system_prompt_addition`
+4. Still call your LLM even if MemoryOS is degraded or passthrough
+
+### Python + OpenAI
+
+```python
+import os
+
+from memoryos import Memory
+from openai import OpenAI
+
+
+def main() -> None:
+    memory = Memory(api_key=os.environ["MEMORYOS_API_KEY"])
+    openai_client = OpenAI(api_key=os.environ["OPENAI_API_KEY"])
+
+    external_user_id = "customer-123"
+    user_message = "What kind of answer format do I like?"
+
+    memories = memory.get(
+        query=user_message,
+        external_user_id=external_user_id,
+        limit=5,
+    )
+
+    system_prompt = "You are a helpful assistant."
+    if not memories.is_passthrough and memories.system_prompt_addition:
+        system_prompt = f"{system_prompt}\n\n{memories.system_prompt_addition}"
+
+    response = openai_client.responses.create(
+        model="gpt-4.1-mini",
+        input=[
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_message},
+        ],
+    )
+
+    print(response.output_text)
+    memory.close()
+
+
+if __name__ == "__main__":
+    main()
+```
+
+### TypeScript + OpenAI
+
+```ts
+import OpenAI from "openai";
+import { MemoryOS } from "@memoryos/sdk";
+
+async function main(): Promise<void> {
+  const memory = new MemoryOS(process.env.MEMORYOS_API_KEY!);
+  const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY! });
+
+  const externalUserId = "customer-123";
+  const userMessage = "What kind of answer format do I like?";
+
+  const memories = await memory.get(userMessage, externalUserId, 5);
+
+  let systemPrompt = "You are a helpful assistant.";
+  if (!memories.isPassthrough && memories.systemPromptAddition) {
+    systemPrompt = `${systemPrompt}\n\n${memories.systemPromptAddition}`;
+  }
+
+  const response = await openai.responses.create({
+    model: "gpt-4.1-mini",
+    input: [
+      { role: "system", content: systemPrompt },
+      { role: "user", content: userMessage },
+    ],
+  });
+
+  console.log(response.output_text);
+}
+
+void main();
+```
+
+## What to expect
+
+- `add()` may return `queued`, `passthrough`, or a quality-gate block outcome
+- `get()` always returns a typed result object, even when no memories are available
+- if `is_passthrough` is `true`, you should continue the AI call without MemoryOS context
+
+Next: read [Authentication](/authentication) for key format, permissions, and the tenant plus `external_user_id` identity model.

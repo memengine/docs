@@ -1,0 +1,161 @@
+---
+title: "POST /v1/memories/retrieve"
+description: "Retrieve relevant memories for an end user and build prompt-ready context."
+---
+
+## Endpoint
+
+```http
+POST /v1/memories/retrieve
+```
+
+## Authentication
+
+```http
+Authorization: ApiKey mem_...
+```
+
+## Request body
+
+```json
+{
+  "external_user_id": "customer-123",
+  "query": "How should I respond to this user?",
+  "limit": 5,
+  "categories": ["preference", "goal"],
+  "agent_id": "support-bot",
+  "format": "bullets"
+}
+```
+
+### Schema
+
+| Field | Type | Required | Notes |
+| --- | --- | --- | --- |
+| `external_user_id` | `string` | Yes | End-user identifier inside your tenant |
+| `query` | `string` | Yes | Natural-language retrieval query |
+| `limit` | `integer` | No | Default `10`, max `50` |
+| `categories` | `MemoryCategory[]` | No | Optional category filters |
+| `agent_id` | `string \| null` | No | Optional agent filter |
+| `format` | `"bullets" \| "json" \| "xml"` | No | Default `bullets` |
+
+## Response
+
+```json
+{
+  "data": [
+    {
+      "id": "2b8f5f87-bbd4-4f84-9f5f-0cba5033f058",
+      "content": "User prefers concise technical explanations and Python examples.",
+      "category": "preference",
+      "importance_score": 8.5,
+      "last_accessed": "2026-04-17T09:45:00Z",
+      "relevance_score": 0.962341,
+      "context_snippet": "- User prefers concise technical explanations and Python examples. (category: preference; confidence: high [0.94]; learned: 2026-04-17T09:40:00Z; importance: 8.5)"
+    }
+  ],
+  "cached": false,
+  "system_prompt_addition": "What you know about this user:\n- User prefers concise technical explanations and Python examples. (category: preference; confidence: high [0.94]; learned: 2026-04-17T09:40:00Z; importance: 8.5)",
+  "request_id": "b0eb46a4-8794-44c8-b2a9-8f2dfbb4176c",
+  "timestamp": "2026-04-17T09:45:03Z"
+}
+```
+
+## Response schema
+
+### Top-level fields
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `data` | `MemorySearchResult[]` | Ranked memory results |
+| `cached` | `boolean` | Whether retrieval came from the hot cache |
+| `system_prompt_addition` | `string` | Prompt-ready memory context |
+| `request_id` | `string` | Trace id |
+| `timestamp` | `datetime` | Response timestamp |
+
+### `MemorySearchResult`
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `id` | `string` | Memory id |
+| `content` | `string` | Memory text |
+| `category` | `string` | Memory category |
+| `importance_score` | `float` | Importance score |
+| `last_accessed` | `datetime \| null` | Last access timestamp |
+| `relevance_score` | `float` | Final retrieval score |
+| `context_snippet` | `string` | Single-memory rendering in the selected format |
+
+## `format` examples
+
+The `format` value controls how MemoryOS renders both `context_snippet` and `system_prompt_addition`.
+
+### `bullets`
+
+```json
+{
+  "format": "bullets"
+}
+```
+
+Example `system_prompt_addition`:
+
+```text
+What you know about this user:
+- User prefers concise technical explanations and Python examples. (category: preference; confidence: high [0.94]; learned: 2026-04-17T09:40:00Z; importance: 8.5)
+```
+
+### `json`
+
+```json
+{
+  "format": "json"
+}
+```
+
+Example `system_prompt_addition`:
+
+```json
+What you know about this user:
+[
+  {
+    "id": "2b8f5f87-bbd4-4f84-9f5f-0cba5033f058",
+    "content": "User prefers concise technical explanations and Python examples.",
+    "category": "preference",
+    "importance_score": 8.5,
+    "confidence_score": 0.94,
+    "semantic_score": 0.93,
+    "recency_score": 1.0,
+    "final_score": 0.962341,
+    "agent_id": null,
+    "previous_version_id": null,
+    "last_accessed_at": "2026-04-17T09:45:00Z",
+    "created_at": "2026-04-17T09:40:00Z",
+    "confidence_level": "high",
+    "learned_at": "2026-04-17T09:40:00Z"
+  }
+]
+```
+
+### `xml`
+
+```json
+{
+  "format": "xml"
+}
+```
+
+Example `system_prompt_addition`:
+
+```xml
+What you know about this user:
+<memory_context>
+  <memory>
+    <content>User prefers concise technical explanations and Python examples.</content>
+    <category>preference</category>
+    <confidence level="high">0.94</confidence>
+    <learned_at>2026-04-17T09:40:00Z</learned_at>
+    <importance_score>8.5</importance_score>
+    <final_score>0.962341</final_score>
+  </memory>
+</memory_context>
+```

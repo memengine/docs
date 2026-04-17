@@ -1,0 +1,84 @@
+---
+title: "Authentication"
+description: "How API keys work in MemoryOS, common mistakes, and the tenant plus external user identity model."
+---
+
+MemoryOS authenticates B2B API traffic with tenant-scoped API keys.
+
+## API key format
+
+Send your API key in the `Authorization` header:
+
+```http
+Authorization: ApiKey mem_...
+```
+
+Current MemoryOS keys are generated with the `mem_` prefix.
+
+## Identity model
+
+Every request combines:
+
+- **Tenant identity** from the API key
+- **End-user identity** from `external_user_id`
+
+Example:
+
+```json
+{
+  "external_user_id": "customer-123"
+}
+```
+
+This lets one tenant safely store and retrieve memories for many different users.
+
+## Common authentication mistakes
+
+| Mistake | What happens | Correct version |
+| --- | --- | --- |
+| Sending the raw key only | `AUTH_001 unauthorized` | `Authorization: ApiKey mem_...` |
+| Using `Bearer mem_...` | `AUTH_001 unauthorized` | `Authorization: ApiKey mem_...` |
+| Forgetting `external_user_id` on tenant routes | `REQ_422` or tenant resolution errors | Always include `external_user_id` in write and retrieve requests |
+| Reusing a key from the wrong tenant | Data is scoped to the wrong workspace | Use one API key per tenant/workspace |
+| Storing the key in browser code | Secret leaks to clients | Keep MemoryOS API keys server-side |
+
+## Key permissions
+
+API keys store a permissions array. Current integrations commonly use these values:
+
+| Permission | Intended use |
+| --- | --- |
+| `read` | Retrieve memories and read list/export data |
+| `write` | Add new memories and create ingestion jobs |
+| `delete` | Delete memories or perform GDPR-style cleanup operations |
+| `admin` | Internal or operational actions where a key needs broad control |
+
+## Security best practices
+
+> Keep MemoryOS API keys on the server only.
+>
+> - Load them from environment variables
+> - Rotate keys if they are exposed
+> - Use different keys for dev, staging, and production
+> - Never commit keys to source control
+> - Never send MemoryOS API keys to the browser
+
+## Example
+
+### Python
+
+```python
+import os
+
+from memoryos import Memory
+
+client = Memory(api_key=os.environ["MEMORYOS_API_KEY"])
+```
+
+### TypeScript
+
+```ts
+import { MemoryOS } from "@memoryos/sdk";
+
+const client = new MemoryOS(process.env.MEMORYOS_API_KEY!);
+```

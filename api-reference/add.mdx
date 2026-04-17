@@ -1,0 +1,138 @@
+---
+title: "POST /v1/memories/add"
+description: "Queue conversation ingestion for memory extraction."
+---
+
+## Endpoint
+
+```http
+POST /v1/memories/add
+```
+
+## Authentication
+
+```http
+Authorization: ApiKey mem_...
+```
+
+## Headers
+
+| Header | Required | Notes |
+| --- | --- | --- |
+| `Authorization` | Yes | `ApiKey mem_...` |
+| `Content-Type` | Yes | `application/json` |
+| `Idempotency-Key` | No | Replays the same queued response for duplicate writes |
+
+## Request body
+
+```json
+{
+  "external_user_id": "customer-123",
+  "agent_id": "support-bot",
+  "messages": [
+    {
+      "role": "user",
+      "content": "Please remember that I prefer weekly summaries."
+    }
+  ],
+  "metadata": {
+    "source": "chat"
+  }
+}
+```
+
+### Schema
+
+| Field | Type | Required | Notes |
+| --- | --- | --- | --- |
+| `external_user_id` | `string` | Yes | End-user identifier inside your tenant |
+| `agent_id` | `string \| null` | No | Optional agent identifier |
+| `messages` | `ConversationMessage[]` | Yes | At least one message |
+| `metadata` | `object` | No | Arbitrary JSON object |
+
+### `ConversationMessage`
+
+| Field | Type | Required |
+| --- | --- | --- |
+| `role` | `"user" \| "assistant" \| "system"` | Yes |
+| `content` | `string` | Yes |
+
+## Response headers
+
+| Header | Meaning |
+| --- | --- |
+| `X-MemoryOS-Quota-Mode` | Current tenant mode: `FULL`, `PASSTHROUGH`, `DEGRADED_RETRIEVE`, or `BLOCKED` |
+| `X-MemoryOS-Budget-Remaining` | Remaining quota percentage as a decimal string |
+| `X-MemoryOS-Quota-Reset` | Next reset timestamp, if set |
+| `X-MemoryOS-Circuit-Status` | Platform dependency status |
+| `X-MemoryOS-Processing` | `normal` or `delayed` |
+
+## Response: queued
+
+```json
+{
+  "job_id": "72a20629-a76d-4a18-ab36-1c2778ba21d0",
+  "status": "queued",
+  "blocked_reason": null,
+  "retry_after_seconds": null,
+  "budget_remaining_pct": 0.9134,
+  "processing_eta_seconds": null,
+  "processing_status": "normal",
+  "request_id": "c3d4fd63-77ff-48b6-9316-6bcbadf9476b",
+  "timestamp": "2026-04-05T09:23:40.077265Z"
+}
+```
+
+## Response: blocked by the quality gate
+
+The `status` value is usually the layer that blocked the request.
+
+### Example: `L2`
+
+```json
+{
+  "job_id": null,
+  "status": "L2",
+  "blocked_reason": "low_quality",
+  "retry_after_seconds": null,
+  "budget_remaining_pct": 0.9134,
+  "request_id": "11111111-2222-3333-4444-555555555555",
+  "timestamp": "2026-04-17T09:30:00Z"
+}
+```
+
+Possible blocked `status` values:
+
+- `L1`
+- `L2`
+- `L3`
+- `L4`
+- `blocked` (internal gate fallback)
+
+## Response: passthrough
+
+When the tenant is in passthrough mode, MemoryOS accepts the call path but does not persist a memory write.
+
+```json
+{
+  "job_id": null,
+  "status": "passthrough",
+  "blocked_reason": null,
+  "retry_after_seconds": null,
+  "budget_remaining_pct": 0.0,
+  "request_id": "11111111-2222-3333-4444-555555555555",
+  "timestamp": "2026-04-17T09:30:00Z"
+}
+```
+
+## Idempotency-Key
+
+Use `Idempotency-Key` when your application may retry the same write request.
+
+Example:
+
+```http
+Idempotency-Key: 8b7f95f1-a98c-4d43-b321-889e881d29b8
+```
+
+MemoryOS stores the queued response for that key and replays it for duplicate requests instead of creating a second job.

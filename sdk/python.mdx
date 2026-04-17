@@ -1,0 +1,205 @@
+---
+title: "Python SDK"
+description: "Reference for the MemoryOS Python SDK, including the sync and async clients."
+---
+
+Install the Python SDK:
+
+```bash
+pip install memoryos
+```
+
+## Clients
+
+- Sync client: `Memory`
+- Async client: `AsyncMemory`
+
+```python
+from memoryos import AsyncMemory, Memory
+```
+
+## Memory
+
+```python
+from memoryos import Memory
+
+client = Memory(api_key="mem_...")
+```
+
+### `add()`
+
+```python
+result = client.add(
+    messages=[{"role": "user", "content": "I prefer Python examples."}],
+    external_user_id="customer-123",
+    agent_id="support-bot",
+    metadata={"source": "chat"},
+)
+```
+
+#### Parameters
+
+| Parameter | Type | Required | Notes |
+| --- | --- | --- | --- |
+| `messages` | `list[dict[str, str]] | list[ConversationMessage]` | Yes | At least one message; roles must be `user`, `assistant`, or `system` |
+| `external_user_id` | `str` | Yes | End-user identifier inside your tenant |
+| `agent_id` | `str | None` | No | Optional agent identifier |
+| `metadata` | `dict[str, Any] | None` | No | Optional metadata attached to the ingestion job |
+
+#### Return fields
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `job_id` | `str | None` | Extraction job id when queued |
+| `status` | `str` | Current add outcome |
+| `blocked_reason` | `str | None` | Reason when blocked |
+| `retry_after_seconds` | `int | None` | Retry hint for rate-limit blocks |
+| `budget_remaining_pct` | `float | None` | Remaining quota after the request estimate |
+| `quota_mode` | `"FULL" | "PASSTHROUGH" | "DEGRADED_RETRIEVE" | "BLOCKED"` | Quota envelope mode from response headers |
+| `processing_eta_seconds` | `int | None` | Queue ETA when ingestion is delayed |
+| `processing_status` | `"normal" | "delayed"` | Background ingestion health |
+| `circuit_status` | `"HEALTHY" | "DEGRADED" | "CRITICAL"` | Platform dependency status |
+
+#### Status outcomes
+
+| `status` value | Meaning | Typical action |
+| --- | --- | --- |
+| `queued` | Request accepted and extraction job queued | Store `job_id` if you want to track job state |
+| `passthrough` | Tenant is in passthrough mode, so no memory write happens | Continue your app without memory persistence |
+| `L1` | Blocked by per-user rate limit | Retry after `retry_after_seconds` |
+| `L2` | Blocked by low-quality input | Improve message quality before retrying |
+| `L3` | Blocked as semantically duplicate | Avoid sending repeated near-identical content |
+| `L4` | Blocked by budget governance | Upgrade plan or wait for reset |
+| `blocked` | Internal quality-gate failure fallback | Retry later and monitor logs |
+
+### `get()`
+
+```python
+memories = client.get(
+    query="How should I answer this user?",
+    external_user_id="customer-123",
+    limit=5,
+    categories=["preference", "goal"],
+)
+```
+
+#### Parameters
+
+| Parameter | Type | Required | Notes |
+| --- | --- | --- | --- |
+| `query` | `str` | Yes | Natural-language retrieval query |
+| `external_user_id` | `str` | Yes | End-user identifier inside your tenant |
+| `limit` | `int` | No | Default `10` |
+| `categories` | `list[str] | None` | No | Optional category filter |
+
+#### Return fields
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `items` | `list[MemoryResult]` | Retrieved memories |
+| `cached` | `bool` | Whether the result came from the hot cache |
+| `system_prompt_addition` | `str` | Prompt-ready context block |
+| `quota_mode` | `"FULL" | "PASSTHROUGH" | "DEGRADED_RETRIEVE" | "BLOCKED"` | Quota envelope mode |
+| `is_passthrough` | `bool` | `True` when you should skip memory context |
+| `is_degraded` | `bool` | `True` when retrieval is degraded |
+| `circuit_status` | `"HEALTHY" | "DEGRADED" | "CRITICAL"` | Platform dependency status |
+
+#### Degradation handling pattern
+
+```python
+result = client.get(
+    query="What should I remember about this user?",
+    external_user_id="customer-123",
+)
+
+if result.is_passthrough:
+    prompt_addition = ""
+else:
+    prompt_addition = result.system_prompt_addition
+```
+
+### `delete()`
+
+```python
+deleted = client.delete(
+    memory_id="1c5d5ab6-73c8-4b12-90e9-0f7f9db8db4f",
+    external_user_id="customer-123",
+    hard_delete=False,
+)
+```
+
+Archives by default. Set `hard_delete=True` to permanently delete.
+
+### `list()`
+
+```python
+page = client.list(
+    external_user_id="customer-123",
+    limit=50,
+)
+
+for memory in page.items:
+    print(memory.content)
+```
+
+Returns a `MemoryPage` with:
+
+- `items`
+- `next_cursor`
+- `limit`
+- `total`
+
+### `export()`
+
+```python
+bundle = client.export(external_user_id="customer-123")
+```
+
+`export()` maps to `GET /v1/users/me/export` and returns a `MemoryExport` bundle containing:
+
+- `user`
+- `memories`
+- `api_keys`
+- `agents`
+
+> `export()` currently targets the user export endpoint, not a tenant-wide export endpoint.
+
+### `get_usage()` and `delete_user()`
+
+The current Python SDK does **not** expose `get_usage()` or `delete_user()` methods yet.
+
+Use the REST API directly for those operations:
+
+- tenant usage: `GET /v1/tenant/usage`
+- current user deletion: `DELETE /v1/users/me`
+- tenant proxy-user deletion: `DELETE /v1/users/{external_user_id}`
+
+## AsyncMemory
+
+`AsyncMemory` has the same method surface as `Memory`, but every method is async.
+
+```python
+import asyncio
+
+from memoryos import AsyncMemory
+
+
+async def main() -> None:
+    async with AsyncMemory(api_key="mem_...") as client:
+        add_result = await client.add(
+            messages=[{"role": "user", "content": "I prefer weekly summaries."}],
+            external_user_id="customer-123",
+        )
+
+        memories = await client.get(
+            query="What does this user prefer?",
+            external_user_id="customer-123",
+            limit=5,
+        )
+
+        print(add_result.status)
+        print(memories.system_prompt_addition)
+
+
+asyncio.run(main())
+```

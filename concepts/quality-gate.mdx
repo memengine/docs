@@ -1,0 +1,47 @@
+---
+title: "Quality Gate"
+description: "How MemoryOS filters low-value or risky write traffic before it becomes memory."
+---
+
+The MemoryOS quality gate runs before memory ingestion is queued. Its job is to prevent low-value, duplicate, or out-of-budget writes from becoming stored memories.
+
+## The four layers
+
+| Layer | Purpose | Backend rule |
+| --- | --- | --- |
+| `L1` | Per-user rate limiting | Blocks when requests exceed the tenant's per-user per-minute limit |
+| `L2` | Low-quality input filter | Blocks when the quality score is below `0.35` |
+| `L3` | Semantic duplicate detection | Blocks when semantic similarity is above `0.92` |
+| `L4` | Budget governance | Blocks when quota is exhausted and overage policy is `block` |
+
+## What gets blocked
+
+| Layer | Example input | Typical reason |
+| --- | --- | --- |
+| `L1` | Same user spams many writes in one minute | `rate_limit_exceeded` |
+| `L2` | `"ok"`, `"hi"`, `"??"` | `low_quality` |
+| `L3` | Re-sending the same preference statement repeatedly | `duplicate_query` |
+| `L4` | Tenant is out of monthly calls or tokens on block mode | `budget_exhausted` |
+
+## How quality is scored
+
+The current quality score is based on:
+
+- number of messages
+- average message length
+- lexical diversity
+- whether the conversation contains a question signal
+
+Very short or content-free messages are likely to score poorly.
+
+## How to improve your block rate
+
+1. Send meaningful user facts, preferences, goals, or procedures instead of filler text.
+2. Avoid writing the same memory-worthy statement repeatedly.
+3. Batch coherent conversational turns together instead of sending single-word fragments.
+4. Respect the per-user write rate limit.
+5. Monitor `blocked_reason` and `budget_remaining_pct` on `add()` responses.
+
+## Operational note
+
+A blocked write returns HTTP `200`, but the response `status` indicates the block layer such as `L2` or `L4`. Your application should inspect the response body, not only the status code.

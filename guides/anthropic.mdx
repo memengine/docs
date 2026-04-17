@@ -1,0 +1,109 @@
+---
+title: "Anthropic Integration"
+description: "Complete working MemoryOS integration with Anthropic Claude."
+---
+
+This pattern is the same as OpenAI:
+
+1. add memories during the conversation
+2. retrieve prompt-ready context before the Claude call
+3. skip memory context only when passthrough is active
+
+## Python
+
+```python
+import os
+
+from anthropic import Anthropic
+from memoryos import Memory
+
+
+def main() -> None:
+    memory = Memory(api_key=os.environ["MEMORYOS_API_KEY"])
+    anthropic = Anthropic(api_key=os.environ["ANTHROPIC_API_KEY"])
+
+    external_user_id = "customer-123"
+    latest_user_message = "How should you tailor the response for me?"
+
+    memory.add(
+        messages=[
+            {
+                "role": "user",
+                "content": "Please remember that I like structured answers with short bullet points.",
+            }
+        ],
+        external_user_id=external_user_id,
+    )
+
+    memories = memory.get(
+        query=latest_user_message,
+        external_user_id=external_user_id,
+        limit=5,
+    )
+
+    system_prompt = "You are a helpful assistant."
+    if not memories.is_passthrough and memories.system_prompt_addition:
+        system_prompt = f"{system_prompt}\n\n{memories.system_prompt_addition}"
+
+    response = anthropic.messages.create(
+        model="claude-sonnet-4-20250514",
+        max_tokens=500,
+        system=system_prompt,
+        messages=[
+            {"role": "user", "content": latest_user_message},
+        ],
+    )
+
+    print(response.content[0].text)
+    memory.close()
+
+
+if __name__ == "__main__":
+    main()
+```
+
+## TypeScript
+
+```ts
+import Anthropic from "@anthropic-ai/sdk";
+import { MemoryOS } from "@memoryos/sdk";
+
+async function main(): Promise<void> {
+  const memory = new MemoryOS(process.env.MEMORYOS_API_KEY!);
+  const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY! });
+
+  const externalUserId = "customer-123";
+  const latestUserMessage = "How should you tailor the response for me?";
+
+  await memory.add(
+    [
+      {
+        role: "user",
+        content: "Please remember that I like structured answers with short bullet points.",
+      },
+    ],
+    externalUserId,
+  );
+
+  const memories = await memory.get(latestUserMessage, externalUserId, 5);
+
+  let systemPrompt = "You are a helpful assistant.";
+  if (!memories.isPassthrough && memories.systemPromptAddition) {
+    systemPrompt = `${systemPrompt}\n\n${memories.systemPromptAddition}`;
+  }
+
+  const response = await anthropic.messages.create({
+    model: "claude-sonnet-4-20250514",
+    max_tokens: 500,
+    system: systemPrompt,
+    messages: [{ role: "user", content: latestUserMessage }],
+  });
+
+  const firstBlock = response.content[0];
+  if (firstBlock.type === "text") {
+    console.log(firstBlock.text);
+  }
+}
+
+void main();
+```

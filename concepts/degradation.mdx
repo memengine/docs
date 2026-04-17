@@ -1,0 +1,62 @@
+---
+title: "Degradation Modes"
+description: "How MemoryOS behaves when quotas or dependencies force partial service."
+---
+
+MemoryOS exposes a quota and dependency envelope on every request so your application can keep running even when memory behavior changes.
+
+## Modes
+
+| Mode | Meaning | Typical behavior |
+| --- | --- | --- |
+| `FULL` | Normal operation | Reads and writes behave normally |
+| `PASSTHROUGH` | Writes or reads should bypass memory context | Your AI call should continue without MemoryOS context |
+| `DEGRADED_RETRIEVE` | Retrieval is degraded | Retrieval may return fewer or zero memories |
+| `BLOCKED` | Tenant is blocked from memory writes | `add()` may be blocked by governance |
+
+## Response headers
+
+MemoryOS sets these headers on live API responses:
+
+| Header | Meaning |
+| --- | --- |
+| `X-MemoryOS-Quota-Mode` | Current mode |
+| `X-MemoryOS-Budget-Remaining` | Remaining tenant budget percentage |
+| `X-MemoryOS-Quota-Reset` | Next reset timestamp |
+| `X-MemoryOS-Circuit-Status` | Overall dependency health |
+| `X-MemoryOS-Processing` | Write-path processing state (`normal` or `delayed`) |
+
+## The correct `is_passthrough` handling pattern
+
+When you retrieve memories:
+
+```python
+result = client.get(
+    query=user_message,
+    external_user_id="customer-123",
+)
+
+if result.is_passthrough:
+    prompt_addition = ""
+else:
+    prompt_addition = result.system_prompt_addition
+```
+
+Key rule:
+
+- **Still make the LLM call**
+- only skip MemoryOS prompt context when passthrough is active
+
+## Webhook events
+
+Operational webhook events currently include:
+
+- `quota.warning`
+- `quota.critical`
+- `quota.exhausted`
+- `quota.reset`
+- `mode.changed`
+- `processing.delayed`
+- `processing.recovered`
+
+See [Webhooks](/guides/webhooks) for payload and signature verification details.

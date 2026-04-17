@@ -1,0 +1,151 @@
+---
+title: "Webhooks"
+description: "Configure tenant webhooks, understand event types, and verify MemoryOS webhook signatures."
+---
+
+MemoryOS can send signed operational events to a tenant webhook URL.
+
+## Configure the webhook URL
+
+Today, webhook URLs are configured at the tenant level through tenant settings and stored in the tenant budget record.
+
+Common uses:
+
+- quota alerts
+- mode changes
+- processing delay notifications
+- monthly quota resets
+
+## Event types
+
+Current operational webhook events are:
+
+| Event | Meaning |
+| --- | --- |
+| `quota.warning` | Tenant crossed the alert threshold |
+| `quota.critical` | Remaining quota is critically low |
+| `quota.exhausted` | Tenant is exhausted and a quota mode action was applied |
+| `quota.reset` | Monthly quota counters were reset |
+| `mode.changed` | Tenant mode changed |
+| `processing.delayed` | Queue delay crossed the warning threshold |
+| `processing.recovered` | Processing recovered after delay |
+
+## Delivery headers
+
+MemoryOS signs webhook deliveries with these headers:
+
+| Header | Meaning |
+| --- | --- |
+| `X-MemoryOS-Event` | Event name |
+| `X-MemoryOS-Timestamp` | Delivery timestamp |
+| `X-MemoryOS-Signature` | HMAC-SHA256 hex digest of the raw request body |
+
+## Example payload
+
+```json
+{
+  "event": "quota.warning",
+  "tenant_id": "23a1f8b4-4b40-4067-8be0-e3501301b8d8",
+  "timestamp": "2026-04-17T10:30:00Z",
+  "data": {
+    "remaining_pct": 0.17,
+    "threshold_pct": 0.2,
+    "reset_at": "2026-05-01T00:00:00Z",
+    "upgrade_url": "https://api.memoryos.io"
+  },
+  "memoryos_version": "1.0"
+}
+```
+
+## Verify signatures in Python
+
+```python
+import hashlib
+import hmac
+
+
+def verify_memoryos_webhook(
+    body_bytes: bytes,
+    signature_header: str,
+    webhook_secret: str,
+) -> bool:
+    expected = hmac.new(
+        webhook_secret.encode("utf-8"),
+        body_bytes,
+        hashlib.sha256,
+    ).hexdigest()
+    return hmac.compare_digest(expected, signature_header)
+```
+
+## Verify signatures in TypeScript
+
+```ts
+import crypto from "node:crypto";
+
+export function verifyMemoryOSWebhook(
+  body: string,
+  signatureHeader: string,
+  webhookSecret: string,
+): boolean {
+  const expected = crypto
+    .createHmac("sha256", webhookSecret)
+    .update(body, "utf8")
+    .digest("hex");
+
+  return crypto.timingSafeEqual(
+    Buffer.from(expected, "utf8"),
+    Buffer.from(signatureHeader, "utf8"),
+  );
+}
+```
+
+## FastAPI handler example
+
+```python
+import json
+import os
+
+from fastapi import FastAPI, HTTPException, Request
+
+
+app = FastAPI()
+
+
+def verify_memoryos_webhook(body_bytes: bytes, signature_header: str, webhook_secret: str) -> bool:
+    import hashlib
+    import hmac
+
+    expected = hmac.new(
+        webhook_secret.encode("utf-8"),
+        body_bytes,
+        hashlib.sha256,
+    ).hexdigest()
+    return hmac.compare_digest(expected, signature_header)
+
+
+@app.post("/webhooks/memoryos")
+async def memoryos_webhook(request: Request) -> dict:
+    raw_body = await request.body()
+    signature = request.headers.get("X-MemoryOS-Signature")
+
+    if not signature:
+        raise HTTPException(status_code=401, detail="Missing signature")
+
+    webhook_secret = os.environ["MEMORYOS_WEBHOOK_SECRET"]
+    if not verify_memoryos_webhook(raw_body, signature, webhook_secret):
+        raise HTTPException(status_code=401, detail="Invalid signature")
+
+    payload = json.loads(raw_body.decode("utf-8"))
+    event = payload["event"]
+
+    if event == "quota.warning":
+        print("Quota warning received", payload["data"])
+    elif event == "processing.delayed":
+        print("Processing delay received", payload["data"])
+
+    return {"received": True}
+```
+
+## Important note
+
+Verify the HMAC against the **raw request body**, not a re-serialized JSON object. The signature is generated from the raw bytes that MemoryOS sends.

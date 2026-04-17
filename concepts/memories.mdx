@@ -1,0 +1,57 @@
+---
+title: "Memories"
+description: "The MemoryOS memory data model, categories, scoring, and lifecycle."
+---
+
+## Memory data model
+
+Stored memory objects expose these fields in the public API:
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `id` | `string` | Memory id |
+| `content` | `string` | Canonicalized memory text |
+| `category` | `preference \| fact \| goal \| procedure \| relationship \| expertise` | Memory type |
+| `importance_score` | `float` | Relative importance |
+| `confidence_score` | `float` | Extraction confidence |
+| `created_at` | `datetime \| null` | Creation timestamp |
+| `updated_at` | `datetime \| null` | Last update timestamp |
+| `last_accessed_at` | `datetime \| null` | Last retrieval access time |
+| `access_count` | `int` | Retrieval count |
+| `is_archived` | `bool` | Whether the memory is archived |
+| `agent_id` | `string \| null` | Optional agent ownership |
+| `previous_version_id` | `string \| null` | Prior version link |
+| `source_conversation_id` | `string \| null` | Source conversation link |
+| `metadata` | `object` | Custom metadata |
+
+## The six memory categories
+
+| Category | Example |
+| --- | --- |
+| `preference` | "User prefers concise technical explanations." |
+| `fact` | "User works at Acme Robotics." |
+| `goal` | "User is preparing for a cloud certification." |
+| `procedure` | "User wants weekly summaries sent on Fridays." |
+| `relationship` | "User reports to Priya on the data platform team." |
+| `expertise` | "User is experienced with FastAPI and PostgreSQL." |
+
+## Importance scoring
+
+`importance_score` is stored as a numeric value and influences ranking at retrieval time. Higher-importance memories are more likely to survive ranking and remain useful in cold-start retrieval.
+
+## Memory lifecycle
+
+1. **Extracted**
+   Conversation content is analyzed from an ingestion job.
+2. **Stored**
+   Valid extracted memories are written to the database and vector index.
+3. **Retrieved**
+   Matching memories are ranked and returned to your app.
+4. **Decayed**
+   Low-importance stale memories can be archived by the decay cycle if they remain unaccessed long enough.
+
+Current decay behavior archives memories that are:
+
+- not already archived
+- `importance_score < 3`
+- not accessed for more than 30 days

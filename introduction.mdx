@@ -1,0 +1,35 @@
+---
+title: "Introduction"
+description: "What MemoryOS is, how tenant identity works, and where to start."
+---
+
+MemoryOS is a B2B memory API for AI products. It lets you store user-specific memories from conversations and retrieve the most relevant context later so your application can personalize responses without building memory infrastructure from scratch.
+
+## The two-layer identity model
+
+MemoryOS uses two identity layers on every integration:
+
+1. **Tenant identity**
+   Your MemoryOS API key identifies your company or workspace. All quotas, rate limits, webhooks, and billing controls are scoped at the tenant level.
+2. **`external_user_id`**
+   Inside your tenant, every end user is identified by an `external_user_id` that you choose, such as `customer-123`, `acct_7781`, or `user_42`.
+
+That means the same `external_user_id` can exist in two different tenants without colliding, because MemoryOS always evaluates it inside tenant scope.
+
+## What you send
+
+For every write or retrieve request, you authenticate with a tenant API key and pass an `external_user_id` for the end user:
+
+```http
+Authorization: ApiKey mem_...
+```
+
+```json
+{
+  "external_user_id": "customer-123"
+}
+```
+
+## Start here
+
+Go to the [Quickstart](/quickstart) to install the SDK, store your first memory, retrieve it, and use the returned context in an LLM call.
