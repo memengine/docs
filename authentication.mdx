@@ -1,11 +1,14 @@
 ---
 title: "Authentication"
-description: "How API keys work in MemoryOS, common mistakes, and the tenant plus external user identity model."
+description: "How tenant API keys, agent API keys, and UUI tokens work in MemoryOS."
 ---
 
-MemoryOS authenticates B2B API traffic with tenant-scoped API keys.
+MemoryOS has two authentication models:
 
-## API key format
+- **tenant-scoped API auth** for the standard `/v1/memories/*` and tenant dashboard APIs
+- **cross-agent auth** for `/v1/universal/*`, where an agent key and a user UUI token are both required
+
+## Tenant API key format
 
 Send your API key in the `Authorization` header:
 
@@ -14,6 +17,42 @@ Authorization: ApiKey mem_...
 ```
 
 Current MemoryOS keys are generated with the `mem_` prefix.
+
+> Use exactly this header format:
+>
+> ```http
+> Authorization: ApiKey mem_...
+> ```
+>
+> Wrong examples that trigger `AUTH_001`:
+>
+> ```http
+> Authorization: mem_...
+> Authorization: Bearer mem_...
+> X-API-Key: mem_...
+> ```
+
+## Cross-agent auth format
+
+For the universal memory APIs, you send **two credentials together**:
+
+```http
+Authorization: ApiKey agent_sk_...
+X-MemoryOS-UUI: uui_...
+```
+
+- `agent_sk_...` identifies the agent that is requesting access
+- `uui_...` identifies the user who granted or denied that access
+
+If either header is missing or invalid, the universal APIs return:
+
+- `403`
+- `code: UAT_001`
+
+If the agent only has read-only access and tries to write, MemoryOS returns:
+
+- `403`
+- `code: UAT_002`
 
 ## Identity model
 
@@ -32,12 +71,20 @@ Example:
 
 This lets one tenant safely store and retrieve memories for many different users.
 
+For cross-agent memory sharing, the identity model is different:
+
+- **Agent identity** comes from `agent_sk_...`
+- **User identity** comes from `uui_...`
+- **Permission scope** comes from the active grant between that user and that agent
+
 ## Common authentication mistakes
 
 | Mistake | What happens | Correct version |
 | --- | --- | --- |
 | Sending the raw key only | `AUTH_001 unauthorized` | `Authorization: ApiKey mem_...` |
 | Using `Bearer mem_...` | `AUTH_001 unauthorized` | `Authorization: ApiKey mem_...` |
+| Calling `/v1/universal/*` with only one credential | `UAT_001 cross_agent_auth_failed` | Send both `Authorization: ApiKey agent_sk_...` and `X-MemoryOS-UUI: uui_...` |
+| Using a revoked or expired UUI grant | Universal retrieve returns no memories or write is denied | Re-run the consent flow to create an active grant |
 | Forgetting `external_user_id` on tenant routes | `REQ_422` or tenant resolution errors | Always include `external_user_id` in write and retrieve requests |
 | Reusing a key from the wrong tenant | Data is scoped to the wrong workspace | Use one API key per tenant/workspace |
 | Storing the key in browser code | Secret leaks to clients | Keep MemoryOS API keys server-side |
@@ -53,6 +100,17 @@ API keys store a permissions array. Current integrations commonly use these valu
 | `delete` | Delete memories or perform GDPR-style cleanup operations |
 | `admin` | Internal or operational actions where a key needs broad control |
 
+## Cross-agent permission model
+
+Agent API keys do not automatically grant access to user memories.
+
+For universal memory access, all of the following must be true:
+
+1. the agent is active
+2. the user exists and has a valid `uui_...` token
+3. the user granted this specific agent access
+4. the memory category being accessed is inside `categories_allowed`
+
 ## Security best practices
 
 > Keep MemoryOS API keys on the server only.
@@ -62,6 +120,8 @@ API keys store a permissions array. Current integrations commonly use these valu
 > - Use different keys for dev, staging, and production
 > - Never commit keys to source control
 > - Never send MemoryOS API keys to the browser
+> - Never log `uui_...` tokens in analytics or frontend error payloads
+> - Treat `agent_sk_...` keys like any other server-side credential
 
 ## Example
 
@@ -82,3 +142,9 @@ import { MemoryOS } from "@memoryos/sdk";
 
 const client = new MemoryOS(process.env.MEMORYOS_API_KEY!);
 ```
+
+## Related pages
+
+- [Memory Passport](/concepts/memory-passport)
+- [Cross-agent memory sharing](/guides/cross-agent-sharing)
+- [Python SDK reference](/sdk/python)

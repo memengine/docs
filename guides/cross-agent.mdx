@@ -1,0 +1,53 @@
+# Tell your users about MemoryOS
+
+If your app uses MemoryOS Memory Passport, tell users clearly what it is and where they can manage access.
+
+Required product copy:
+
+> We use MemoryOS to remember your preferences across AI apps you use. Manage what other apps can see at `consent.memoryos.io/manage`.
+
+## When to show this
+
+Show this in at least one of these places:
+
+- onboarding
+- settings or integrations
+- the screen where the user clicks "Connect your memory across apps"
+
+## Consent URL generation
+
+Use the universal SDK helper to generate the consent link you send users to:
+
+```python
+from memoryos.universal import UniversalMemory
+
+consent_url = UniversalMemory.consent_url(
+    agent_id="your_global_agent_id",
+    redirect_uri="https://yourapp.com/memoryos/callback",
+    state="user_session_id",  # optional, returned after consent
+)
+
+# Redirect your user to consent_url when they click
+# "Connect your memory across apps"
+```
+
+## Why this matters
+
+Users should not need to discover MemoryOS on their own.
+
+Your app should:
+
+1. explain that MemoryOS is being used
+2. send the user into the consent flow
+3. return them to your app through your own `redirect_uri`
+
+MemoryOS handles:
+
+- user authentication
+- consent
+- permission management
+
+Your app handles:
+
+- the post-consent callback URL
+- the in-app success or denial experience

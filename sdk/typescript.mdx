@@ -1,6 +1,6 @@
 ---
 title: "TypeScript SDK"
-description: "Reference for the MemoryOS TypeScript SDK."
+description: "Reference for the tenant-scoped MemoryOS TypeScript SDK."
 ---
 
 Install the TypeScript SDK:
@@ -16,6 +16,10 @@ import { MemoryOS } from "@memoryos/sdk";
 
 const client = new MemoryOS(process.env.MEMORYOS_API_KEY!);
 ```
+
+> The current TypeScript SDK covers the tenant-scoped MemoryOS API.
+>
+> The new cross-agent Memory Passport flow is available in the backend and Python SDK today, but a dedicated TypeScript universal client has not been published yet.
 
 ## `add()`
 
@@ -159,3 +163,28 @@ Use the REST API directly for those operations:
 - tenant usage: `GET /v1/tenant/usage`
 - current user deletion: `DELETE /v1/users/me`
 - tenant proxy-user deletion: `DELETE /v1/users/{external_user_id}`
+
+## Cross-agent Memory Passport status
+
+If you want to use the Memory Passport flow from TypeScript today, call the backend routes directly:
+
+- `POST /v1/uui/register`
+- `GET /v1/agents/global/{agent_id}`
+- `GET /v1/uui/me/grants`
+- `POST /v1/uui/me/grants`
+- `DELETE /v1/uui/me/grants/{grant_id}`
+- `DELETE /v1/uui/me`
+- `POST /v1/universal/memories/add`
+- `POST /v1/universal/memories/retrieve`
+
+The required headers are:
+
+```http
+Authorization: ApiKey agent_sk_...
+X-MemoryOS-UUI: uui_...
+```
+
+For the product flow and consent UX, see:
+
+- [Memory Passport](/concepts/memory-passport)
+- [Cross-agent memory sharing](/guides/cross-agent-sharing)

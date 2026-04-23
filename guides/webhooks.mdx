@@ -51,7 +51,7 @@ MemoryOS signs webhook deliveries with these headers:
     "remaining_pct": 0.17,
     "threshold_pct": 0.2,
     "reset_at": "2026-05-01T00:00:00Z",
-    "upgrade_url": "https://api.memoryos.io"
+    "upgrade_url": "https://app.memoryos.io/pricing"
   },
   "memoryos_version": "1.0"
 }
@@ -149,3 +149,4 @@ async def memoryos_webhook(request: Request) -> dict:
 ## Important note
 
 Verify the HMAC against the **raw request body**, not a re-serialized JSON object. The signature is generated from the raw bytes that MemoryOS sends.
+

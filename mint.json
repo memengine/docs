@@ -1,54 +1,58 @@
 {
-    "$schema":  "https://mintlify.com/schema.json",
-    "name":  "MemoryOS",
-    "theme":  "quill",
-    "colors":  {
-                   "primary":  "#2E75B6",
-                   "dark":  "#1B3A5C"
-               },
-    "api":  {
-                "baseUrl":  "https://api.memoryos.io"
-            },
-    "navigation":  [
-                       {
-                           "group":  "Getting Started",
-                           "pages":  [
-                                         "introduction",
-                                         "quickstart",
-                                         "authentication"
-                                     ]
-                       },
-                       {
-                           "group":  "SDKs",
-                           "pages":  [
-                                         "sdk/python",
-                                         "sdk/typescript"
-                                     ]
-                       },
-                       {
-                           "group":  "API Reference",
-                           "pages":  [
-                                         "api-reference/add",
-                                         "api-reference/retrieve",
-                                         "api-reference/errors"
-                                     ]
-                       },
-                       {
-                           "group":  "Concepts",
-                           "pages":  [
-                                         "concepts/quality-gate",
-                                         "concepts/degradation",
-                                         "concepts/memories"
-                                     ]
-                       },
-                       {
-                           "group":  "Guides",
-                           "pages":  [
-                                         "guides/openai",
-                                         "guides/anthropic",
-                                         "guides/webhooks"
-                                     ]
-                       }
-                   ],
-    "favicon":  "/favicon.ico"
+  "$schema": "https://mintlify.com/schema.json",
+  "name": "MemoryOS",
+  "theme": "quill",
+  "colors": {
+    "primary": "#2E75B6",
+    "dark": "#1B3A5C"
+  },
+  "api": {
+    "baseUrl": "https://api.memoryos.io"
+  },
+  "navigation": [
+    {
+      "group": "Getting Started",
+      "pages": [
+        "introduction",
+        "quickstart",
+        "authentication"
+      ]
+    },
+    {
+      "group": "SDKs",
+      "pages": [
+        "sdk/python",
+        "sdk/typescript"
+      ]
+    },
+    {
+      "group": "API Reference",
+      "pages": [
+        "api-reference/add",
+        "api-reference/retrieve",
+        "api-reference/errors"
+      ]
+    },
+    {
+      "group": "Concepts",
+      "pages": [
+        "concepts/quality-gate",
+        "concepts/degradation",
+        "concepts/memories",
+        "concepts/memory-passport",
+        "concepts/rate-limits"
+      ]
+    },
+    {
+      "group": "Guides",
+      "pages": [
+        "guides/openai",
+        "guides/anthropic",
+        "guides/cross-agent",
+        "guides/cross-agent-sharing",
+        "guides/webhooks"
+      ]
+    }
+  ],
+  "favicon": "/favicon.ico"
 }

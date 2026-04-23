@@ -40,6 +40,12 @@ Current public and semi-public API surfaces emit the following codes.
 | `AUTH_002` | Tenant not found | JWT org is valid but not mapped to a MemoryOS tenant |
 | `AUTH_003` | Organization required | Clerk JWT is valid but no org is active |
 | `AUTH_403` | Tenant auth required | Route expected tenant context but none was resolved |
+| `UAT_001` | Cross-agent auth failed | Missing or invalid `agent_sk_...` key or `uui_...` token |
+| `UAT_002` | Write not permitted | Agent grant is read-only and attempted a universal write |
+| `UUI_001` | Invalid UUI token | Missing, revoked, or unknown Memory Passport token |
+| `UUI_404` | Universal user not found | Delete request targeted a user that no longer exists |
+| `GNT_404` | Permission grant not found | Revoke request referenced a grant outside this user scope |
+| `AGN_404` | Global agent not found | Consent or public agent lookup used an invalid agent id |
 | `REQ_422` | Validation error | Missing required fields, wrong types, or empty content |
 | `MEM_404` | Memory not found | Memory id does not exist or is out of scope |
 | `JOB_404` | Job not found | Extraction job id does not exist or is not visible to the tenant |
@@ -54,3 +60,12 @@ Current public and semi-public API surfaces emit the following codes.
 | `HTTP_ERROR` | Generic HTTP exception | Framework-level HTTP exception |
 
 > Current releases do **not** emit `VAL_*` codes. Validation failures are returned as `REQ_422`.
+
+## Consent and universal-memory note
+
+Some Memory Passport flows are intentionally **not** error-driven:
+
+- `POST /v1/universal/memories/retrieve` returns an empty list with `permission_error: "no_grant_for_user"` when a user has not granted this agent access
+- revocation therefore looks like a clean empty retrieve result, not a `403`
+
+That behavior is deliberate so an agent cannot use error differences to learn more than the user granted.

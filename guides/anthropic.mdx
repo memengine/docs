@@ -3,6 +3,10 @@ title: "Anthropic Integration"
 description: "Complete working MemoryOS integration with Anthropic Claude."
 ---
 
+This guide covers the **tenant-scoped** MemoryOS pattern for one application remembering its own users by `external_user_id`.
+
+If you want the new user-controlled cross-agent flow, see [Cross-agent memory sharing](/guides/cross-agent-sharing).
+
 This pattern is the same as OpenAI:
 
 1. add memories during the conversation
@@ -107,3 +111,9 @@ async function main(): Promise<void> {
 
 void main();
 ```
+
+## Production notes
+
+- keep `MEMORYOS_API_KEY` on the server
+- continue the Claude call even when MemoryOS is in passthrough
+- use Memory Passport only when the same person is intentionally sharing memory across multiple agents

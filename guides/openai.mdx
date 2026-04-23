@@ -3,6 +3,10 @@ title: "OpenAI Integration"
 description: "Complete working MemoryOS integration with the OpenAI Python and TypeScript SDKs."
 ---
 
+This guide covers the **tenant-scoped** MemoryOS pattern for one application remembering its own users by `external_user_id`.
+
+If you want the new user-controlled cross-agent flow, see [Cross-agent memory sharing](/guides/cross-agent-sharing).
+
 This guide shows the recommended pattern:
 
 1. write memories as conversation facts emerge
@@ -117,3 +121,4 @@ void main();
 - keep `MEMORYOS_API_KEY` on the server
 - do not fail the LLM call when MemoryOS is in passthrough
 - treat `system_prompt_addition` as optional context, not as a hard dependency
+- use Memory Passport only when the same person is intentionally granting access across multiple agents

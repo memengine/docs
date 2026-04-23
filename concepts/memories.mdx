@@ -1,7 +1,14 @@
 ---
 title: "Memories"
-description: "The MemoryOS memory data model, categories, scoring, and lifecycle."
+description: "The MemoryOS memory model for both tenant-scoped and universal memories."
 ---
+
+MemoryOS now supports two memory domains:
+
+- **tenant-scoped memories** stored for a specific tenant plus `external_user_id`
+- **universal memories** stored for a Memory Passport user and shared only with agents that were granted access
+
+The memory object shape is similar across both systems, but the identity and permission model is different.
 
 ## Memory data model
 
@@ -23,6 +30,16 @@ Stored memory objects expose these fields in the public API:
 | `previous_version_id` | `string \| null` | Prior version link |
 | `source_conversation_id` | `string \| null` | Source conversation link |
 | `metadata` | `object` | Custom metadata |
+
+## Tenant memory vs universal memory
+
+| Dimension | Tenant-scoped memory | Universal memory |
+| --- | --- | --- |
+| Owner | A tenant workspace | A Memory Passport user |
+| User identity | `external_user_id` | `uui_...` |
+| Access model | Tenant API key | Agent API key + UUI grant |
+| Primary use case | App personalization inside one product | Cross-agent memory sharing with user consent |
+| Isolation boundary | Tenant | User plus granted categories |
 
 ## The six memory categories
 
@@ -55,3 +72,18 @@ Current decay behavior archives memories that are:
 - not already archived
 - `importance_score < 3`
 - not accessed for more than 30 days
+
+## Universal memory lifecycle
+
+Universal memories follow the same extraction and ranking ideas, but with one extra rule:
+
+1. the user creates a Memory Passport
+2. an agent requests access to one or more categories
+3. the user grants or revokes access
+4. only then can that agent write or retrieve universal memories for that user
+5. revocation removes future access without exposing what other agents can see
+
+## Related pages
+
+- [Memory Passport](/concepts/memory-passport)
+- [Cross-agent memory sharing](/guides/cross-agent-sharing)

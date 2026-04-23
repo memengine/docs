@@ -1,14 +1,16 @@
 ---
 title: "Quickstart"
-description: "Install the SDK, store a memory, retrieve it, and use MemoryOS in a real AI call."
+description: "Install the SDK, store a tenant-scoped memory, retrieve it, and use MemoryOS in a real AI call."
 ---
 
-This quickstart shows the fastest end-to-end path:
+This quickstart covers the fastest tenant-scoped path:
 
 1. Install the SDK
 2. Store a memory
 3. Retrieve memories
 4. Use the returned context in an OpenAI call
+
+If you are looking for the new cross-agent Memory Passport flow, jump to [Cross-agent memory sharing](/guides/cross-agent-sharing).
 
 ## Step 1: Install the SDK
 
@@ -231,3 +233,12 @@ void main();
 - if `is_passthrough` is `true`, you should continue the AI call without MemoryOS context
 
 Next: read [Authentication](/authentication) for key format, permissions, and the tenant plus `external_user_id` identity model.
+## Next steps
+
+See the full [Python SDK reference](/sdk/python) and [TypeScript SDK reference](/sdk/typescript).
+
+For the Memory Passport flow, also see:
+
+- [Memory Passport](/concepts/memory-passport)
+- [Cross-agent memory sharing](/guides/cross-agent-sharing)
+

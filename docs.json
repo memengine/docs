@@ -37,7 +37,9 @@
         "pages": [
           "concepts/quality-gate",
           "concepts/degradation",
-          "concepts/memories"
+          "concepts/memories",
+          "concepts/memory-passport",
+          "concepts/rate-limits"
         ]
       },
       {
@@ -45,6 +47,8 @@
         "pages": [
           "guides/openai",
           "guides/anthropic",
+          "guides/cross-agent",
+          "guides/cross-agent-sharing",
           "guides/webhooks"
         ]
       }

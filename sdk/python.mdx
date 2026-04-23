@@ -1,6 +1,6 @@
 ---
 title: "Python SDK"
-description: "Reference for the MemoryOS Python SDK, including the sync and async clients."
+description: "Reference for the MemoryOS Python SDK, including tenant-scoped memory clients and the universal Memory Passport client."
 ---
 
 Install the Python SDK:
@@ -13,9 +13,11 @@ pip install memoryos
 
 - Sync client: `Memory`
 - Async client: `AsyncMemory`
+- Universal cross-agent client: `UniversalMemory`
 
 ```python
 from memoryos import AsyncMemory, Memory
+from memoryos.universal import UniversalMemory
 ```
 
 ## Memory
@@ -185,7 +187,7 @@ from memoryos import AsyncMemory
 
 
 async def main() -> None:
-    async with AsyncMemory(api_key="mem_...") as client:
+async with AsyncMemory(api_key="mem_...") as client:
         add_result = await client.add(
             messages=[{"role": "user", "content": "I prefer weekly summaries."}],
             external_user_id="customer-123",
@@ -203,3 +205,120 @@ async def main() -> None:
 
 asyncio.run(main())
 ```
+
+## UniversalMemory
+
+`UniversalMemory` is the cross-agent client for the Memory Passport flow. It uses:
+
+- an **agent API key** (`agent_sk_...`)
+- a **user UUI token** (`uui_...`)
+
+Import it from the dedicated module:
+
+```python
+from memoryos.universal import UniversalMemory
+
+client = UniversalMemory(
+    agent_api_key="agent_sk_...",
+    uui_token="uui_...",
+    base_url="https://api.memoryos.io",
+)
+```
+
+### `add()`
+
+```python
+from memoryos.universal import UniversalMemory
+
+client = UniversalMemory(
+    agent_api_key="agent_sk_...",
+    uui_token="uui_...",
+)
+
+result = client.add(
+    messages=[
+        {
+            "role": "user",
+            "content": "Please remember that I am strongest in FastAPI, PostgreSQL, and retrieval systems."
+        }
+    ],
+    metadata={"source": "consent-demo"},
+)
+```
+
+#### Parameters
+
+| Parameter | Type | Required | Notes |
+| --- | --- | --- | --- |
+| `messages` | `list[dict[str, str]] \| list[ConversationMessage]` | Yes | Same message shape as tenant-scoped `add()` |
+| `metadata` | `dict[str, Any] \| None` | No | Optional JSON metadata |
+
+#### Behavior
+
+- writes to `/v1/universal/memories/add`
+- uses the active UUI grant to determine whether the agent may write
+- returns `403 UAT_002` if the grant is read-only
+- stores results in the universal memory collection, not the tenant-scoped memory collection
+
+### `get()`
+
+```python
+from memoryos.universal import UniversalMemory
+
+client = UniversalMemory(
+    agent_api_key="agent_sk_...",
+    uui_token="uui_...",
+)
+
+result = client.get(
+    query="What do you know about my technical strengths?",
+    limit=5,
+)
+
+print(result.permission_error)
+print(result.categories_available)
+for item in result.items:
+    print(item.content)
+```
+
+#### Parameters
+
+| Parameter | Type | Required | Notes |
+| --- | --- | --- | --- |
+| `query` | `str` | Yes | Natural-language retrieval query |
+| `limit` | `int` | No | Default `10` |
+
+#### Additional return fields
+
+In addition to the normal `RetrieveResult` fields, universal retrieval adds:
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `permission_error` | `str \| None` | Permission-related explanation such as `no_grant_for_user` |
+| `categories_available` | `list[str]` | Categories this agent is currently allowed to read |
+
+#### Empty result behavior
+
+If the user has not granted this agent access, MemoryOS returns:
+
+- `items = []`
+- `permission_error = "no_grant_for_user"`
+- `categories_available = []`
+
+### Lifecycle
+
+```python
+from memoryos.universal import UniversalMemory
+
+with UniversalMemory(
+    agent_api_key="agent_sk_...",
+    uui_token="uui_...",
+) as client:
+    result = client.get("What do you know about this user?", limit=5)
+    print(len(result.items))
+```
+
+## Related pages
+
+- [Memory Passport](/concepts/memory-passport)
+- [Cross-agent memory sharing](/guides/cross-agent-sharing)

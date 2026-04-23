@@ -1,0 +1,49 @@
+---
+title: "Rate Limits"
+description: "Per-user request rates and plan-level usage limits for MemoryOS tenants."
+---
+
+MemoryOS applies two kinds of limits:
+
+- **Per-user rate limits** to protect the system from burst traffic
+- **Plan limits** for monthly call and token usage
+
+If you are wondering how many requests you can make per minute, the answer depends on your tenant's plan tier.
+
+## Per-user requests per minute
+
+| Plan | Requests per user per minute |
+| --- | --- |
+| Free | 3 |
+| Starter | 10 |
+| Growth | 30 |
+| Enterprise | Unlimited |
+
+These limits are enforced per `external_user_id`, not across your whole tenant.
+
+## Plan limits
+
+| Plan | Monthly calls | Monthly tokens | Write calls | Retrieval calls |
+| --- | ---: | ---: | ---: | --- |
+| Free | 5,000 | 2,000,000 | 5,000 | Unlimited |
+| Starter | 50,000 | 25,000,000 | 50,000 | Unlimited |
+| Growth | 500,000 | 250,000,000 | 500,000 | Unlimited |
+| Enterprise | Unlimited | Unlimited | Unlimited | Unlimited |
+
+## How to think about these limits
+
+- **Monthly calls** are total requests across the billing month
+- **Monthly tokens** are the extraction tokens counted toward your plan budget
+- **Write calls** are memory creation requests such as `add()`
+- **Retrieval calls** cover memory lookups and are unlimited on current public plans
+
+## What happens when you hit a limit
+
+Behavior depends on your tenant's current quota mode and overage policy:
+
+- `FULL` means requests are processed normally
+- `PASSTHROUGH` means MemoryOS skips storage and your app should continue without memory
+- `DEGRADED_RETRIEVE` means writes may pause while retrieval continues in reduced mode
+- `BLOCKED` means the request is rejected until budget resets or the plan changes
+
+See [Degradation](/concepts/degradation) for the exact handling pattern and response headers.

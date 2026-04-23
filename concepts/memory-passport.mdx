@@ -1,0 +1,115 @@
+---
+title: "Memory Passport"
+description: "How MemoryOS lets a user create one identity and control what each AI agent can access."
+---
+
+Memory Passport is the user-controlled identity layer in MemoryOS. It lets one person create a universal memory identity, keep a single `uui_...` token, and decide which agents can access which categories of memory.
+
+## Why Memory Passport exists
+
+Tenant-scoped memory is great when one application wants to remember its own users.
+
+Memory Passport solves a different problem:
+
+- the same person uses multiple AI agents
+- those agents should not automatically share everything
+- the person should be able to approve, deny, revoke, or delete access themselves
+
+That makes Memory Passport a privacy layer as much as a memory layer.
+
+## Core objects
+
+### Universal user
+
+When a person registers, MemoryOS creates a universal user and returns a token shaped like:
+
+```text
+uui_...
+```
+
+This token is shown exactly once and is later used for:
+
+- managing grants
+- consenting to agent access
+- authenticating universal memory actions
+
+### Global agent
+
+A global agent is an agent profile that can request Memory Passport access. It has:
+
+- a public profile
+- a verification status
+- requested default categories
+- an `agent_sk_...` API key for universal memory APIs
+
+### Permission grant
+
+A permission grant connects:
+
+- one Memory Passport user
+- one global agent
+- one set of allowed categories
+- one access mode (`read_only` or `read_write`)
+- an optional expiry
+
+## Category-scoped sharing
+
+Memory Passport grants are category-scoped, not all-or-nothing.
+
+Current categories are:
+
+- `preference`
+- `fact`
+- `goal`
+- `procedure`
+- `relationship`
+- `expertise`
+
+That means a user can approve:
+
+- `preference` and `expertise`
+
+while still withholding:
+
+- `goal`
+- `relationship`
+- `fact`
+- `procedure`
+
+## Auth model
+
+Universal memory access requires both:
+
+```http
+Authorization: ApiKey agent_sk_...
+X-MemoryOS-UUI: uui_...
+```
+
+The agent key identifies **who is asking**.
+
+The UUI token identifies **which user granted access**.
+
+MemoryOS then checks whether there is an active grant for that agent and whether the requested category is allowed.
+
+## Grant lifecycle
+
+1. user creates a Memory Passport
+2. agent sends the user to a consent URL
+3. user approves specific categories
+4. agent can read or write only within that grant
+5. user can revoke the grant at any time
+6. user can delete the entire Memory Passport and all universal memories
+
+## Privacy guarantees
+
+Memory Passport is designed so that:
+
+- an agent cannot infer what other agents were granted
+- revoking a grant removes future access
+- deleting the Memory Passport removes universal memories and active grants
+
+## Related pages
+
+- [Cross-agent memory sharing](/guides/cross-agent-sharing)
+- [Python SDK](/sdk/python)
+- [Authentication](/authentication)
