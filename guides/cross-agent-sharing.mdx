@@ -1,0 +1,258 @@
+---
+title: "Cross-agent Memory Sharing"
+description: "Use Memory Passport so a user can approve what each agent is allowed to read or write across agents."
+---
+
+This guide covers the **Memory Passport** flow in MemoryOS.
+
+Use this flow when:
+
+- one person uses multiple AI agents
+- those agents should not automatically share everything
+- the user must explicitly approve what each agent can access
+
+For the standard single-app pattern, use the tenant-scoped [Quickstart](/quickstart) instead.
+
+## The model in one minute
+
+Memory Passport adds three new concepts on top of tenant memory:
+
+- a **universal user** who signs in to the consent app with email and OTP
+- a **global agent** with its own `agent_sk_...` API key
+- a **permission grant** that limits access by category and access mode
+
+Universal memory API calls always require both machine credentials:
+
+```http
+Authorization: ApiKey agent_sk_...
+X-MemoryOS-UUI: uui_...
+```
+
+## Supported categories
+
+Current Memory Passport categories are:
+
+- `preference`
+- `fact`
+- `goal`
+- `procedure`
+- `relationship`
+- `expertise`
+
+> `health` is **not** a valid category in the current backend and should not be requested.
+
+## Step 1: Send the user to consent
+
+The tenant app should not ask the user to handle a raw `uui_...` token. Instead, generate a consent URL and redirect the user there when they choose to connect Memory Passport.
+
+```python
+from memoryos.universal import UniversalMemory
+
+consent_url = UniversalMemory.consent_url(
+    agent_id="your_global_agent_id",
+    redirect_uri="https://yourapp.com/memoryos/callback",
+    state="user_session_id",
+)
+```
+
+The consent app handles three human states inline:
+
+- new user: inline account creation, then OTP verification
+- existing user: email plus OTP login
+- active session: consent screen immediately
+
+After approval, MemoryOS redirects back to your `redirect_uri` with `status` and optional `state`.
+
+## Step 2: Show the agent profile before consent
+
+Before asking for access, load the public profile for the agent:
+
+```bash
+curl https://api.memoryos.io/v1/agents/global/2beab5d0-741d-4ff8-9475-c29d9ea5a57e
+```
+
+Example response:
+
+```json
+{
+  "request_id": "9482768d-c938-474d-bdc8-f54e1ec21be7",
+  "timestamp": "2026-04-21T08:46:02.101Z",
+  "data": {
+    "id": "2beab5d0-741d-4ff8-9475-c29d9ea5a57e",
+    "name": "Support Copilot",
+    "description": "Customer support agent with access to approved user context.",
+    "logo_url": null,
+    "website_url": "https://example.com",
+    "is_verified": false,
+    "default_categories_requested": ["preference", "expertise"]
+  }
+}
+```
+
+Use this data in the consent UI so the user sees:
+
+- who is requesting access
+- whether the agent is verified
+- which categories the agent is asking for
+
+## Step 3: Permission grant creation
+
+When the user approves access in the consent app, MemoryOS creates the grant using the user's session. Your app normally does not call this endpoint directly from its backend.
+
+For development and custom consent surfaces, the endpoint accepts a MemoryOS session token:
+
+```bash
+curl -X POST https://api.memoryos.io/v1/uui/me/grants \
+  -H "Content-Type: application/json" \
+  -H "X-MemoryOS-Session: <session_jwt>" \
+  -d '{
+    "agent_id": "2beab5d0-741d-4ff8-9475-c29d9ea5a57e",
+    "categories_allowed": ["preference", "expertise"],
+    "access_type": "read_write",
+    "expires_at": "2026-07-23T00:00:00Z"
+  }'
+```
+
+Rules:
+
+- `access_type` may be `read_only` or `read_write`
+- grant creation is idempotent per user plus agent pair
+- the user can revoke the grant at any time from `consent.memoryos.io/manage`
+
+## Step 4: Add universal memories
+
+Once the grant exists, the agent can write universal memories if the grant is `read_write`.
+
+### Python SDK
+
+```python
+from memoryos.universal import UniversalMemory
+
+
+with UniversalMemory(
+    agent_api_key="agent_sk_...",
+    uui_token="uui_...",
+) as memory:
+    result = memory.add(
+        messages=[
+            {
+                "role": "user",
+                "content": "Please remember that I prefer short, structured explanations and Python examples.",
+            }
+        ],
+        metadata={"source": "consent-guide"},
+    )
+
+    print(result.status)
+    print(result.quota_mode)
+```
+
+### REST API
+
+```bash
+curl -X POST https://api.memoryos.io/v1/universal/memories/add \
+  -H "Content-Type: application/json" \
+  -H "Authorization: ApiKey agent_sk_..." \
+  -H "X-MemoryOS-UUI: uui_..." \
+  -d '{
+    "messages": [
+      {
+        "role": "user",
+        "content": "Please remember that I prefer short, structured explanations and Python examples."
+      }
+    ],
+    "metadata": {
+      "source": "consent-guide"
+    }
+  }'
+```
+
+If the grant is `read_only`, MemoryOS returns:
+
+- `403`
+- `code: UAT_002`
+
+## Step 5: Retrieve universal memories
+
+The agent can then retrieve only the categories this user granted.
+
+### Python SDK
+
+```python
+from memoryos.universal import UniversalMemory
+
+
+with UniversalMemory(
+    agent_api_key="agent_sk_...",
+    uui_token="uui_...",
+) as memory:
+    result = memory.get(
+        query="How should I tailor the response?",
+        limit=5,
+    )
+
+    print(result.categories_available)
+    print(result.permission_status)
+    print(result.system_prompt_addition)
+```
+
+### REST API
+
+```bash
+curl -X POST https://api.memoryos.io/v1/universal/memories/retrieve \
+  -H "Content-Type: application/json" \
+  -H "Authorization: ApiKey agent_sk_..." \
+  -H "X-MemoryOS-UUI: uui_..." \
+  -d '{
+    "query": "How should I tailor the response?",
+    "limit": 5,
+    "format": "bullets"
+  }'
+```
+
+Response behavior:
+
+- if a grant exists, MemoryOS searches the `universal_memories` collection and returns prompt-ready context
+- if no grant exists, MemoryOS returns an empty list with:
+  - `permission_error: "no_grant_for_user"`
+- if the grant was revoked, the next retrieve becomes empty without exposing anything else about that user
+
+## Step 6: Let the user manage or revoke access
+
+Human users manage active grants in the consent app:
+
+- `https://consent.memoryos.io/manage`
+
+The manage page uses email plus OTP login. It can list active grants, revoke one grant, and delete the user's Memory Passport data.
+
+## TypeScript SDK
+
+The TypeScript SDK includes a separate universal client:
+
+```ts
+import { UniversalMemoryOS } from "@memoryos/sdk";
+
+const consentUrl = UniversalMemoryOS.consentUrl(
+  "your_global_agent_id",
+  "https://yourapp.com/memoryos/callback",
+  userSessionId,
+);
+
+const memory = new UniversalMemoryOS("agent_sk_...", "uui_...");
+const result = await memory.get("How should I personalize this answer?", 5);
+```
+
+## Privacy guarantees
+
+Memory Passport is designed so that:
+
+- one agent cannot see which other agents were granted access
+- a denied or revoked grant produces empty retrieve results rather than leaking metadata
+- universal memories are stored separately from tenant-scoped `/v1/memories/*` data
+
+## Related pages
+
+- [Memory Passport](/concepts/memory-passport)
+- [Authentication](/authentication)
+- [Python SDK](/sdk/python)
+- [TypeScript SDK](/sdk/typescript)
