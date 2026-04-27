@@ -1,0 +1,223 @@
+---
+title: "TypeScript SDK"
+description: "Reference for the MemoryOS TypeScript SDK, including tenant-scoped memory and the universal Memory Passport client."
+---
+
+Install the TypeScript SDK:
+
+```bash
+npm install @memoryos/sdk
+```
+
+## Clients
+
+- Tenant-scoped client: `MemoryOS`
+- Universal cross-agent client: `UniversalMemoryOS`
+
+```ts
+import { MemoryOS, UniversalMemoryOS } from "@memoryos/sdk";
+
+const client = new MemoryOS(process.env.MEMORYOS_API_KEY!);
+```
+
+Use `MemoryOS` for normal workspace memory inside your tenant. Use `UniversalMemoryOS` only after a user has granted your global agent access through Memory Passport.
+
+## `add()`
+
+```ts
+const result = await client.add(
+  [{ role: "user", content: "I prefer concise technical explanations." }],
+  "customer-123",
+  "support-bot",
+  { source: "chat" },
+);
+```
+
+### Parameters
+
+| Parameter | Type | Required | Notes |
+| --- | --- | --- | --- |
+| `messages` | `ConversationMessage[]` | Yes | At least one message |
+| `externalUserId` | `string` | Yes | End-user identifier inside your tenant |
+| `agentId` | `string \| undefined` | No | Optional agent identifier |
+| `metadata` | `Record<string, unknown> \| undefined` | No | Optional metadata |
+
+### Return fields
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `jobId` | `string \| null` | Extraction job id when queued |
+| `status` | `string` | Current add outcome |
+| `blockedReason` | `string \| null` | Reason when blocked |
+| `retryAfterSeconds` | `number \| null` | Retry hint for L1 blocks |
+| `budgetRemainingPct` | `number \| null` | Remaining tenant budget percentage |
+| `quotaMode` | `"FULL" \| "PASSTHROUGH" \| "DEGRADED_RETRIEVE" \| "BLOCKED"` | Quota mode from headers |
+| `processingEtaSeconds` | `number \| null` | Queue ETA when delayed |
+| `processingStatus` | `"normal" \| "delayed"` | Background ingestion health |
+| `circuitStatus` | `"HEALTHY" \| "DEGRADED" \| "CRITICAL"` | Platform dependency status |
+
+### Status outcomes
+
+| `status` value | Meaning | Typical action |
+| --- | --- | --- |
+| `queued` | Request accepted and job queued | Track the job if needed |
+| `passthrough` | Writes are bypassed in the current quota mode | Continue without persistence |
+| `L1` | Per-user rate limit exceeded | Retry after `retryAfterSeconds` |
+| `L2` | Low-quality input was blocked | Improve message quality |
+| `L3` | Duplicate query was blocked | Avoid near-identical writes |
+| `L4` | Budget governance blocked the request | Upgrade or wait for reset |
+| `blocked` | Internal gate fallback | Retry later |
+
+## `get()`
+
+```ts
+const memories = await client.get(
+  "How should I answer this user?",
+  "customer-123",
+  5,
+  ["preference", "goal"],
+);
+```
+
+### Parameters
+
+| Parameter | Type | Required | Notes |
+| --- | --- | --- | --- |
+| `query` | `string` | Yes | Natural-language retrieval query |
+| `externalUserId` | `string` | Yes | End-user identifier inside your tenant |
+| `limit` | `number` | No | Default `10` |
+| `categories` | `MemoryCategory[] \| undefined` | No | Optional category filter |
+
+### Return fields
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `items` | `MemoryItem[]` | Retrieved memories |
+| `cached` | `boolean` | Whether the result came from the hot cache |
+| `systemPromptAddition` | `string` | Prompt-ready context block |
+| `quotaMode` | `"FULL" \| "PASSTHROUGH" \| "DEGRADED_RETRIEVE" \| "BLOCKED"` | Quota mode |
+| `isPassthrough` | `boolean` | Skip memory context when `true` |
+| `isDegraded` | `boolean` | Retrieval is degraded when `true` |
+| `circuitStatus` | `"HEALTHY" \| "DEGRADED" \| "CRITICAL"` | Platform dependency status |
+
+## UniversalMemoryOS
+
+```ts
+import { UniversalMemoryOS } from "@memoryos/sdk";
+
+const universal = new UniversalMemoryOS(
+  process.env.MEMORYOS_AGENT_API_KEY!,
+  userUuiToken,
+);
+```
+
+The universal client is independent from `MemoryOS`. It uses agent credentials and a user UUI token:
+
+- `Authorization: ApiKey agent_sk_...`
+- `X-MemoryOS-UUI: uui_...`
+
+### `UniversalMemoryOS.consentUrl()`
+
+```ts
+const consentUrl = UniversalMemoryOS.consentUrl(
+  "your_global_agent_id",
+  "https://yourapp.com/memoryos/callback",
+  userSessionId,
+);
+```
+
+Redirect users to this URL when they click a control such as "Connect your memory across apps".
+
+### `universal.add()`
+
+```ts
+const result = await universal.add(
+  [{ role: "user", content: "I prefer short technical answers." }],
+  { source: "chat" },
+);
+```
+
+### `universal.get()`
+
+```ts
+const result = await universal.get("How should I personalize this answer?", 5);
+```
+
+Universal retrieve responses include the normal retrieve fields plus:
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `categoriesAvailable` | `string[]` | Memory categories the user granted this agent |
+| `permissionStatus` | `string \| null` | Permission status, such as `no_grant_for_user`, when no active grant exists |
+
+### Degradation handling pattern
+
+```ts
+const result = await client.get(
+  "What should I remember about this user?",
+  "customer-123",
+);
+
+const promptAddition = result.isPassthrough
+  ? ""
+  : result.systemPromptAddition;
+```
+
+## `delete()`
+
+```ts
+const deleted = await client.delete(
+  "1c5d5ab6-73c8-4b12-90e9-0f7f9db8db4f",
+  "customer-123",
+  false,
+);
+```
+
+## `list()`
+
+```ts
+const page = await client.list("customer-123", { limit: 50 });
+
+for (const memory of page.items) {
+  console.log(memory.content);
+}
+```
+
+Returns:
+
+- `items`
+- `nextCursor`
+- `limit`
+- `total`
+
+## `export()`
+
+```ts
+const bundle = await client.export("customer-123");
+```
+
+Returns a `MemoryExport` object with:
+
+- `user`
+- `memories`
+- `apiKeys`
+- `agents`
+
+> `export()` currently maps to the user export endpoint, not a tenant-wide export endpoint.
+
+## `getUsage()` and `deleteUser()`
+
+The current TypeScript SDK does **not** expose `getUsage()` or `deleteUser()` yet.
+
+Use the REST API directly for those operations:
+
+- tenant usage: `GET /v1/tenant/usage`
+- current user deletion: `DELETE /v1/users/me`
+- tenant proxy-user deletion: `DELETE /v1/users/{external_user_id}`
+
+## Related pages
+
+For the product flow and consent UX, see:
+
+- [Memory Passport](/concepts/memory-passport)
+- [Cross-agent memory sharing](/guides/cross-agent-sharing)
