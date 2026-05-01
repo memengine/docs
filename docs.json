@@ -29,15 +29,18 @@
         "pages": [
           "api-reference/add",
           "api-reference/retrieve",
+          "api-reference/universal",
           "api-reference/errors"
         ]
       },
       {
         "group": "Concepts",
         "pages": [
+          "concepts/memory-engine",
           "concepts/quality-gate",
           "concepts/degradation",
           "concepts/memories",
+          "concepts/memory-lifecycle",
           "concepts/memory-passport",
           "concepts/rate-limits"
         ]
@@ -49,6 +52,7 @@
           "guides/anthropic",
           "guides/cross-agent",
           "guides/cross-agent-sharing",
+          "guides/operator-health",
           "guides/webhooks"
         ]
       }

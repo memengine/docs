@@ -1,0 +1,109 @@
+---
+title: "MemoryEngine"
+description: "How MemoryOS extracts, ranks, formats, and protects AI memory."
+---
+
+MemoryEngine is the runtime engine behind MemoryOS. It turns conversations into durable memories, retrieves the right memories later, and produces prompt-ready context for your AI application.
+
+It is not just a vector search layer. MemoryEngine combines extraction, quality gates, conflict resolution, importance scoring, lifecycle cleanup, version history, and graceful degradation.
+
+## Write path
+
+When your app calls `POST /v1/memories/add`, MemoryEngine does not immediately write raw chat text into memory.
+
+The write path is:
+
+1. Validate tenant auth and `external_user_id`
+2. Run the quality gate
+3. Create an extraction job
+4. Extract durable memories from the conversation
+5. Resolve conflicts against existing memories
+6. Store canonical memories in PostgreSQL
+7. Write embeddings to Qdrant for retrieval
+8. Record memory versions for audit and debugging
+
+The request returns quickly with a `job_id`. Extraction runs in the background.
+
+## Read path
+
+When your app calls `POST /v1/memories/retrieve`, MemoryEngine retrieves memories and builds context that can be prepended to your model prompt.
+
+The read path is:
+
+1. Resolve the tenant and user
+2. Check quota and dependency mode
+3. Load hot-tier memories from Redis when available
+4. Search vector memory for remaining slots
+5. Rank with semantic relevance, importance, and recency
+6. Filter archived and out-of-scope memories
+7. Build `system_prompt_addition`
+
+The returned `system_prompt_addition` is the safest field to pass into your LLM call.
+
+## ContextBuilder
+
+ContextBuilder turns retrieved memories into high-quality model context.
+
+Supported formats:
+
+| Format | Use when |
+| --- | --- |
+| `bullets` | You want prompt-ready natural-language context |
+| `json` | Your app parses memory context programmatically |
+| `xml` | You want strongly tagged context for models that follow XML well |
+
+Example `bullets` output:
+
+```text
+What you know about this user:
+Skills & expertise:
+- Comfortable with FastAPI and PostgreSQL.
+- Has experience with retrieval systems.
+Preferences:
+- Prefers concise technical explanations.
+- Likes Python-first examples.
+```
+
+ContextBuilder intentionally avoids exposing internal ranking details such as raw confidence or importance values inside the prompt text.
+
+## Conflict resolution
+
+When a new extracted memory contradicts an existing one, MemoryOS resolves the conflict instead of blindly storing both.
+
+Examples:
+
+| Old memory | New memory | Result |
+| --- | --- | --- |
+| User prefers JavaScript examples. | User now prefers Python examples. | Old memory can be archived or superseded |
+| User works at Acme. | User left Acme and joined Northstar. | Newer factual memory wins |
+
+Conflict changes are recorded in memory version history.
+
+## Importance scoring
+
+Each memory has:
+
+- `original_importance_score`: extraction-time score
+- `importance_score`: live score that can change with usage and decay
+- `access_count`: retrieval count
+- `last_accessed_at`: last retrieval timestamp
+
+Important memories are ranked higher. Stale low-value memories can decay over time.
+
+## Multi-provider extraction
+
+MemoryEngine can use multiple LLM providers for extraction and conflict classification.
+
+Provider order is configured with:
+
+```text
+LLM_PROVIDER_ORDER=gemini,openai,anthropic
+```
+
+If one provider fails with a timeout, `5xx`, rate limit, or auth error, MemoryOS can fall through to the next configured provider. Operator health shows each provider as `CLOSED`, `OPEN`, `HALF_OPEN`, or `NOT CONFIGURED`.
+
+## Related pages
+
+- [Memory lifecycle and versioning](/concepts/memory-lifecycle)
+- [Degradation Modes](/concepts/degradation)
+- [Quality Gate](/concepts/quality-gate)

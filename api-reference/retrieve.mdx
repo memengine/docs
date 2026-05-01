@@ -51,11 +51,12 @@ Authorization: ApiKey mem_...
       "importance_score": 8.5,
       "last_accessed": "2026-04-17T09:45:00Z",
       "relevance_score": 0.962341,
-      "context_snippet": "- User prefers concise technical explanations and Python examples. (category: preference; confidence: high [0.94]; learned: 2026-04-17T09:40:00Z; importance: 8.5)"
+      "context_snippet": "- User prefers concise technical explanations and Python examples."
     }
   ],
   "cached": false,
-  "system_prompt_addition": "What you know about this user:\n- User prefers concise technical explanations and Python examples. (category: preference; confidence: high [0.94]; learned: 2026-04-17T09:40:00Z; importance: 8.5)",
+  "system_prompt_addition": "What you know about this user:\n- User prefers concise technical explanations and Python examples.",
+  "context_token_count": 18,
   "request_id": "b0eb46a4-8794-44c8-b2a9-8f2dfbb4176c",
   "timestamp": "2026-04-17T09:45:03Z"
 }
@@ -70,6 +71,7 @@ Authorization: ApiKey mem_...
 | `data` | `MemorySearchResult[]` | Ranked memory results |
 | `cached` | `boolean` | Whether retrieval came from the hot cache |
 | `system_prompt_addition` | `string` | Prompt-ready memory context |
+| `context_token_count` | `integer \| null` | Token count of the built context when available |
 | `request_id` | `string` | Trace id |
 | `timestamp` | `datetime` | Response timestamp |
 
@@ -101,7 +103,7 @@ Example `system_prompt_addition`:
 
 ```text
 What you know about this user:
-- User prefers concise technical explanations and Python examples. (category: preference; confidence: high [0.94]; learned: 2026-04-17T09:40:00Z; importance: 8.5)
+- User prefers concise technical explanations and Python examples.
 ```
 
 ### `json`
@@ -115,25 +117,11 @@ What you know about this user:
 Example `system_prompt_addition`:
 
 ```json
-What you know about this user:
-[
-  {
-    "id": "2b8f5f87-bbd4-4f84-9f5f-0cba5033f058",
-    "content": "User prefers concise technical explanations and Python examples.",
-    "category": "preference",
-    "importance_score": 8.5,
-    "confidence_score": 0.94,
-    "semantic_score": 0.93,
-    "recency_score": 1.0,
-    "final_score": 0.962341,
-    "agent_id": null,
-    "previous_version_id": null,
-    "last_accessed_at": "2026-04-17T09:45:00Z",
-    "created_at": "2026-04-17T09:40:00Z",
-    "confidence_level": "high",
-    "learned_at": "2026-04-17T09:40:00Z"
-  }
-]
+{
+  "preference": [
+    "User prefers concise technical explanations and Python examples."
+  ]
+}
 ```
 
 ### `xml`
@@ -149,13 +137,24 @@ Example `system_prompt_addition`:
 ```xml
 What you know about this user:
 <memory_context>
-  <memory>
-    <content>User prefers concise technical explanations and Python examples.</content>
-    <category>preference</category>
-    <confidence level="high">0.94</confidence>
-    <learned_at>2026-04-17T09:40:00Z</learned_at>
-    <importance_score>8.5</importance_score>
-    <final_score>0.962341</final_score>
+  <memory category="preference">
+    User prefers concise technical explanations and Python examples.
   </memory>
 </memory_context>
 ```
+
+## Context token limit
+
+Use `context_max_tokens` to limit the size of `system_prompt_addition`.
+
+```json
+{
+  "external_user_id": "customer-123",
+  "query": "How should I answer this user?",
+  "limit": 10,
+  "format": "bullets",
+  "context_max_tokens": 300
+}
+```
+
+MemoryOS drops lower-importance memories first when the context is too large. It does not truncate mid-sentence.

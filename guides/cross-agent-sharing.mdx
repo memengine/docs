@@ -214,7 +214,7 @@ Response behavior:
 
 - if a grant exists, MemoryOS searches the `universal_memories` collection and returns prompt-ready context
 - if no grant exists, MemoryOS returns an empty list with:
-  - `permission_error: "no_grant_for_user"`
+  - `permission_status: "no_grant"`
 - if the grant was revoked, the next retrieve becomes empty without exposing anything else about that user
 
 ## Step 6: Let the user manage or revoke access
@@ -241,6 +241,18 @@ const consentUrl = UniversalMemoryOS.consentUrl(
 const memory = new UniversalMemoryOS("agent_sk_...", "uui_...");
 const result = await memory.get("How should I personalize this answer?", 5);
 ```
+
+## Discovery paths
+
+Users usually discover Memory Passport in one of three ways:
+
+| Path | Example |
+| --- | --- |
+| Agent initiated | BYJU's shows "Connect your learning history" and redirects to the consent URL |
+| Tenant initiated | Doubtnut tells users it uses MemoryOS and links to the manage page |
+| Email notification | MemoryOS emails the user after a grant is created with a revoke/manage link |
+
+Your app should not expect users to discover MemoryOS on their own. Introduce MemoryOS at the moment the user is asked to connect or share memory.
 
 ## Privacy guarantees
 

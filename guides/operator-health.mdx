@@ -1,0 +1,100 @@
+---
+title: "Operator Health and Circuit States"
+description: "Understand CLOSED, OPEN, HALF_OPEN, and NOT CONFIGURED in the operator console."
+---
+
+The operator console shows dependency health for databases, queues, Redis, Qdrant, and LLM providers.
+
+The most common source of confusion is the circuit breaker state. A circuit state tells you whether MemoryOS is using a dependency, skipping it, or testing whether it recovered.
+
+## Circuit states
+
+| State | Meaning | What MemoryOS does |
+| --- | --- | --- |
+| `CLOSED` | Healthy and usable | Requests are allowed normally |
+| `OPEN` | Failing and temporarily disabled | Requests are skipped or fallback is used |
+| `HALF_OPEN` | Testing recovery | One trial request is allowed |
+| `NOT CONFIGURED` | API key or connection is missing | Provider cannot be used |
+
+## CLOSED
+
+`CLOSED` is the normal healthy state.
+
+For example, if Gemini is `CLOSED`, MemoryOS can use Gemini for new extraction calls.
+
+## OPEN
+
+`OPEN` means the dependency failed enough times that MemoryOS temporarily stops using it.
+
+For LLM providers, this prevents repeated extraction failures. If Gemini returns `503`, times out, or has an invalid API key, the Gemini circuit opens. MemoryOS then skips Gemini and tries the next configured provider.
+
+## HALF_OPEN
+
+`HALF_OPEN` means the cooldown period has passed and MemoryOS is testing recovery.
+
+For LLM providers, the recovery timeout is currently short, so a provider can move from `OPEN` to `HALF_OPEN` after the cooldown. The next extraction call is allowed to try that provider once.
+
+If the trial request succeeds, the provider becomes `CLOSED`.
+
+If the trial request fails, the provider returns to `OPEN`.
+
+`HALF_OPEN` does not mean healthy. It means:
+
+> This provider was failing earlier. MemoryOS is allowing one test request to see if it recovered.
+
+## Wrong API key example
+
+If `GEMINI_API_KEY` is wrong:
+
+1. Gemini starts as `CLOSED`
+2. An extraction call tries Gemini
+3. Gemini returns an auth error
+4. MemoryOS marks Gemini as `OPEN`
+5. After the recovery timeout, Gemini becomes `HALF_OPEN`
+6. The next extraction call tests Gemini again
+7. Because the key is still wrong, Gemini returns to `OPEN`
+
+The fix is to update the API key and restart or recreate the backend containers so the new environment value is loaded.
+
+## NOT CONFIGURED
+
+`NOT CONFIGURED` means MemoryOS has no API key or connection value for that provider.
+
+This is different from `OPEN`:
+
+| State | Meaning |
+| --- | --- |
+| `OPEN` | Provider is configured but currently failing |
+| `NOT CONFIGURED` | Provider is not available because no credentials are loaded |
+
+If you only configure Gemini, OpenAI and Anthropic should show `NOT CONFIGURED`, not `OPEN`.
+
+## LLM fallback order
+
+LLM fallback order is configured with:
+
+```text
+LLM_PROVIDER_ORDER=gemini,openai,anthropic
+```
+
+MemoryOS uses the first configured provider that is `CLOSED`.
+
+If all configured providers are `OPEN`, extraction pauses and jobs can move to the dead-letter queue.
+
+## Dead-letter debugging
+
+Dead-letter jobs should show:
+
+- error type badge
+- full traceback
+- conversation payload
+- queue timestamps
+- retry and discard controls
+
+Legacy jobs created before full error capture may only show a generic error. New jobs should include the real traceback and conversation payload.
+
+## Related pages
+
+- [MemoryEngine](/concepts/memory-engine)
+- [Degradation Modes](/concepts/degradation)
+- [Errors](/api-reference/errors)

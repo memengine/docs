@@ -1,0 +1,127 @@
+---
+title: "Memory Lifecycle and Versioning"
+description: "How memories decay, archive, promote to hot cache, and keep version history."
+---
+
+MemoryOS treats memory as living data. Memories can become more useful, less useful, archived, or superseded over time.
+
+This page explains the lifecycle system for tenant-scoped memories.
+
+## Memory lifecycle states
+
+| State | Meaning |
+| --- | --- |
+| Active | Memory is searchable and can appear in retrieval |
+| Hot | Memory is frequently accessed and cached for fast retrieval |
+| Archived | Memory is kept in PostgreSQL but removed from normal search |
+| System archived | Memory was auto-archived by the lifecycle manager |
+| Versioned | Memory has change history in `memory_versions` |
+
+## Weekly lifecycle manager
+
+The lifecycle manager runs as an internal maintenance process. It is designed to run during off-peak hours and report results to the operator console.
+
+It performs four jobs:
+
+1. Decay stale memories
+2. Auto-archive low-value inactive memories
+3. Promote high-value frequently used memories to the hot tier
+4. Recompute baseline importance when needed
+
+## Decay
+
+Decay reduces the live `importance_score` for memories that have not been accessed recently.
+
+The original extraction score is kept in:
+
+```text
+original_importance_score
+```
+
+The live score is stored in:
+
+```text
+importance_score
+```
+
+This lets dashboards show whether a memory became more important through usage or less important through inactivity.
+
+## Auto-archive
+
+Auto-archive removes stale low-value memories from search without deleting them from PostgreSQL.
+
+This matters because:
+
+- retrieval stays cleaner
+- old low-value memories stop polluting prompts
+- GDPR export can still include the historical record
+- hard delete remains a separate explicit action
+
+Auto-archived memories are marked with:
+
+```text
+is_archived = true
+system_archived = true
+```
+
+## Hot tier
+
+Frequently accessed high-importance memories can be promoted into Redis as hot memories.
+
+Hot memories are:
+
+- loaded before vector search
+- included in retrieval results first
+- refreshed by access patterns
+- removed automatically when their Redis TTL expires
+
+This improves latency for memories that users repeatedly depend on.
+
+## Version history
+
+MemoryOS records append-only memory versions so teams can understand why a memory exists and how it changed.
+
+Version events include:
+
+| Change type | Meaning |
+| --- | --- |
+| `created` | Memory was first extracted |
+| `conflict_update` | Memory was superseded or changed due to a conflict |
+| `manual_edit` | User or operator edited a memory |
+| `importance_decay` | Importance changed meaningfully due to decay |
+| `importance_boost` | Importance increased due to usage |
+| `archived` | Memory was archived or deleted from active search |
+
+Version history is append-only. MemoryOS does not update or delete old version rows.
+
+## GDPR export
+
+The GDPR export endpoint includes:
+
+- active memories
+- archived memories
+- version history for each memory
+
+This is different from normal retrieval, which only returns currently searchable memories.
+
+## Dashboard surfaces
+
+Tenant dashboard surfaces lifecycle data in:
+
+- Memory Explorer: live score, original score, hot badge, auto-archive badge
+- Memory history slide-over: version timeline
+- User detail: export before delete flow
+- Playground: extraction job tracker and prompt context preview
+
+Operator dashboard surfaces lifecycle data in:
+
+- Lifecycle report
+- All Tenants extraction and hot-memory columns
+- Cost Monitor extraction metrics
+- Dead Letter queue with full error and payload capture
+
+## Related pages
+
+- [MemoryEngine](/concepts/memory-engine)
+- [POST /v1/memories/retrieve](/api-reference/retrieve)
+- [Errors](/api-reference/errors)

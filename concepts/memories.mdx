@@ -20,15 +20,19 @@ Stored memory objects expose these fields in the public API:
 | `content` | `string` | Canonicalized memory text |
 | `category` | `preference \| fact \| goal \| procedure \| relationship \| expertise` | Memory type |
 | `importance_score` | `float` | Relative importance |
+| `original_importance_score` | `float \| null` | Extraction-time importance before boosts or decay |
 | `confidence_score` | `float` | Extraction confidence |
 | `created_at` | `datetime \| null` | Creation timestamp |
 | `updated_at` | `datetime \| null` | Last update timestamp |
 | `last_accessed_at` | `datetime \| null` | Last retrieval access time |
 | `access_count` | `int` | Retrieval count |
 | `is_archived` | `bool` | Whether the memory is archived |
+| `is_hot` | `bool` | Whether the memory is currently promoted to the hot tier |
+| `system_archived` | `bool` | Whether lifecycle manager auto-archived the memory |
 | `agent_id` | `string \| null` | Optional agent ownership |
 | `previous_version_id` | `string \| null` | Prior version link |
 | `source_conversation_id` | `string \| null` | Source conversation link |
+| `source_job_id` | `string \| null` | Extraction job that created the memory |
 | `metadata` | `object` | Custom metadata |
 
 ## Tenant memory vs universal memory
@@ -64,14 +68,18 @@ Stored memory objects expose these fields in the public API:
    Valid extracted memories are written to the database and vector index.
 3. **Retrieved**
    Matching memories are ranked and returned to your app.
-4. **Decayed**
-   Low-importance stale memories can be archived by the decay cycle if they remain unaccessed long enough.
+4. **Boosted or decayed**
+   Usage can increase live importance, while inactivity can reduce it.
+5. **Hot promoted**
+   Frequently accessed high-value memories can be cached in Redis.
+6. **Archived**
+   Low-value inactive memories can be removed from search while staying in PostgreSQL.
+7. **Versioned**
+   Meaningful changes are recorded in append-only version history.
 
-Current decay behavior archives memories that are:
+The lifecycle manager never hard-deletes memories. It only soft-archives them from search. GDPR delete is a separate explicit operation.
 
-- not already archived
-- `importance_score < 3`
-- not accessed for more than 30 days
+Read [Memory lifecycle and versioning](/concepts/memory-lifecycle) for the full model.
 
 ## Universal memory lifecycle
 

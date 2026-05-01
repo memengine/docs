@@ -3,7 +3,9 @@ title: "Memory Passport"
 description: "How MemoryOS lets a user create one identity and control what each AI agent can access."
 ---
 
-Memory Passport is the user-controlled identity layer in MemoryOS. It lets one person create a universal memory identity, keep a single `uui_...` token, and decide which agents can access which categories of memory.
+Memory Passport is the user-controlled identity layer in MemoryOS. It lets one person sign in with email and OTP, maintain a universal memory identity, and decide which agents can access which categories of memory.
+
+Humans do not need to manage raw `uui_...` tokens. The `uui_...` token exists for agent-to-agent SDK calls after consent has been granted.
 
 ## Why Memory Passport exists
 
@@ -21,17 +23,25 @@ That makes Memory Passport a privacy layer as much as a memory layer.
 
 ### Universal user
 
-When a person registers, MemoryOS creates a universal user and returns a token shaped like:
+When a person registers or signs in through the consent app, MemoryOS creates or resolves a universal user. Human login uses:
+
+- email address
+- 6-digit OTP code
+- short-lived session cookie for the consent app
+
+MemoryOS also maintains an agent-facing token shaped like:
 
 ```text
 uui_...
 ```
 
-This token is shown exactly once and is later used for:
+This token is used by backend integrations and SDK calls. It should not be the primary login method for students, patients, customers, or other end users.
 
-- managing grants
-- consenting to agent access
-- authenticating universal memory actions
+Human users manage grants from:
+
+```text
+https://consent.memoryos.io/manage
+```
 
 ### Global agent
 
@@ -93,12 +103,16 @@ MemoryOS then checks whether there is an active grant for that agent and whether
 
 ## Grant lifecycle
 
-1. user creates a Memory Passport
-2. agent sends the user to a consent URL
-3. user approves specific categories
-4. agent can read or write only within that grant
-5. user can revoke the grant at any time
-6. user can delete the entire Memory Passport and all universal memories
+1. a tenant app introduces MemoryOS where it asks the user to connect memory
+2. the agent sends the user to a consent URL
+3. the consent app handles one of three states inline:
+   - new user: create account, then verify OTP
+   - existing user: email plus OTP login
+   - active session: show consent immediately
+4. user approves specific categories and duration
+5. agent can read or write only within that grant
+6. user can revoke the grant at any time
+7. user can delete the entire Memory Passport and all universal memories
 
 ## Privacy guarantees
 
@@ -107,6 +121,7 @@ Memory Passport is designed so that:
 - an agent cannot infer what other agents were granted
 - revoking a grant removes future access
 - deleting the Memory Passport removes universal memories and active grants
+- permission notifications can send users back to the manage page for immediate revoke
 
 ## Related pages
 

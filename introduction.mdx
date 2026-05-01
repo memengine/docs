@@ -5,7 +5,7 @@ description: "What MemoryOS is, why teams use it, and how tenant memory and Memo
 
 MemoryOS is a memory infrastructure layer for AI products. It gives you two connected systems: tenant-scoped memory for your own application, and a user-controlled Memory Passport layer for cross-agent sharing when a person wants multiple AI agents to remember them consistently.
 
-MemoryOS exists so your team does not have to build extraction, retrieval, ranking, permissions, quota handling, consent UX, and graceful degradation in-house just to make an AI product remember the right things about the right user at the right time.
+MemoryOS exists so your team does not have to build extraction, retrieval, ranking, lifecycle cleanup, version history, permissions, consent UX, quota handling, and graceful degradation in-house just to make an AI product remember the right things about the right user at the right time.
 
 ## What problem does this solve?
 
@@ -15,7 +15,34 @@ Without MemoryOS, teams usually end up building three different systems at once:
 - a retrieval layer that can rank the right memories quickly enough to use inside live AI calls
 - a permissions and consent layer for deciding who is allowed to read or write which memories
 
-MemoryOS gives you those pieces as one platform so your product team can focus on the user experience instead of stitching together memory extraction, vector search, quota enforcement, and privacy controls from scratch.
+MemoryOS gives you those pieces as one platform so your product team can focus on the user experience instead of stitching together memory extraction, vector search, context building, quota enforcement, lifecycle operations, and privacy controls from scratch.
+
+## What MemoryEngine does
+
+MemoryEngine is the runtime layer inside MemoryOS. It is not just a vector database wrapper.
+
+On the write path, MemoryEngine:
+
+- quality-gates noisy or unsafe ingestion attempts before they become jobs
+- extracts durable memories from conversations using the extraction prompt
+- resolves conflicts when new memories contradict older memories
+- records version history for debugging and GDPR export
+- stores memories in PostgreSQL and indexes searchable vectors separately
+
+On the read path, MemoryEngine:
+
+- retrieves candidate memories with hybrid ranking
+- combines semantic relevance, importance, recency, and hot-tier cache results
+- builds `system_prompt_addition` in `bullets`, `json`, or `xml`
+- respects tenant isolation or Memory Passport category grants
+- degrades safely when dependencies or quotas are unhealthy
+
+On the operations path, MemoryEngine:
+
+- decays stale memories over time
+- auto-archives low-value inactive memories from search while keeping PostgreSQL history
+- promotes frequently used high-value memories to the hot tier
+- tracks extraction jobs, dead-letter failures, and dependency circuit states
 
 ## The two-layer identity model
 
@@ -32,7 +59,8 @@ That means the same `external_user_id` can exist in two different tenants withou
 
 MemoryOS also supports a separate **Memory Passport** model for user-controlled sharing across agents.
 
-- the user creates a universal identity and receives a `uui_...` token
+- the user signs in to the consent app with email and OTP
+- MemoryOS maintains a universal identity and internal `uui_...` token for agent-to-agent API calls
 - an agent requests access to specific categories such as `preference` or `expertise`
 - the user grants or revokes access through a consent flow
 - the agent uses its own `agent_sk_...` key plus the user's UUI token to read or write only the categories that were approved
@@ -61,5 +89,10 @@ If you want user-controlled cross-agent sharing, read:
 
 - [Memory Passport](/concepts/memory-passport)
 - [Cross-agent memory sharing](/guides/cross-agent-sharing)
+
+If you want to understand the engine internals, read:
+
+- [MemoryEngine](/concepts/memory-engine)
+- [Memory lifecycle and versioning](/concepts/memory-lifecycle)
 
 

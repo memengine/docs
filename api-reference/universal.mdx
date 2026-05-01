@@ -1,0 +1,152 @@
+---
+title: "Universal Memory APIs"
+description: "Cross-agent Memory Passport endpoints for consented universal memory."
+---
+
+Universal memory APIs are used by global agents after a user grants access through Memory Passport.
+
+These endpoints are separate from tenant-scoped `/v1/memories/*` APIs.
+
+## Authentication
+
+Universal memory calls require two headers:
+
+```http
+Authorization: ApiKey agent_sk_...
+X-MemoryOS-UUI: uui_...
+```
+
+The agent API key identifies the requesting agent.
+
+The UUI token identifies the Memory Passport user whose grant is being checked.
+
+## POST /v1/universal/memories/add
+
+Queues a universal memory extraction job.
+
+```http
+POST /v1/universal/memories/add
+```
+
+### Request
+
+```json
+{
+  "messages": [
+    {
+      "role": "user",
+      "content": "Please remember that I prefer Python-first examples."
+    }
+  ],
+  "metadata": {
+    "source": "learning-app"
+  },
+  "idempotency_key": "optional-client-key"
+}
+```
+
+### Behavior
+
+- requires an active grant for the user and agent
+- requires `access_type = read_write`
+- writes to the universal memory table and `universal_memories` vector collection
+- never writes to the tenant-scoped `memories` table
+
+If the grant is read-only, MemoryOS returns:
+
+```json
+{
+  "error": "write_not_permitted",
+  "code": "UAT_002"
+}
+```
+
+## POST /v1/universal/memories/retrieve
+
+Retrieves universal memories that the user allowed this agent to access.
+
+```http
+POST /v1/universal/memories/retrieve
+```
+
+### Request
+
+```json
+{
+  "query": "How should I personalize this answer?",
+  "limit": 5,
+  "format": "bullets"
+}
+```
+
+### Behavior
+
+- filters by `user_uui_id`
+- filters by categories in the active permission grant
+- searches only the `universal_memories` collection
+- never exposes other agents' grants
+- returns an empty result when no grant exists
+
+No-grant response:
+
+```json
+{
+  "data": [],
+  "system_prompt_addition": "",
+  "is_passthrough": false,
+  "permission_status": "no_grant",
+  "categories_available": []
+}
+```
+
+## Public agent profile
+
+The consent app and tenant apps can fetch a public global-agent profile before consent:
+
+```http
+GET /v1/agents/global/{agent_id}
+```
+
+This endpoint does not return tenant ownership or agent API keys.
+
+Example response:
+
+```json
+{
+  "id": "2beab5d0-741d-4ff8-9475-c29d9ea5a57e",
+  "name": "Learning Coach",
+  "description": "Personalizes explanations using approved learning memories.",
+  "logo_url": "https://example.com/logo.png",
+  "website_url": "https://example.com",
+  "is_verified": false,
+  "default_categories_requested": ["preference", "expertise"]
+}
+```
+
+## Consent and manage endpoints
+
+Human users interact through the consent app:
+
+```text
+https://consent.memoryos.io/consent
+https://consent.memoryos.io/manage
+```
+
+Backend endpoints include:
+
+| Endpoint | Purpose |
+| --- | --- |
+| `POST /v1/uui/register` | Create a Memory Passport account and send OTP |
+| `POST /v1/uui/otp/send` | Send a login code |
+| `POST /v1/uui/otp/verify` | Verify OTP and return session token |
+| `GET /v1/uui/me` | Resolve current Memory Passport session |
+| `GET /v1/uui/me/grants` | List active grants |
+| `POST /v1/uui/me/grants` | Create or update a grant |
+| `DELETE /v1/uui/me/grants/{grant_id}` | Revoke a grant |
+| `DELETE /v1/uui/me` | Delete Memory Passport data |
+
+## Related pages
+
+- [Memory Passport](/concepts/memory-passport)
+- [Cross-agent memory sharing](/guides/cross-agent-sharing)
+- [Authentication](/authentication)

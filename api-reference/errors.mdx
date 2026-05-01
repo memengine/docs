@@ -65,7 +65,7 @@ Current public and semi-public API surfaces emit the following codes.
 
 Some Memory Passport flows are intentionally **not** error-driven:
 
-- `POST /v1/universal/memories/retrieve` returns an empty list with `permission_error: "no_grant_for_user"` when a user has not granted this agent access
+- `POST /v1/universal/memories/retrieve` returns an empty list with `permission_status: "no_grant"` when a user has not granted this agent access
 - revocation therefore looks like a clean empty retrieve result, not a `403`
 
 That behavior is deliberate so an agent cannot use error differences to learn more than the user granted.

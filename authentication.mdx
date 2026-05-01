@@ -8,6 +8,8 @@ MemoryOS has two authentication models:
 - **tenant-scoped API auth** for the standard `/v1/memories/*` and tenant dashboard APIs
 - **cross-agent auth** for `/v1/universal/*`, where an agent key and a user UUI token are both required
 
+Human users do not sign in with raw UUI tokens. The consent app uses email plus OTP and then sends a signed MemoryOS session token to backend consent endpoints.
+
 ## Tenant API key format
 
 Send your API key in the `Authorization` header:
@@ -77,6 +79,12 @@ For cross-agent memory sharing, the identity model is different:
 - **User identity** comes from `uui_...`
 - **Permission scope** comes from the active grant between that user and that agent
 
+For human consent and manage screens:
+
+- **Human identity** comes from email plus OTP
+- **Consent session** comes from a signed session token
+- **Agent API calls** still use `agent_sk_...` plus `uui_...`
+
 ## Common authentication mistakes
 
 | Mistake | What happens | Correct version |
@@ -85,6 +93,7 @@ For cross-agent memory sharing, the identity model is different:
 | Using `Bearer mem_...` | `AUTH_001 unauthorized` | `Authorization: ApiKey mem_...` |
 | Calling `/v1/universal/*` with only one credential | `UAT_001 cross_agent_auth_failed` | Send both `Authorization: ApiKey agent_sk_...` and `X-MemoryOS-UUI: uui_...` |
 | Using a revoked or expired UUI grant | Universal retrieve returns no memories or write is denied | Re-run the consent flow to create an active grant |
+| Asking users to remember raw `uui_...` tokens | Users lose access or get confused | Use email plus OTP in the consent app |
 | Forgetting `external_user_id` on tenant routes | `REQ_422` or tenant resolution errors | Always include `external_user_id` in write and retrieve requests |
 | Reusing a key from the wrong tenant | Data is scoped to the wrong workspace | Use one API key per tenant/workspace |
 | Storing the key in browser code | Secret leaks to clients | Keep MemoryOS API keys server-side |
