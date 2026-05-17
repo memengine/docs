@@ -3,9 +3,9 @@ title: "Introduction"
 description: "What MemoryOS is, why teams use it, and how tenant memory and Memory Passport fit together."
 ---
 
-MemoryOS is a memory infrastructure layer for AI products. It gives you two connected systems: tenant-scoped memory for your own application, and a user-controlled Memory Passport layer for cross-agent sharing when a person wants multiple AI agents to remember them consistently.
+MemoryOS is a memory infrastructure layer for AI products. It gives you three connected capabilities: tenant-scoped memory for your own application, domain-aware memory schemas for industry-specific products, and a user-controlled Memory Passport layer for cross-agent sharing when a person wants multiple AI agents to remember them consistently.
 
-MemoryOS exists so your team does not have to build extraction, retrieval, ranking, lifecycle cleanup, version history, permissions, consent UX, quota handling, and graceful degradation in-house just to make an AI product remember the right things about the right user at the right time.
+MemoryOS exists so your team does not have to build extraction, retrieval, ranking, lifecycle cleanup, version history, permissions, consent UX, domain-specific memory modeling, quota handling, and graceful degradation in-house just to make an AI product remember the right things about the right user at the right time.
 
 ## What problem does this solve?
 
@@ -43,6 +43,19 @@ On the operations path, MemoryEngine:
 - auto-archives low-value inactive memories from search while keeping PostgreSQL history
 - promotes frequently used high-value memories to the hot tier
 - tracks extraction jobs, dead-letter failures, and dependency circuit states
+
+## Domain-aware memory
+
+MemoryOS uses one SDK for all domains.
+
+If a tenant enables a domain schema such as EdTech, normal `add()` and `get()` calls become domain-aware internally:
+
+- `add()` still stores general memories, and also updates structured domain memory such as `edtech_memories`
+- `get()` still returns `system_prompt_addition`, and also includes domain-aware context when available
+- conflict routing uses the active tenant domain before falling back to generic routing
+- optional profile helpers such as `get_edtech_profile()` expose structured data for dashboards
+
+That means an education company does not install a separate SDK. The tenant is domain-aware; the SDK stays generic.
 
 ## The two-layer identity model
 
@@ -89,6 +102,11 @@ If you want user-controlled cross-agent sharing, read:
 
 - [Memory Passport](/concepts/memory-passport)
 - [Cross-agent memory sharing](/guides/cross-agent-sharing)
+
+If you are building for a specific industry, read:
+
+- [Domain schemas](/concepts/domain-schemas)
+- [EdTech domain cookbook](/guides/edtech-domain)
 
 If you want to understand the engine internals, read:
 
