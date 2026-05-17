@@ -74,6 +74,7 @@ Authorization: ApiKey mem_...
   "job_id": "72a20629-a76d-4a18-ab36-1c2778ba21d0",
   "status": "queued",
   "blocked_reason": null,
+  "nothing_to_extract": false,
   "retry_after_seconds": null,
   "budget_remaining_pct": 0.9134,
   "processing_eta_seconds": null,
@@ -108,6 +109,30 @@ Possible blocked `status` values:
 - `L3`
 - `L4`
 - `blocked` (internal gate fallback)
+
+## Nothing to extract
+
+Some conversations pass the quality gate but contain no durable user memory. Examples:
+
+- greetings
+- acknowledgements
+- one-word replies
+- off-topic questions
+
+This is not an error. It means the conversation was valid, but there was nothing useful to store.
+
+SDKs expose this as `result.nothing_to_extract` / `result.nothingToExtract`.
+
+```python
+result = mem.add(messages=messages, external_user_id="user_123")
+
+if result.was_stored:
+    print("Memory queued")
+elif result.nothing_to_extract:
+    print("Conversation had no storable information")
+```
+
+For tenants with domain schemas enabled, `add()` still uses this same endpoint. Domain-specific extraction runs internally after the general memory path.
 
 ## Response: passthrough
 
