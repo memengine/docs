@@ -29,6 +29,7 @@
         "pages": [
           "api-reference/add",
           "api-reference/retrieve",
+          "api-reference/edtech-profile",
           "api-reference/universal",
           "api-reference/errors"
         ]
@@ -40,6 +41,7 @@
           "concepts/quality-gate",
           "concepts/degradation",
           "concepts/memories",
+          "concepts/domain-schemas",
           "concepts/memory-lifecycle",
           "concepts/memory-passport",
           "concepts/rate-limits"
@@ -50,6 +52,7 @@
         "pages": [
           "guides/openai",
           "guides/anthropic",
+          "guides/edtech-domain",
           "guides/cross-agent",
           "guides/cross-agent-sharing",
           "guides/operator-health",
