@@ -7,6 +7,8 @@ MemoryEngine is the runtime engine behind MemoryOS. It turns conversations into 
 
 It is not just a vector search layer. MemoryEngine combines extraction, quality gates, conflict resolution, importance scoring, lifecycle cleanup, version history, and graceful degradation.
 
+If a tenant has a domain schema enabled, MemoryEngine also runs a domain overlay after generic extraction and adds domain-aware context during retrieval. The SDK call stays the same.
+
 ## Write path
 
 When your app calls `POST /v1/memories/add`, MemoryEngine does not immediately write raw chat text into memory.
@@ -21,8 +23,11 @@ The write path is:
 6. Store canonical memories in PostgreSQL
 7. Write embeddings to Qdrant for retrieval
 8. Record memory versions for audit and debugging
+9. Run the tenant's domain overlay if `domain_schema` is enabled
 
 The request returns quickly with a `job_id`. Extraction runs in the background.
+
+For example, an EdTech tenant still stores normal generic memories, but the domain overlay also updates `edtech_memories` with grade level, weak topics, learning style, exam context, and forgetting stages.
 
 ## Read path
 
@@ -37,6 +42,7 @@ The read path is:
 5. Rank with semantic relevance, importance, and recency
 6. Filter archived and out-of-scope memories
 7. Build `system_prompt_addition`
+8. Prepend domain-aware context if the tenant has an active domain schema
 
 The returned `system_prompt_addition` is the safest field to pass into your LLM call.
 
@@ -79,6 +85,27 @@ Examples:
 
 Conflict changes are recorded in memory version history.
 
+Conflict routing is domain-aware. For an EdTech tenant, personal student facts such as `exam_date`, `grade_level`, and `weak_topic` route to user-session clarification. Shared institutional facts such as `curriculum_standard` or `institution_policy` route to tenant review. Unknown entities fall back to the generic router.
+
+## Domain overlays
+
+Domain overlays add structured product-specific memory without changing the SDK.
+
+```text
+General engine:
+  memories
+  retrieval
+  system_prompt_addition
+
+Domain overlay:
+  edtech_memories or another domain table
+  domain retrieval context
+  domain conflict routing
+  optional domain profile endpoint
+```
+
+Use normal `add()` and `get()` for AI responses. Use optional domain helpers, such as `get_edtech_profile()`, only when building dashboards or analytics.
+
 ## Importance scoring
 
 Each memory has:
@@ -105,5 +132,6 @@ If one provider fails with a timeout, `5xx`, rate limit, or auth error, MemoryOS
 ## Related pages
 
 - [Memory lifecycle and versioning](/concepts/memory-lifecycle)
+- [Domain schemas](/concepts/domain-schemas)
 - [Degradation Modes](/concepts/degradation)
 - [Quality Gate](/concepts/quality-gate)
