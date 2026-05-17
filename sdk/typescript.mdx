@@ -22,6 +22,8 @@ const client = new MemoryOS(process.env.MEMORYOS_API_KEY!);
 
 Use `MemoryOS` for normal workspace memory inside your tenant. Use `UniversalMemoryOS` only after a user has granted your global agent access through Memory Passport.
 
+There is no separate SDK for domain schemas. If your tenant enables EdTech, Healthcare, or another future domain, `add()` and `get()` remain the main integration path. Optional domain helper methods expose structured profile data for dashboards.
+
 ## `add()`
 
 ```ts
@@ -87,6 +89,9 @@ const memories = await client.get(
 | `externalUserId` | `string` | Yes | End-user identifier inside your tenant |
 | `limit` | `number` | No | Default `10` |
 | `categories` | `MemoryCategory[] \| undefined` | No | Optional category filter |
+| `timeFilterDays` | `number \| undefined` | No | Return only memories from the last N days |
+| `format` | `"bullets" \| "json" \| "xml"` | No | Format for `systemPromptAddition` |
+| `contextMaxTokens` | `number` | No | Prompt context token budget, default `500` |
 
 ### Return fields
 
@@ -95,6 +100,8 @@ const memories = await client.get(
 | `items` | `MemoryItem[]` | Retrieved memories |
 | `cached` | `boolean` | Whether the result came from the hot cache |
 | `systemPromptAddition` | `string` | Prompt-ready context block |
+| `contextTokenCount` | `number` | Tokens used by `systemPromptAddition` |
+| `memoriesFromHotTier` | `number` | Number of returned memories served from hot tier |
 | `quotaMode` | `"FULL" \| "PASSTHROUGH" \| "DEGRADED_RETRIEVE" \| "BLOCKED"` | Quota mode |
 | `isPassthrough` | `boolean` | Skip memory context when `true` |
 | `isDegraded` | `boolean` | Retrieval is degraded when `true` |
@@ -158,9 +165,25 @@ const result = await client.get(
   "customer-123",
 );
 
-const promptAddition = result.isPassthrough
-  ? ""
-  : result.systemPromptAddition;
+const promptAddition = result.hasContext
+  ? result.systemPromptAddition
+  : "";
+```
+
+## Domain profile helpers
+
+For domain-aware tenants, normal `get()` already includes domain-aware context. Use profile helpers only when your product needs structured UI data.
+
+EdTech example:
+
+```ts
+const profile = await client.getEdTechProfile("student_123");
+
+if (profile?.hasExamContext) {
+  console.log(profile.examName, profile.examDate);
+}
+
+console.log(profile?.weakTopics.slice(0, 3));
 ```
 
 ## `delete()`
