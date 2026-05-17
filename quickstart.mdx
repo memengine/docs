@@ -12,6 +12,8 @@ This quickstart covers the fastest tenant-scoped path:
 
 If you are looking for the new cross-agent Memory Passport flow, jump to [Cross-agent memory sharing](/guides/cross-agent-sharing).
 
+If your tenant has a domain schema enabled, such as EdTech, the same SDK calls below still apply. Domain extraction and domain-aware retrieval happen inside MemoryOS. See [Domain schemas](/concepts/domain-schemas) and the [EdTech cookbook](/guides/edtech-domain).
+
 ## Step 1: Install the SDK
 
 ### Python
@@ -106,7 +108,8 @@ def main() -> None:
     )
 
     print(memories.quota_mode)
-    print(memories.system_prompt_addition)
+    print(memories.context_token_count)
+    print(memories.system_prompt_addition if memories.has_context else "")
     for item in memories.items:
         print(item.content)
 
@@ -132,7 +135,8 @@ async function main(): Promise<void> {
   );
 
   console.log(memories.quotaMode);
-  console.log(memories.systemPromptAddition);
+  console.log(memories.contextTokenCount);
+  console.log(memories.hasContext ? memories.systemPromptAddition : "");
   for (const item of memories.items) {
     console.log(item.content);
   }
@@ -173,7 +177,7 @@ def main() -> None:
     )
 
     system_prompt = "You are a helpful assistant."
-    if not memories.is_passthrough and memories.system_prompt_addition:
+    if memories.has_context:
         system_prompt = f"{system_prompt}\n\n{memories.system_prompt_addition}"
 
     response = openai_client.responses.create(
@@ -208,7 +212,7 @@ async function main(): Promise<void> {
   const memories = await memory.get(userMessage, externalUserId, 5);
 
   let systemPrompt = "You are a helpful assistant.";
-  if (!memories.isPassthrough && memories.systemPromptAddition) {
+  if (memories.hasContext) {
     systemPrompt = `${systemPrompt}\n\n${memories.systemPromptAddition}`;
   }
 
@@ -231,11 +235,18 @@ void main();
 - `add()` may return `queued`, `passthrough`, or a quality-gate block outcome
 - `get()` always returns a typed result object, even when no memories are available
 - if `is_passthrough` is `true`, you should continue the AI call without MemoryOS context
+- if `has_context` / `hasContext` is `true`, `system_prompt_addition` is safe to prepend to your model call
+- if a domain schema is enabled for your tenant, `system_prompt_addition` can include domain-aware context without changing SDK code
 
 Next: read [Authentication](/authentication) for key format, permissions, and the tenant plus `external_user_id` identity model.
 ## Next steps
 
 See the full [Python SDK reference](/sdk/python) and [TypeScript SDK reference](/sdk/typescript).
+
+For domain-specific products, also see:
+
+- [Domain schemas](/concepts/domain-schemas)
+- [EdTech domain cookbook](/guides/edtech-domain)
 
 For the Memory Passport flow, also see:
 
