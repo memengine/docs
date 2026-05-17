@@ -24,7 +24,9 @@ Authorization: ApiKey mem_...
   "limit": 5,
   "categories": ["preference", "goal"],
   "agent_id": "support-bot",
-  "format": "bullets"
+  "time_filter_days": 30,
+  "format": "bullets",
+  "context_max_tokens": 500
 }
 ```
 
@@ -37,7 +39,9 @@ Authorization: ApiKey mem_...
 | `limit` | `integer` | No | Default `10`, max `50` |
 | `categories` | `MemoryCategory[]` | No | Optional category filters |
 | `agent_id` | `string \| null` | No | Optional agent filter |
+| `time_filter_days` | `integer \| null` | No | Return only memories created in the last N days |
 | `format` | `"bullets" \| "json" \| "xml"` | No | Default `bullets` |
+| `context_max_tokens` | `integer` | No | Default `500`; max context budget for `system_prompt_addition` |
 
 ## Response
 
@@ -57,6 +61,8 @@ Authorization: ApiKey mem_...
   "cached": false,
   "system_prompt_addition": "What you know about this user:\n- User prefers concise technical explanations and Python examples.",
   "context_token_count": 18,
+  "memories_from_hot_tier": 0,
+  "clarification_question": null,
   "request_id": "b0eb46a4-8794-44c8-b2a9-8f2dfbb4176c",
   "timestamp": "2026-04-17T09:45:03Z"
 }
@@ -72,8 +78,29 @@ Authorization: ApiKey mem_...
 | `cached` | `boolean` | Whether retrieval came from the hot cache |
 | `system_prompt_addition` | `string` | Prompt-ready memory context |
 | `context_token_count` | `integer \| null` | Token count of the built context when available |
+| `memories_from_hot_tier` | `integer` | Number of returned memories served from Redis hot tier |
+| `clarification_question` | `string \| null` | Optional user-facing question for resolving a pending conflict |
 | `request_id` | `string` | Trace id |
 | `timestamp` | `datetime` | Response timestamp |
+
+## Domain-aware retrieval
+
+If a tenant has a domain schema enabled, the same retrieve endpoint returns domain-aware context in `system_prompt_addition`.
+
+For example, an EdTech tenant may receive tutoring context about exam goals, weak topics, learning style, or forgetting-stage review urgency.
+
+The request shape does not change:
+
+```json
+{
+  "external_user_id": "student_123",
+  "query": "teach this student trigonometry identities",
+  "limit": 8,
+  "context_max_tokens": 600
+}
+```
+
+Use optional domain profile endpoints only when you need structured UI data, not for normal model calls.
 
 ### `MemorySearchResult`
 
