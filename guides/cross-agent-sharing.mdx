@@ -45,6 +45,11 @@ Current Memory Passport categories are:
 
 The tenant app should not ask the user to handle a raw `uui_...` token. Instead, generate a consent URL and redirect the user there when they choose to connect Memory Passport.
 
+<img
+  src="/images/Screenshot 2026-05-26 190405.png"
+  alt="Memory Passport consent flow shown after the user clicks connect memory"
+/>
+
 ```python
 from memoryos.universal import UniversalMemory
 
@@ -224,6 +229,11 @@ Human users manage active grants in the consent app:
 - `https://consent.memoryos.io/manage`
 
 The manage page uses email plus OTP login. It can list active grants, revoke one grant, and delete the user's Memory Passport data.
+
+<img
+  src="/images/memory-passport-manage-placeholder.svg"
+  alt="Memory Passport manage page for revoking access"
+/>
 
 ## TypeScript SDK
 
