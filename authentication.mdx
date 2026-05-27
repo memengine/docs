@@ -5,7 +5,7 @@ description: "How tenant API keys, agent API keys, and UUI tokens work in Memory
 
 MemoryOS has two authentication models:
 
-- **tenant-scoped API auth** for the standard `/v1/memories/*` and tenant dashboard APIs
+- **workspace-scoped API auth** for the standard `/v1/memories/*` and workspace dashboard APIs
 - **cross-agent auth** for `/v1/universal/*`, where an agent key and a user UUI token are both required
 
 Human users do not sign in with raw UUI tokens. The consent app uses email plus OTP and then sends a signed MemoryOS session token to backend consent endpoints.
@@ -13,6 +13,11 @@ Human users do not sign in with raw UUI tokens. The consent app uses email plus 
 ## Tenant API key format
 
 Send your API key in the `Authorization` header:
+
+<img
+  src="/images/Screenshot 2026-05-26 184414.png"
+  alt="Create a MemoryOS tenant API key in the dashboard"
+/>
 
 ```http
 Authorization: ApiKey mem_...
