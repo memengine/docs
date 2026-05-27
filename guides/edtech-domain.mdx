@@ -1,0 +1,242 @@
+---
+title: "EdTech domain guide"
+description: "Understand how the EdTech schema works for tutoring, learning apps, exam prep, and student memory."
+---
+
+This guide explains how an education company uses MemoryOS with the EdTech domain schema.
+
+You still use the normal SDK.
+
+```bash
+pip install memoryos
+```
+
+```python
+import os
+
+from memoryos import Memory
+
+mem = Memory(api_key=os.environ["MEMORYOS_API_KEY"])
+```
+
+The difference is tenant configuration. Once your tenant has the EdTech schema enabled, MemoryOS automatically adds structured student memory, tutoring context, and EdTech-aware conflict routing.
+
+## Step 1: Enable EdTech for the tenant
+
+The recommended onboarding UX is:
+
+```text
+What kind of AI product are you building?
+  -> Education / tutoring
+```
+
+That sets:
+
+```json
+{
+  "domain_schema": "edtech"
+}
+```
+
+Your MemoryOS dashboard can expose this during workspace setup or later under settings.
+
+Backend endpoint:
+
+```http
+PATCH /v1/tenant/domain-schema
+Authorization: ApiKey mem_...
+Content-Type: application/json
+```
+
+```json
+{
+  "domain_schema": "edtech"
+}
+```
+
+Response:
+
+```json
+{
+  "data": {
+    "domain_schema": "edtech",
+    "support_type_configured": null
+  }
+}
+```
+
+## Step 2: Store student conversations
+
+Use the same `add()` method.
+
+```python
+import os
+
+from memoryos import Memory
+
+mem = Memory(api_key=os.environ["MEMORYOS_API_KEY"])
+
+result = mem.add(
+    external_user_id="student_123",
+    messages=[
+        {
+            "role": "user",
+            "content": "I am in Class 10 CBSE. My boards are in March. I understand algebra but I keep getting stuck in trigonometry identities.",
+        },
+        {
+            "role": "assistant",
+            "content": "Thanks. I will focus on trigonometry identities and use CBSE Class 10 examples.",
+        },
+    ],
+)
+
+print(result.status)
+```
+
+Internally, MemoryOS writes both:
+
+- generic memories for normal retrieval
+- structured EdTech profile data in `edtech_memories`
+
+The structured profile can include:
+
+- grade level
+- board or curriculum
+- subjects
+- weak topics
+- strong topics
+- concept gaps
+- language preference
+- explanation style
+- exam name and date
+- forgetting stages
+
+## Step 3: Retrieve tutoring context
+
+Use the same `get()` method before your model call.
+
+```python
+result = mem.get(
+    query="teach this student trigonometry identities",
+    external_user_id="student_123",
+    limit=8,
+    context_max_tokens=600,
+)
+
+system_prompt = "You are a patient math tutor."
+if result.has_context:
+    system_prompt += "\n\n" + result.system_prompt_addition
+```
+
+For an EdTech tenant, `system_prompt_addition` can include domain-aware context such as:
+
+```text
+Student learning context:
+- Preparing for Class 10 CBSE boards.
+- Weak topic: trigonometry identities.
+- Strong topic: algebra.
+- Prefers step-by-step worked examples.
+- Use Hinglish explanations if helpful.
+```
+
+Your application does not need to build this manually.
+
+## Step 4: Build a student dashboard
+
+If your app needs structured data for UI, call the optional domain helper.
+
+```python
+profile = mem.get_edtech_profile("student_123")
+
+if profile:
+    print(profile.grade_level)
+    print(profile.board_or_curriculum)
+    print(profile.exam_name)
+    print(profile.exam_date)
+    print(profile.weak_topics)
+    print(profile.strong_topics)
+```
+
+This is useful for:
+
+- teacher dashboards
+- student progress screens
+- exam readiness views
+- weak topic review queues
+- spaced repetition panels
+
+For normal AI responses, `get()` is enough.
+
+## TypeScript
+
+```ts
+import { MemoryOS } from "@memoryos/sdk";
+
+const mem = new MemoryOS(process.env.MEMORYOS_API_KEY!);
+
+await mem.add(
+  [
+    {
+      role: "user",
+      content: "I am in Class 10 CBSE and I struggle with trigonometry identities.",
+    },
+  ],
+  "student_123",
+);
+
+const result = await mem.get({
+  query: "teach this student trigonometry identities",
+  externalUserId: "student_123",
+  limit: 8,
+  contextMaxTokens: 600,
+});
+
+const systemPrompt = result.hasContext
+  ? `You are a patient math tutor.\n\n${result.systemPromptAddition}`
+  : "You are a patient math tutor.";
+
+const profile = await mem.getEdTechProfile("student_123");
+console.log(profile?.weakTopics);
+```
+
+## Conflict behavior
+
+EdTech conflict routing is automatic after the domain is enabled.
+
+Examples:
+
+| Conflict | Resolution path |
+| --- | --- |
+| Student said exam date is March 10, later says March 15 | Ask the student in their next session |
+| Student was Class 10, later says Class 11 | Ask the student |
+| Two admins disagree on institution curriculum | Tenant review |
+| Student changed preferred explanation language | Usually treated as user preference, not tenant review |
+
+Tenant admins should not manually decide personal student facts. MemoryOS routes those to user-session clarification.
+
+## Cross-agent sharing
+
+If a student uses multiple learning agents and grants consent, safe EdTech summaries can project into universal memory.
+
+Examples:
+
+- `Student prefers Hinglish explanations`
+- `Student is preparing for JEE Main`
+- `Student is working on improving thermodynamics`
+
+Full structured EdTech state stays domain-local.
+
+## Best practices
+
+- Use stable `external_user_id` values, such as your internal student ID.
+- Call `add()` after meaningful tutoring conversations, not every tiny UI event.
+- Call `get()` immediately before your LLM call.
+- Use `context_max_tokens` to control prompt budget.
+- Use `get_edtech_profile()` only when building domain UI.
+- Let MemoryOS handle conflict routing instead of exposing "keep A / keep B" choices to teachers for personal student facts.
+
+## Related pages
+
+- [Domain schemas](/concepts/domain-schemas)
+- [MemoryEngine](/concepts/memory-engine)
+- [Quickstart](/quickstart)
