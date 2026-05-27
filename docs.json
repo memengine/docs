@@ -7,6 +7,13 @@
     "dark": "#1B3A5C"
   },
   "favicon": "/favicon.ico",
+  "navbar": {
+    "primary": {
+      "type": "button",
+      "label": "Dashboard",
+      "href": "https://app.memoryos.io"
+    }
+  },
   "navigation": {
     "groups": [
       {
@@ -14,7 +21,29 @@
         "pages": [
           "introduction",
           "quickstart",
-          "authentication"
+          "authentication",
+          "cookbooks/domain-selection"
+        ]
+      },
+      {
+        "group": "General Engine",
+        "pages": [
+          "concepts/general-engine",
+          "cookbooks/general-ai-memory",
+          "concepts/memory-engine",
+          "concepts/memories",
+          "concepts/quality-gate",
+          "concepts/memory-lifecycle"
+        ]
+      },
+      {
+        "group": "Domain Engines",
+        "pages": [
+          "concepts/domain-schemas",
+          "cookbooks/edtech-tutor",
+          "concepts/support-domain",
+          "cookbooks/support-agent",
+          "api-reference/edtech-profile"
         ]
       },
       {
@@ -29,20 +58,14 @@
         "pages": [
           "api-reference/add",
           "api-reference/retrieve",
-          "api-reference/edtech-profile",
           "api-reference/universal",
           "api-reference/errors"
         ]
       },
       {
-        "group": "Concepts",
+        "group": "Advanced Concepts",
         "pages": [
-          "concepts/memory-engine",
-          "concepts/quality-gate",
           "concepts/degradation",
-          "concepts/memories",
-          "concepts/domain-schemas",
-          "concepts/memory-lifecycle",
           "concepts/memory-passport",
           "concepts/rate-limits"
         ]
