@@ -51,7 +51,8 @@
       "group": "SDKs",
       "pages": [
         "sdk/python",
-        "sdk/typescript"
+        "sdk/typescript",
+        "sdk/mcp"
       ]
     },
     {

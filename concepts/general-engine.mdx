@@ -12,7 +12,6 @@ It works for most AI products:
 - productivity copilots
 - SaaS personalization
 - internal knowledge helpers
-- early versions of HR, healthcare, or other domain products before a dedicated domain schema is available
 
 ## What it stores
 
@@ -27,7 +26,6 @@ The General Engine extracts durable memory from conversations into these categor
 | `relationship` | People, teams, or account relationships | User reports to the Head of Product. |
 | `expertise` | Skills, tools, or areas of knowledge | User is comfortable with FastAPI and PostgreSQL. |
 
-The General Engine should store information that improves future AI responses. It should not replace your application database.
 
 ## What it does not store
 
@@ -99,17 +97,6 @@ The General Engine ranks memories using:
 
 Use a query that describes the current task. This gives better retrieval than a generic query such as `"memory"` or `"preferences"`.
 
-## Context formats
-
-`get()` can return prompt context in three formats:
-
-| Format | Use when |
-| --- | --- |
-| `bullets` | You want human-readable prompt context |
-| `json` | Your application parses the memory block |
-| `xml` | You want strongly tagged prompt context |
-
-Most teams should start with `bullets`.
 
 ## Quality gate outcomes
 
@@ -136,7 +123,6 @@ Move to a domain schema when your product needs structured domain memory, such a
 - EdTech student profiles, weak topics, exams, and forgetting-stage context
 - Support customer issue history, support type, sentiment, and escalation risk
 
-The SDK stays the same after the tenant changes domain. Your main integration remains `add()` and `get()`.
 
 ## Related pages
 

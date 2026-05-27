@@ -1,0 +1,128 @@
+---
+title: MemoryOS MCP Server
+description: Run MemoryOS as a sidecar tool server for AI agents, IDEs, and local assistants.
+---
+
+MemoryOS MCP lets an agent call MemoryOS as tools instead of importing the SDK in the main application process.
+
+Use MCP when you want MemoryOS isolated from your core backend, or when your agent runtime already supports the Model Context Protocol.
+
+<img src="/images/api-key-settings-placeholder.svg" alt="Placeholder: create a MemoryOS API key from the workspace dashboard" />
+
+## Install
+
+```bash
+pip install memoryos-mcp
+```
+
+For local development from this repository:
+
+```bash
+cd memoryos-mcp
+pip install -e .
+```
+
+## Configure
+
+Use a workspace API key from the MemoryOS dashboard.
+
+```bash
+MEMORYOS_API_KEY=mem_live_xxx
+MEMORYOS_API_URL=https://api.memoryos.io
+```
+
+For local Docker:
+
+```bash
+MEMORYOS_API_URL=http://localhost:8000
+```
+
+## Run
+
+```bash
+memoryos-mcp
+```
+
+Claude Desktop example:
+
+```json
+{
+  "mcpServers": {
+    "memoryos": {
+      "command": "memoryos-mcp",
+      "env": {
+        "MEMORYOS_API_KEY": "mem_live_xxx",
+        "MEMORYOS_API_URL": "https://api.memoryos.io"
+      }
+    }
+  }
+}
+```
+
+## What the agent can call
+
+The MCP server exposes first-class tools for the normal MemoryOS flow:
+
+```text
+memoryos_add_memory
+memoryos_get_context
+memoryos_list_memories
+memoryos_delete_memory
+memoryos_get_job_status
+```
+
+It also exposes domain and cross-agent tools:
+
+```text
+memoryos_get_domain_schema
+memoryos_set_domain_schema
+memoryos_get_edtech_profile
+memoryos_set_support_type
+memoryos_list_support_customers
+memoryos_get_support_stats
+memoryos_create_consent_url
+memoryos_universal_get_context
+memoryos_universal_add_memory
+```
+
+For newly released endpoints, `memoryos_api_request` provides an allowlisted escape hatch across MemoryOS API paths.
+
+## One server for every schema
+
+You do not run separate MCP servers for General, EdTech, and Customer Support.
+
+The tool call stays the same:
+
+```json
+{
+  "external_user_id": "cust_123",
+  "query": "what should I know before replying?"
+}
+```
+
+MemoryOS applies the correct engine based on your workspace setting:
+
+```text
+General Engine -> general memory context
+EdTech Schema -> general context + tutoring profile
+Customer Support Schema -> general context + support profile
+```
+
+## Support agent boundary
+
+For customer support, MCP gives the agent remembered context. Your support platform still provides live tools.
+
+```text
+MemoryOS MCP:
+  what does this customer prefer?
+  what open issue did they mention earlier?
+  what context should the agent not ask again?
+
+Your backend tools:
+  get_order()
+  create_refund()
+  get_invoice()
+  update_ticket()
+```
+
+The agent should not say a refund, invoice, or account change was completed unless your own backend tool actually completed it.
