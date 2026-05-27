@@ -1,0 +1,147 @@
+---
+title: "General Engine"
+description: "The default MemoryOS engine for tenant-scoped AI memory across assistants, copilots, agents, and SaaS products."
+---
+
+The General Engine is the default MemoryOS runtime. Use it when your product needs reliable long-term memory but does not need an industry-specific schema.
+
+It works for most AI products:
+
+- chatbots and assistants
+- coding agents
+- productivity copilots
+- SaaS personalization
+- internal knowledge helpers
+- early versions of HR, healthcare, or other domain products before a dedicated domain schema is available
+
+## What it stores
+
+The General Engine extracts durable memory from conversations into these categories:
+
+| Category | Meaning | Example |
+| --- | --- | --- |
+| `preference` | How the user likes things done | User prefers concise answers with Python examples. |
+| `fact` | Stable user or account facts | User works in a B2B SaaS support team. |
+| `goal` | Something the user wants to achieve | User is preparing to launch an AI product. |
+| `procedure` | A repeated workflow or instruction | User wants weekly summaries every Friday. |
+| `relationship` | People, teams, or account relationships | User reports to the Head of Product. |
+| `expertise` | Skills, tools, or areas of knowledge | User is comfortable with FastAPI and PostgreSQL. |
+
+The General Engine should store information that improves future AI responses. It should not replace your application database.
+
+## What it does not store
+
+Keep these in your own product database:
+
+- billing records
+- official user profile fields
+- account permissions
+- source-of-truth ticket status
+- source-of-truth course enrollment
+- payroll, HRIS, or compliance records
+
+MemoryOS stores memory extracted from interaction. Your product database remains the system of record.
+
+## Write path
+
+When your backend calls `add()`, MemoryOS:
+
+1. authenticates the tenant API key
+2. resolves `external_user_id` inside that tenant
+3. runs the quality gate
+4. queues extraction
+5. extracts durable memory
+6. resolves conflicts against existing memory
+7. stores canonical records
+8. indexes vectors for retrieval
+9. records version history
+
+The API returns quickly with a job result. Extraction runs asynchronously.
+
+```python
+result = mem.add(
+    messages=[
+        {
+            "role": "user",
+            "content": "Remember that I prefer concise technical explanations with Python examples.",
+        }
+    ],
+    external_user_id="user_123",
+)
+```
+
+## Read path
+
+Call `get()` before your model call. MemoryOS retrieves relevant memories and returns `system_prompt_addition`, which is safe to prepend to your system prompt.
+
+```python
+memories = mem.get(
+    query="answer this user's integration question",
+    external_user_id="user_123",
+    limit=5,
+    context_max_tokens=500,
+)
+
+system_prompt = "You are a helpful assistant."
+if memories.has_context:
+    system_prompt = f"{system_prompt}\n\n{memories.system_prompt_addition}"
+```
+
+## Retrieval ranking
+
+The General Engine ranks memories using:
+
+- semantic relevance to the current query
+- importance score
+- recency and lifecycle state
+- hot-tier cache signals
+- category filters when provided
+
+Use a query that describes the current task. This gives better retrieval than a generic query such as `"memory"` or `"preferences"`.
+
+## Context formats
+
+`get()` can return prompt context in three formats:
+
+| Format | Use when |
+| --- | --- |
+| `bullets` | You want human-readable prompt context |
+| `json` | Your application parses the memory block |
+| `xml` | You want strongly tagged prompt context |
+
+Most teams should start with `bullets`.
+
+## Quality gate outcomes
+
+`add()` may return:
+
+| Status | Meaning | Application behavior |
+| --- | --- | --- |
+| `queued` | Memory extraction was queued | Continue normally |
+| `passthrough` | Writes are skipped in the current quota mode | Continue without persistence |
+| `L1` | Per-user rate limit | Retry later |
+| `L2` | Low-quality input | Do not retry the same message |
+| `L3` | Duplicate or near-duplicate input | Avoid repeated writes |
+| `L4` | Budget governance block | Upgrade or wait for reset |
+| `blocked` | Fallback block state | Log and continue |
+
+The LLM call should not fail only because memory could not be written.
+
+## When to move to a domain schema
+
+Stay on the General Engine if prompt-ready memory is enough.
+
+Move to a domain schema when your product needs structured domain memory, such as:
+
+- EdTech student profiles, weak topics, exams, and forgetting-stage context
+- Support customer issue history, support type, sentiment, and escalation risk
+
+The SDK stays the same after the tenant changes domain. Your main integration remains `add()` and `get()`.
+
+## Related pages
+
+- [Cookbook: general AI memory](/cookbooks/general-ai-memory)
+- [Domain schemas](/concepts/domain-schemas)
+- [MemoryEngine](/concepts/memory-engine)
+- [POST /v1/memories/add](/api-reference/add)
+- [POST /v1/memories/retrieve](/api-reference/retrieve)

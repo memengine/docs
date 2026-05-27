@@ -1,0 +1,329 @@
+---
+title: "Domain Schemas"
+description: "How MemoryOS separates the General Engine from domain-specific engines such as EdTech and Support."
+---
+
+MemoryOS has one SDK and multiple backend memory modes.
+
+Every tenant starts with the **General Engine**. A tenant can then enable a domain schema when the product needs industry-specific memory.
+
+```text
+Same SDK call
+  mem.add(...)
+  mem.get(...)
+
+Tenant setting
+  domain_schema: null | "edtech" | "support"
+
+Backend behavior
+  General Engine only
+  or General Engine + domain overlay
+```
+
+The core rule:
+
+**Your SDK stays generic. The tenant becomes domain-aware.**
+
+## Which path should I choose?
+
+| Product type | Recommended engine |
+| --- | --- |
+| General chatbot, assistant, copilot, coding agent, SaaS personalization | General Engine |
+| Tutoring, exam prep, learning app, student coach | EdTech Schema |
+| Customer support bot, support copilot, agent-assist tool | Support Schema |
+| HR, recruiting, healthcare, agriculture, or other future domains | General Engine today, domain schema when available |
+
+## Available domains
+
+| Domain | Production status | What it adds |
+| --- | --- | --- |
+| General Engine | Available | Generic facts, preferences, goals, procedures, relationships, and expertise |
+| EdTech Schema | Available | Student profile, grade, curriculum, weak topics, strong topics, exam context, learning style, forgetting stages |
+| Support Schema | Available | Customer support profile, current issue, issue history, support type, sentiment, communication preference, escalation risk |
+| HR Tech | Coming soon | Use the General Engine for production HR products today |
+| HealthTech | Coming soon | Use the General Engine for production healthcare products today |
+| AgriTech | Planned | Use the General Engine until the domain is available |
+
+## General Engine
+
+The General Engine is the default and works for any AI product.
+
+It extracts durable memory into stable categories:
+
+- `preference`
+- `fact`
+- `goal`
+- `procedure`
+- `relationship`
+- `expertise`
+
+Use it when your application only needs prompt-ready memory context.
+
+```python
+mem.add(messages=conversation, external_user_id="user_123")
+
+result = mem.get(
+    query="answer this user's question",
+    external_user_id="user_123",
+)
+```
+
+Read more: [General Engine](/concepts/general-engine).
+
+## EdTech Schema
+
+The EdTech schema is for tutoring, exam prep, student coaching, and learning products.
+
+It adds structured student memory such as:
+
+- grade level
+- board or curriculum
+- subjects
+- weak topics
+- strong topics
+- concept gaps
+- misconceptions
+- explanation style
+- language preference
+- exam name and date
+- forgetting-stage review urgency
+
+Normal AI calls still use `get()`. Use `get_edtech_profile()` only for dashboards or structured student UI.
+
+```python
+profile = mem.get_edtech_profile("student_123")
+```
+
+Read more: [Cookbook: EdTech tutor](/cookbooks/edtech-tutor).
+
+## Support Schema
+
+The Support schema is for support AI, support copilots, and customer continuity.
+
+It adds structured customer support memory such as:
+
+- support type
+- customer tier or account hints
+- communication preference
+- language profile
+- current open issue
+- issue history
+- resolution preference
+- sentiment pattern
+- escalation risk signals
+
+Support has three routing modes:
+
+| Mode | Use when |
+| --- | --- |
+| `single` | Your tenant serves one vertical, such as ecommerce, banking, travel, telecom, SaaS, or EdTech support |
+| `multi` | Your tenant is a helpdesk platform that serves many verticals, such as Intercom, Crisp, or Zendesk |
+| `auto` | You are testing broad support coverage and want MemoryOS to classify across all support types |
+
+Normal AI calls still use `get()`. Use tenant support endpoints only for admin dashboards.
+
+Read more: [Support Domain](/concepts/support-domain).
+
+## Enable or change a domain
+
+For most teams, the easiest path is the workspace dashboard:
+
+1. Open **Settings**.
+2. Choose **General Engine**, **EdTech Schema**, or **Customer Support Schema**.
+3. If you choose Support, select `single`, `multi`, or `auto` routing.
+4. Save changes.
+
+<img
+  src="/images/Screenshot 2026-05-26 152443.png"
+  alt="Domain schema settings in the MemoryOS workspace dashboard"
+/>
+
+The API examples below are useful when you want to automate tenant setup.
+
+Check the tenant's current domain:
+
+```http
+GET /v1/tenant/domain-schema
+Authorization: ApiKey mem_...
+```
+
+```bash
+curl "https://api.memoryos.io/v1/tenant/domain-schema" \
+  -H "Authorization: ApiKey mem_your_api_key"
+```
+
+Enable EdTech:
+
+```http
+PATCH /v1/tenant/domain-schema
+Authorization: ApiKey mem_...
+Content-Type: application/json
+```
+
+```json
+{
+  "domain_schema": "edtech"
+}
+```
+
+Enable Support:
+
+```json
+{
+  "domain_schema": "support"
+}
+```
+
+Executable `curl`:
+
+```bash
+curl -X PATCH "https://api.memoryos.io/v1/tenant/domain-schema" \
+  -H "Authorization: ApiKey mem_your_api_key" \
+  -H "Content-Type: application/json" \
+  -d '{"domain_schema":"support"}'
+```
+
+Configure Support routing:
+
+```http
+PATCH /v1/tenant/support-type
+Authorization: ApiKey mem_...
+Content-Type: application/json
+```
+
+```json
+{
+  "support_type_mode": "multi",
+  "support_type": null,
+  "support_types_allowed": ["saas", "ecommerce", "banking_fintech", "travel", "telecom", "general_info"]
+}
+```
+
+Executable `curl`:
+
+```bash
+curl -X PATCH "https://api.memoryos.io/v1/tenant/support-type" \
+  -H "Authorization: ApiKey mem_your_api_key" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "support_type_mode": "multi",
+    "support_type": null,
+    "support_types_allowed": ["saas", "ecommerce", "banking_fintech", "travel", "telecom", "general_info"]
+  }'
+```
+
+Return to the General Engine:
+
+```json
+{
+  "domain_schema": null
+}
+```
+
+## What changes on `add()`
+
+For a general tenant:
+
+```text
+add()
+  -> quality gate
+  -> general extraction
+  -> conflict resolution
+  -> memories table
+  -> vector index
+```
+
+For an EdTech tenant:
+
+```text
+add()
+  -> quality gate
+  -> general extraction
+  -> conflict resolution
+  -> memories table
+  -> vector index
+  -> EdTech overlay
+  -> edtech_memories
+  -> optional universal memory projection
+```
+
+For a Support tenant:
+
+```text
+add()
+  -> quality gate
+  -> general extraction
+  -> conflict resolution
+  -> memories table
+  -> vector index
+  -> Support overlay
+  -> support_memories
+```
+
+Your application still sends the same `messages` and `external_user_id`.
+
+## What changes on `get()`
+
+For a general tenant:
+
+```text
+get()
+  -> hybrid retrieval
+  -> ContextBuilder
+  -> generic system_prompt_addition
+```
+
+For a domain tenant:
+
+```text
+get()
+  -> hybrid retrieval
+  -> ContextBuilder
+  -> domain retriever
+  -> domain-aware system_prompt_addition
+```
+
+That means your model-call path can stay the same:
+
+```python
+result = mem.get(query=current_task, external_user_id=external_user_id)
+
+system_prompt = BASE_PROMPT
+if result.has_context:
+    system_prompt = f"{system_prompt}\n\n{result.system_prompt_addition}"
+```
+
+## Dashboard versus model-call APIs
+
+Use `get()` for model calls.
+
+Use domain profile and tenant endpoints for dashboards.
+
+| Need | API |
+| --- | --- |
+| Add memory from a conversation | SDK `add()` or `POST /v1/memories/add` |
+| Retrieve prompt-ready memory context | SDK `get()` or `POST /v1/memories/retrieve` |
+| Student dashboard profile | `GET /v1/memories/edtech-profile` |
+| Support customer dashboard list | `GET /v1/tenant/customers` |
+| Support aggregate stats | `GET /v1/tenant/support-stats` |
+| Tenant domain settings | `GET /v1/tenant/domain-schema` and `PATCH /v1/tenant/domain-schema` |
+
+## Universal memory and domains
+
+Domain schemas can project safe portable summaries into Memory Passport when the user has granted cross-agent consent.
+
+Example EdTech portable summaries:
+
+- Student prefers Hinglish explanations.
+- Student is preparing for JEE Main.
+- Student is working on improving thermodynamics.
+
+Structured domain state stays domain-local unless a future consent experience explicitly allows sharing it.
+
+## Related pages
+
+- [General Engine](/concepts/general-engine)
+- [Support Domain](/concepts/support-domain)
+- [Cookbook: choosing an engine](/cookbooks/domain-selection)
+- [Cookbook: EdTech tutor](/cookbooks/edtech-tutor)
+- [Cookbook: support agent memory](/cookbooks/support-agent)
