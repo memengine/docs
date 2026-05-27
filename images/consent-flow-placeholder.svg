@@ -1,0 +1,25 @@
+<svg width="1200" height="760" viewBox="0 0 1200 760" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="1200" height="760" rx="28" fill="#F8FAFC"/>
+  <rect x="80" y="70" width="1040" height="620" rx="28" fill="#FFFFFF" stroke="#CBD5E1" stroke-width="2"/>
+  <text x="130" y="135" fill="#0F172A" font-family="Arial, sans-serif" font-size="34" font-weight="700">Connect Memory Passport</text>
+  <text x="130" y="175" fill="#475569" font-family="Arial, sans-serif" font-size="18">Approve what this AI agent can remember and access.</text>
+  <rect x="130" y="220" width="940" height="120" rx="18" fill="#F8FAFC" stroke="#E2E8F0"/>
+  <circle cx="185" cy="280" r="34" fill="#DBEAFE"/>
+  <text x="169" y="292" fill="#1D4ED8" font-family="Arial, sans-serif" font-size="26" font-weight="700">AI</text>
+  <text x="240" y="270" fill="#0F172A" font-family="Arial, sans-serif" font-size="24" font-weight="700">Support Copilot</text>
+  <text x="240" y="302" fill="#475569" font-family="Arial, sans-serif" font-size="18">Requests access to approved memory categories</text>
+  <rect x="130" y="380" width="940" height="180" rx="18" fill="#FFFFFF" stroke="#CBD5E1"/>
+  <text x="165" y="430" fill="#0F172A" font-family="Arial, sans-serif" font-size="22" font-weight="700">Select categories</text>
+  <rect x="165" y="460" width="170" height="42" rx="21" fill="#DCFCE7"/>
+  <text x="200" y="487" fill="#166534" font-family="Arial, sans-serif" font-size="17" font-weight="700">Preferences</text>
+  <rect x="355" y="460" width="130" height="42" rx="21" fill="#DCFCE7"/>
+  <text x="392" y="487" fill="#166534" font-family="Arial, sans-serif" font-size="17" font-weight="700">Goals</text>
+  <rect x="505" y="460" width="145" height="42" rx="21" fill="#F1F5F9"/>
+  <text x="548" y="487" fill="#64748B" font-family="Arial, sans-serif" font-size="17" font-weight="700">Facts</text>
+  <rect x="670" y="460" width="170" height="42" rx="21" fill="#F1F5F9"/>
+  <text x="710" y="487" fill="#64748B" font-family="Arial, sans-serif" font-size="17" font-weight="700">Expertise</text>
+  <rect x="165" y="590" width="220" height="54" rx="14" fill="#171717"/>
+  <text x="218" y="625" fill="#FFFFFF" font-family="Arial, sans-serif" font-size="19" font-weight="700">Approve access</text>
+  <rect x="405" y="590" width="160" height="54" rx="14" fill="#FFFFFF" stroke="#CBD5E1"/>
+  <text x="458" y="625" fill="#334155" font-family="Arial, sans-serif" font-size="19" font-weight="700">Deny</text>
+</svg>
