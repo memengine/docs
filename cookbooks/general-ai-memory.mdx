@@ -1,0 +1,193 @@
+---
+title: "Cookbook: general AI memory"
+description: "Add tenant-scoped long-term memory to a chatbot, copilot, or assistant using the general MemoryOS engine."
+---
+
+Use this cookbook when your product needs durable user memory but does not need an industry schema yet.
+
+The general engine stores facts, preferences, goals, procedures, relationships, and expertise for each `external_user_id` inside your tenant.
+
+## When to use this pattern
+
+Use the general engine for:
+
+- AI assistants and copilots
+- productivity tools
+- coding agents
+- personalisation in SaaS apps
+- onboarding and support chat that does not need the Support schema
+
+Use a domain schema when your product needs structured industry memory. For example, EdTech adds student profiles and Support adds customer support state.
+
+## Flow
+
+```text
+User conversation
+  -> mem.add(...)
+  -> MemoryOS extracts durable memory
+  -> mem.get(...) before the next model call
+  -> prepend system_prompt_addition
+  -> call your LLM
+```
+
+## Python
+
+```python
+import os
+
+from memoryos import Memory
+from openai import OpenAI
+
+
+BASE_PROMPT = "You are a helpful product assistant."
+
+
+def answer_user(external_user_id: str, user_message: str) -> str:
+    memory = Memory(api_key=os.environ["MEMORYOS_API_KEY"])
+    openai = OpenAI(api_key=os.environ["OPENAI_API_KEY"])
+
+    memory.add(
+        messages=[{"role": "user", "content": user_message}],
+        external_user_id=external_user_id,
+        metadata={"source": "chat"},
+    )
+
+    memories = memory.get(
+        query=user_message,
+        external_user_id=external_user_id,
+        limit=5,
+        context_max_tokens=500,
+    )
+
+    system_prompt = BASE_PROMPT
+    if memories.has_context:
+        system_prompt = f"{BASE_PROMPT}\n\n{memories.system_prompt_addition}"
+
+    response = openai.responses.create(
+        model="gpt-4.1-mini",
+        input=[
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_message},
+        ],
+    )
+
+    memory.close()
+    return response.output_text
+```
+
+## TypeScript
+
+```ts
+import OpenAI from "openai";
+import { MemoryOS } from "@memoryos/sdk";
+
+const BASE_PROMPT = "You are a helpful product assistant.";
+
+export async function answerUser(
+  externalUserId: string,
+  userMessage: string,
+): Promise<string> {
+  const memory = new MemoryOS(process.env.MEMORYOS_API_KEY!);
+  const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY! });
+
+  await memory.add(
+    [{ role: "user", content: userMessage }],
+    externalUserId,
+    undefined,
+    { source: "chat" },
+  );
+
+  const memories = await memory.get({
+    query: userMessage,
+    externalUserId,
+    limit: 5,
+    contextMaxTokens: 500,
+  });
+
+  const systemPrompt = memories.hasContext
+    ? `${BASE_PROMPT}\n\n${memories.systemPromptAddition}`
+    : BASE_PROMPT;
+
+  const response = await openai.responses.create({
+    model: "gpt-4.1-mini",
+    input: [
+      { role: "system", content: systemPrompt },
+      { role: "user", content: userMessage },
+    ],
+  });
+
+  return response.output_text;
+}
+```
+
+## Production handling
+
+Always treat MemoryOS as additive context. Your product should still answer when memory is unavailable, passthrough, or empty.
+
+```python
+memories = memory.get(query=user_message, external_user_id=external_user_id)
+
+prompt_addition = ""
+if memories.has_context:
+    prompt_addition = memories.system_prompt_addition
+```
+
+For writes, inspect `status` before assuming a memory was stored.
+
+```python
+result = memory.add(messages=messages, external_user_id=external_user_id)
+
+if result.was_stored:
+    print("queued for extraction")
+elif result.nothing_to_extract:
+    print("valid conversation, no durable memory found")
+elif result.status == "passthrough":
+    print("write skipped by quota mode")
+else:
+    print(result.status, result.blocked_reason)
+```
+
+## What to send to `add()`
+
+Send meaningful conversational turns, not every keystroke or UI event.
+
+Good examples:
+
+- "I prefer short technical answers with Python examples."
+- "My main goal is to prepare for the AWS Solutions Architect exam."
+- "For project updates, send me a weekly summary every Friday."
+
+Poor examples:
+
+- "hi"
+- "ok"
+- empty messages
+- repeated copies of the same turn
+
+The quality gate may block low-quality, duplicate, or over-budget requests before they enter extraction.
+
+## Retrieval query design
+
+Use the current task as the query, not a generic query like `"memory"`.
+
+Good:
+
+```python
+memory.get(
+    query="Write a follow-up email for this customer",
+    external_user_id="customer-123",
+)
+```
+
+Less useful:
+
+```python
+memory.get(query="preferences", external_user_id="customer-123")
+```
+
+## Related pages
+
+- [Quickstart](/quickstart)
+- [MemoryEngine](/concepts/memory-engine)
+- [POST /v1/memories/add](/api-reference/add)
+- [POST /v1/memories/retrieve](/api-reference/retrieve)

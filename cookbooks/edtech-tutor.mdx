@@ -1,0 +1,159 @@
+---
+title: "Cookbook: EdTech tutor"
+description: "Build tutoring, exam-prep, and learning apps with the EdTech domain schema."
+---
+
+Use this cookbook when your product teaches, tutors, coaches students, or personalizes learning paths.
+
+The EdTech schema keeps the same SDK calls as the general engine, but adds structured student memory such as grade level, curriculum, weak topics, learning style, exam context, and forgetting-stage review signals.
+
+## Enable the domain
+
+Use the tenant domain endpoint during onboarding or from an admin settings page.
+
+```http
+PATCH /v1/tenant/domain-schema
+Authorization: ApiKey mem_...
+Content-Type: application/json
+```
+
+```json
+{
+  "domain_schema": "edtech"
+}
+```
+
+You can check the active domain:
+
+```http
+GET /v1/tenant/domain-schema
+Authorization: ApiKey mem_...
+```
+
+## Add a tutoring session
+
+```python
+import os
+
+from memoryos import Memory
+
+mem = Memory(api_key=os.environ["MEMORYOS_API_KEY"])
+
+result = mem.add(
+    external_user_id="student_123",
+    messages=[
+        {
+            "role": "user",
+            "content": "I am in Class 10 CBSE. My boards are in March. Algebra is okay, but I keep forgetting trigonometry identities.",
+        },
+        {
+            "role": "assistant",
+            "content": "We will revise trigonometry identities with CBSE Class 10 examples and quick recall practice.",
+        },
+    ],
+    metadata={"source": "lesson", "subject": "math"},
+)
+
+print(result.status)
+```
+
+MemoryOS writes generic memories and updates the EdTech overlay internally.
+
+## Retrieve lesson context
+
+Call `get()` immediately before your model call.
+
+```python
+memories = mem.get(
+    query="teach this student trigonometry identities",
+    external_user_id="student_123",
+    limit=8,
+    context_max_tokens=700,
+)
+
+system_prompt = "You are a patient math tutor."
+if memories.has_context:
+    system_prompt = f"{system_prompt}\n\n{memories.system_prompt_addition}"
+```
+
+For an EdTech tenant, `system_prompt_addition` can include student-specific tutoring context before the normal memory bullets.
+
+## Build a student dashboard
+
+Use `get_edtech_profile()` only when your UI needs structured profile fields. Normal tutoring calls should use `get()`.
+
+```python
+profile = mem.get_edtech_profile("student_123")
+
+if profile:
+    print(profile.grade_level)
+    print(profile.board_or_curriculum)
+    print(profile.exam_name, profile.exam_date)
+    print(profile.weak_topics[:3])
+    print(profile.forgetting_stages)
+```
+
+TypeScript:
+
+```ts
+const profile = await mem.getEdTechProfile("student_123");
+
+if (profile?.hasExamContext) {
+  console.log(profile.examName, profile.examDate);
+}
+
+console.log(profile?.weakTopics.slice(0, 3));
+```
+
+## Suggested product moments
+
+Call `add()` after:
+
+- the student introduces goals, grade, curriculum, exam, or deadline
+- the tutor observes a strong topic, weak topic, misconception, or concept gap
+- the student changes explanation style or language preference
+- a lesson ends with meaningful progress or review needs
+
+Call `get()` before:
+
+- generating the next tutoring response
+- building a practice plan
+- choosing review questions
+- preparing an exam-readiness summary
+
+## Conflict behavior
+
+The EdTech router sends personal student facts back to the student for clarification and routes workspace-level facts to tenant review.
+
+| Example | Expected route |
+| --- | --- |
+| Exam date changed from March 10 to March 15 | User session clarification |
+| Student changed from Class 10 to Class 11 | User session clarification |
+| Institution curriculum changed | Tenant review |
+| Student prefers Hinglish explanations now | Personal preference update |
+
+## Data boundaries
+
+Keep your own source-of-truth academic records in your product database. MemoryOS stores memory extracted from interactions and makes it useful for AI context.
+
+Use your product database for:
+
+- enrollment
+- payment status
+- official grades
+- institution rosters
+- parent or guardian records
+
+Use MemoryOS for:
+
+- learning preferences
+- weak and strong topics
+- tutoring context
+- exam goals mentioned in conversation
+- review urgency and personalized context
+
+## Related pages
+
+- [Domain schemas](/concepts/domain-schemas)
+- [GET /v1/memories/edtech-profile](/api-reference/edtech-profile)
+- [EdTech domain guide](/guides/edtech-domain)

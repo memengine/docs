@@ -1,0 +1,542 @@
+---
+title: "Cookbook: Support Agent Memory"
+description: "Build a production-ready support agent that combines MemoryOS customer memory with your live support tools."
+---
+
+Use this cookbook when you are building:
+
+- a customer support chatbot
+- a human-agent copilot
+- a helpdesk platform like Intercom, Crisp, or Zendesk
+- a support automation layer for SaaS, ecommerce, fintech, travel, telecom, or education
+
+The key idea:
+
+```text
+MemoryOS remembers customer context.
+Your tools provide live truth.
+Your agent combines both.
+```
+
+## 1. Enable Customer Support Schema
+
+Start from the dashboard when you are evaluating MemoryOS with a real customer or internal demo.
+
+1. Open **Settings** in the workspace dashboard.
+2. Select **Customer Support Schema**.
+3. Choose your support routing mode.
+4. Save changes.
+
+<img
+  src="/images/Screenshot 2026-05-26 152443.png"
+  alt="Customer Support Schema selected in MemoryOS tenant settings"
+/>
+
+Use the API when you want to automate tenant setup.
+
+Enable the domain:
+
+```http
+PATCH /v1/tenant/domain-schema
+Authorization: ApiKey mem_...
+Content-Type: application/json
+```
+
+```json
+{
+  "domain_schema": "support"
+}
+```
+
+Executable `curl`:
+
+```bash
+curl -X PATCH "https://api.memoryos.io/v1/tenant/domain-schema" \
+  -H "Authorization: ApiKey mem_your_api_key" \
+  -H "Content-Type: application/json" \
+  -d '{"domain_schema":"support"}'
+```
+
+Then configure routing.
+
+### Option A: Single Vertical
+
+Use this if all of your support conversations belong to one vertical.
+
+```http
+PATCH /v1/tenant/support-type
+Authorization: ApiKey mem_...
+Content-Type: application/json
+```
+
+```json
+{
+  "support_type_mode": "single",
+  "support_type": "ecommerce",
+  "support_types_allowed": []
+}
+```
+
+Executable `curl`:
+
+```bash
+curl -X PATCH "https://api.memoryos.io/v1/tenant/support-type" \
+  -H "Authorization: ApiKey mem_your_api_key" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "support_type_mode": "single",
+    "support_type": "ecommerce",
+    "support_types_allowed": []
+  }'
+```
+
+Examples:
+
+```text
+SBI -> banking_fintech
+Flipkart -> ecommerce
+MakeMyTrip -> travel
+Airtel -> telecom
+```
+
+### Option B: Multi-Vertical Helpdesk
+
+Use this if you are a helpdesk platform serving many businesses.
+
+```json
+{
+  "support_type_mode": "multi",
+  "support_type": null,
+  "support_types_allowed": [
+    "saas",
+    "ecommerce",
+    "banking_fintech",
+    "travel",
+    "telecom",
+    "general_info"
+  ]
+}
+```
+
+Executable `curl`:
+
+```bash
+curl -X PATCH "https://api.memoryos.io/v1/tenant/support-type" \
+  -H "Authorization: ApiKey mem_your_api_key" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "support_type_mode": "multi",
+    "support_type": null,
+    "support_types_allowed": ["saas", "ecommerce", "banking_fintech", "travel", "telecom", "general_info"]
+  }'
+```
+
+MemoryOS classifies each conversation within your allow-list during support extraction. There is no separate detection call.
+
+### Option C: Auto Detect
+
+Use this for broad testing:
+
+```json
+{
+  "support_type_mode": "auto",
+  "support_type": null,
+  "support_types_allowed": []
+}
+```
+
+## 2. Use Stable Customer IDs
+
+Use your internal customer identifier as `external_user_id`.
+
+Good:
+
+```text
+external_user_id="cust_8a72"
+external_user_id="workspace_acme_labs"
+external_user_id="shopify_customer_123"
+```
+
+Avoid using raw email as the primary ID if you already have a safer internal ID.
+
+## 3. Copy-Paste Backend Flow
+
+This is the practical production flow most teams use:
+
+```text
+incoming customer message
+  -> MemoryOS get()
+  -> your live tools
+  -> LLM answer
+  -> MemoryOS add()
+```
+
+Copy this into your backend and replace the two integration functions with your real systems.
+
+```python
+import os
+from memoryos import Memory
+
+mem = Memory(api_key=os.environ["MEMORYOS_API_KEY"])
+
+BASE_SUPPORT_PROMPT = """
+You are a careful customer support assistant.
+
+Rules:
+- Use MemoryOS context as remembered customer context only.
+- Use live tool results as the source of truth for current status and actions.
+- Do not claim you checked, changed, refunded, cancelled, verified, located, or triggered anything unless a tool result confirms it.
+- If live system data is needed and no tool result is available, say you need to check the relevant system.
+- Ask for only one missing identifier at a time.
+- Never ask for OTPs, passwords, full account numbers, full card numbers, Aadhaar, PAN, passport numbers, or full IMEI.
+"""
+
+
+def answer_support_message(customer_id, ticket_id, user_message, conversation_history):
+    """
+    customer_id: your stable customer/user/account ID, for example "cust_8a72"
+    ticket_id: your support ticket or conversation ID, for example "TCK-1842"
+    conversation_history: previous messages in this ticket
+    """
+
+    memories = mem.get(
+        query=user_message,
+        external_user_id=customer_id,
+        agent_id="support-bot",
+        limit=8,
+        context_max_tokens=700,
+    )
+
+    # Replace these with your real backend tools.
+    # Examples: get_order(), get_invoice(), get_ticket_status(), get_customer_account().
+    tool_results = lookup_live_support_data(
+        customer_id=customer_id,
+        ticket_id=ticket_id,
+        user_message=user_message,
+    )
+
+    system_prompt = BASE_SUPPORT_PROMPT
+    if memories.has_context:
+        system_prompt += "\n\nRemembered customer context from MemoryOS:\n"
+        system_prompt += memories.system_prompt_addition
+
+    system_prompt += "\n\nLive support tool results:\n"
+    system_prompt += str(tool_results)
+
+    assistant_reply = call_your_llm(
+        system_prompt=system_prompt,
+        messages=[
+            *conversation_history,
+            {"role": "user", "content": user_message},
+        ],
+    )
+
+    mem.add(
+        external_user_id=customer_id,
+        agent_id="support-bot",
+        messages=[
+            *conversation_history,
+            {"role": "user", "content": user_message},
+            {"role": "assistant", "content": assistant_reply},
+        ],
+        metadata={
+            "source": "support_chat",
+            "ticket_id": ticket_id,
+        },
+    )
+
+    return assistant_reply
+```
+
+Replace only these functions:
+
+| Placeholder | Replace with |
+| --- | --- |
+| `lookup_live_support_data()` | Your CRM, order, billing, ticket, banking, travel, or account tools |
+| `call_your_llm()` | Your OpenAI, Gemini, Anthropic, or internal model call |
+| `customer_id` | Your stable internal customer/user/account ID |
+| `ticket_id` | Your real support ticket or conversation ID |
+
+If you already have tools like `get_order`, `create_refund`, `get_invoice`, or `update_ticket`, keep them. MemoryOS does not replace them. MemoryOS gives the agent remembered customer context before it calls those tools.
+
+## 4. Add Support Conversations
+
+This code runs in **your backend**, not in the customer's browser.
+
+Use it after a support conversation, or after every few messages in a long conversation.
+
+Replace the example values with your real values:
+
+| Example value | Replace with |
+| --- | --- |
+| `MEMORYOS_API_KEY` | Your MemoryOS tenant API key environment variable |
+| `cust_8a72` | Your internal customer/user/account ID |
+| `support-bot` | Your bot, copilot, or support workflow name |
+| `TCK-1842` | Your real ticket/conversation ID |
+
+Python backend example:
+
+```python
+import os
+from memoryos import Memory
+
+mem = Memory(api_key=os.environ["MEMORYOS_API_KEY"])
+
+
+def on_support_conversation_finished(conversation):
+    customer_id = conversation.customer_id      # your stable internal ID
+    ticket_id = conversation.ticket_id          # your ticket/conversation ID
+    messages = conversation.messages            # user + assistant messages
+
+    mem.add(
+        external_user_id=customer_id,
+        agent_id="support-bot",
+        messages=messages,
+        metadata={
+            "source": "support_chat",
+            "ticket_id": ticket_id,
+        },
+    )
+```
+
+Example `messages` shape:
+
+```python
+messages = [
+    {
+        "role": "user",
+        "content": "Our workspace billing failed after upgrading to Growth. We use Slack and webhook integrations, and I need the invoice fixed before my finance review.",
+    },
+    {
+        "role": "assistant",
+        "content": "I can help. Please share the workspace ID so I can check the invoice in the billing system.",
+    },
+]
+```
+
+TypeScript backend example:
+
+```ts
+import { MemoryOS } from "@memoryos/sdk";
+
+const mem = new MemoryOS(process.env.MEMORYOS_API_KEY!);
+
+async function onSupportConversationFinished(conversation: {
+  customerId: string;
+  ticketId: string;
+  messages: Array<{ role: "user" | "assistant"; content: string }>;
+}) {
+  await mem.add(
+    conversation.messages,
+    conversation.customerId,
+    "support-bot",
+    {
+      source: "support_chat",
+      ticket_id: conversation.ticketId,
+    },
+  );
+}
+```
+
+MemoryOS extracts only durable customer context. It does not replace your ticketing, billing, order, or CRM database.
+
+## 5. Retrieve Memory Before Answering
+
+Call `get()` at the start of a support response, before your model answers.
+
+```python
+memories = mem.get(
+    query="customer is asking for an update on their billing issue",
+    external_user_id=customer_id,
+    agent_id="support-bot",
+    limit=8,
+    context_max_tokens=700,
+)
+
+system_prompt = "You are a careful customer support assistant."
+if memories.has_context:
+    system_prompt += "\n\n" + memories.system_prompt_addition
+```
+
+In production, `customer_id` should be the same stable ID you used in `add()`.
+
+For Support tenants, `system_prompt_addition` includes:
+
+- support memory usage rules
+- current open issue
+- customer identity hints
+- sentiment or escalation warnings
+- vertical-specific support context
+- communication preferences
+- issue history summary
+
+## 6. Add Your Live Tools
+
+MemoryOS should not replace your CRM, billing, order, banking, travel, or ticketing system.
+
+Your agent should call tools such as:
+
+```python
+account = lookup_customer_by_email(email)
+invoice = get_invoice(invoice_id)
+order = get_order(order_id)
+booking = get_booking_by_pnr(pnr)
+ticket = get_ticket_status(ticket_id)
+```
+
+Then give both MemoryOS context and tool results to your model:
+
+```python
+model_input = f"""
+{BASE_SUPPORT_PROMPT}
+
+Remembered customer context from MemoryOS:
+{memories.system_prompt_addition}
+
+Live tool results:
+{tool_results}
+"""
+```
+
+The agent should only make live-system claims from `tool_results`.
+
+Good:
+
+```text
+I found invoice 84678269 in the billing tool. Its status is payment_failed.
+```
+
+Bad:
+
+```text
+I located your account and confirmed the payment failed.
+```
+
+unless the billing tool actually returned that result.
+
+## 7. Recommended Agent Guardrails
+
+Add these to your support agent prompt:
+
+```text
+Use MemoryOS context as remembered customer context only.
+Do not claim you checked, changed, refunded, cancelled, verified, located, or triggered anything unless a tool/API result confirms it.
+If live system data is needed and no tool result is available, say you need to check the relevant system.
+Ask for only one missing identifier at a time.
+Do not ask for OTPs, passwords, full account numbers, full card numbers, Aadhaar, PAN, passport numbers, or full IMEI.
+```
+
+MemoryOS also injects a shorter version of these rules in Support retrieval context.
+
+## 8. Example: SaaS Billing Issue
+
+First session:
+
+```text
+User: Our workspace billing failed after upgrading to Growth. We use Slack and webhook integrations, and I need the invoice fixed before finance review.
+Assistant: I can help. Please share the workspace ID or account email so I can check billing.
+```
+
+MemoryOS stores:
+
+```text
+Current issue: Growth billing failed
+Goal: invoice fixed before finance review
+Support context: workspace uses Slack and webhook integrations
+```
+
+Next session:
+
+```text
+User: Any update on my issue?
+```
+
+Your app should:
+
+```text
+1. Call MemoryOS get()
+2. See remembered billing issue
+3. Ask for missing workspace ID/email, or call billing lookup if already available
+4. Answer using live billing tool results
+```
+
+## 9. Example: Multi-Vertical Helpdesk
+
+For an Intercom/Crisp-style tenant:
+
+```json
+{
+  "support_type_mode": "multi",
+  "support_types_allowed": ["saas", "ecommerce", "banking_fintech", "travel", "telecom", "general_info"]
+}
+```
+
+Then:
+
+```text
+"My order ORD-44821 is delayed" -> ecommerce
+"My invoice failed after upgrading to Growth" -> saas
+"My UPI transaction failed but money was debited" -> banking_fintech
+"My PNR ABC123 flight was cancelled" -> travel
+```
+
+Use separate `external_user_id` values for separate real customers. Do not test every vertical under one customer unless you intentionally want one customer profile to contain multiple support histories.
+
+## 10. Dashboard And Analytics
+
+List customers:
+
+```http
+GET /v1/tenant/customers?limit=50
+Authorization: ApiKey mem_...
+```
+
+Get support stats:
+
+```http
+GET /v1/tenant/support-stats
+Authorization: ApiKey mem_...
+```
+
+These are admin endpoints. Normal AI responses should use SDK `get()`.
+
+## 11. Testing Locally
+
+The MemoryOS repository includes a standalone support desk demo:
+
+```bash
+cd agents/support_desk
+pip install -r requirements.txt
+cp .env.example .env
+python run.py
+```
+
+It includes mock support tools and fake data so the agent can test tool-backed answers without calling real billing, order, or ticketing systems.
+
+Use:
+
+```text
+/scenario saas
+/scenario ecommerce
+/scenario banking
+/scenario travel
+/scenario telecom
+/tools
+```
+
+## Privacy Checklist
+
+Before going live:
+
+- Use stable internal IDs for `external_user_id`.
+- Store ticket IDs in metadata.
+- Mask account references where possible.
+- Do not send raw card numbers, OTPs, passwords, Aadhaar, PAN, full account numbers, or full passport numbers.
+- For banking/fintech, always combine MemoryOS with your own compliance-safe support tools.
+
+## Related Pages
+
+- [Customer Support Schema](/concepts/support-domain)
+- [Domain schemas](/concepts/domain-schemas)
+- [POST /v1/memories/add](/api-reference/add)
+- [POST /v1/memories/retrieve](/api-reference/retrieve)
