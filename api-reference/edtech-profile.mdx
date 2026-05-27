@@ -1,0 +1,142 @@
+---
+title: "GET /v1/memories/edtech-profile"
+description: "Fetch the structured EdTech profile for a student when the tenant has EdTech enabled."
+---
+
+This endpoint is optional. Normal AI responses should use `POST /v1/memories/retrieve`.
+
+Use this endpoint when you are building a student dashboard, teacher view, progress screen, or analytics UI.
+
+## Endpoint
+
+```http
+GET /v1/memories/edtech-profile?external_user_id=student_123
+```
+
+## Authentication
+
+```http
+Authorization: ApiKey mem_...
+```
+
+## Query parameters
+
+| Field | Type | Required | Notes |
+| --- | --- | --- | --- |
+| `external_user_id` | `string` | Yes | Student identifier inside your tenant |
+
+## Response
+
+If the student has an EdTech profile:
+
+```json
+{
+  "data": {
+    "id": "8d93a6c9-7e63-4c6a-9864-0bca7f4e63fb",
+    "proxy_user_id": "3f0f7b54-f6fc-4e3a-9db0-f62f0a6df3e1",
+    "tenant_id": "9e7920fa-60cb-4d54-b873-e87a98c2ff26",
+    "grade_level": "Class 10",
+    "board_or_curriculum": "CBSE",
+    "subjects": [
+      {
+        "subject": "Math",
+        "confidence": 4,
+        "priority": "high"
+      }
+    ],
+    "strong_topics": [
+      {
+        "topic": "Algebra",
+        "confidence": 0.9
+      }
+    ],
+    "weak_topics": [
+      {
+        "topic": "Trigonometry identities",
+        "severity": "moderate",
+        "specific_gap": "gets stuck choosing which identity to apply"
+      }
+    ],
+    "explanation_style": {
+      "primary": "worked_examples",
+      "needs_step_by_step": true
+    },
+    "language_profile": {
+      "explanation_preference": "Hinglish"
+    },
+    "exam_name": "CBSE Boards",
+    "exam_date": "2026-03-10",
+    "forgetting_stages": {
+      "Trigonometry identities": {
+        "stage": "critical",
+        "days_since": 8,
+        "review_due": true
+      }
+    },
+    "schema_version": 1,
+    "last_extraction_at": "2026-05-17T10:30:00Z",
+    "created_at": "2026-05-10T09:00:00Z",
+    "updated_at": "2026-05-17T10:30:00Z"
+  },
+  "request_id": "91dff4bb-7b3c-46a0-8a9f-1deaf81f8469",
+  "timestamp": "2026-05-17T10:30:02Z"
+}
+```
+
+If no EdTech profile exists yet:
+
+```json
+{
+  "data": null,
+  "request_id": "91dff4bb-7b3c-46a0-8a9f-1deaf81f8469",
+  "timestamp": "2026-05-17T10:30:02Z"
+}
+```
+
+## Important fields
+
+| Field | Meaning |
+| --- | --- |
+| `grade_level` | Student's class, grade, year, or level if clearly stated |
+| `board_or_curriculum` | CBSE, ICSE, State Board, JEE, NEET, etc. |
+| `subjects` | Subject priorities and confidence |
+| `strong_topics` | Topics the student has demonstrated strength in |
+| `weak_topics` | Topics the student struggles with, including specific gaps when available |
+| `concept_gaps` | Misconceptions and corrected concepts |
+| `explanation_style` | How the student learns best |
+| `language_profile` | Language or Hinglish/code-switching preference |
+| `exam_name` | Specific exam target |
+| `exam_date` | Explicitly stated exam date |
+| `forgetting_stages` | Review urgency by topic |
+
+## SDK usage
+
+### Python
+
+```python
+profile = mem.get_edtech_profile("student_123")
+
+if profile and profile.has_exam_context:
+    print(profile.exam_name, profile.exam_date)
+
+if profile:
+    print(profile.weak_topics[:3])
+```
+
+### TypeScript
+
+```ts
+const profile = await mem.getEdTechProfile("student_123");
+
+if (profile?.hasExamContext) {
+  console.log(profile.examName, profile.examDate);
+}
+
+console.log(profile?.weakTopics.slice(0, 3));
+```
+
+## Related pages
+
+- [EdTech tutor cookbook](/cookbooks/edtech-tutor)
+- [Domain schemas](/concepts/domain-schemas)
+- [POST /v1/memories/retrieve](/api-reference/retrieve)
