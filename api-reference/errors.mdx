@@ -37,9 +37,9 @@ Current public and semi-public API surfaces emit the following codes.
 | Code | Meaning | Typical cause |
 | --- | --- | --- |
 | `AUTH_001` | Unauthorized | Missing or invalid API key |
-| `AUTH_002` | Tenant not found | JWT org is valid but not mapped to a MemoryOS tenant |
-| `AUTH_003` | Organization required | Clerk JWT is valid but no org is active |
-| `AUTH_403` | Tenant auth required | Route expected tenant context but none was resolved |
+| `AUTH_002` | Workspace not ready | Dashboard token is valid, but the selected workspace has not finished provisioning |
+| `AUTH_003` | Workspace required | Dashboard token is valid, but no workspace is active |
+| `AUTH_403` | Workspace auth required | Route expected workspace context but none was resolved |
 | `UAT_001` | Cross-agent auth failed | Missing or invalid `agent_sk_...` key or `uui_...` token |
 | `UAT_002` | Write not permitted | Agent grant is read-only and attempted a universal write |
 | `UUI_001` | Invalid UUI token | Missing, revoked, or unknown Memory Passport token |
