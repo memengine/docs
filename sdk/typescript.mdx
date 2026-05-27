@@ -22,7 +22,43 @@ const client = new MemoryOS(process.env.MEMORYOS_API_KEY!);
 
 Use `MemoryOS` for normal workspace memory inside your tenant. Use `UniversalMemoryOS` only after a user has granted your global agent access through Memory Passport.
 
-There is no separate SDK for domain schemas. If your tenant enables EdTech, Healthcare, or another future domain, `add()` and `get()` remain the main integration path. Optional domain helper methods expose structured profile data for dashboards.
+There is no separate SDK for domain schemas. If your tenant enables EdTech or Support, `add()` and `get()` remain the main integration path. Optional domain helper methods expose structured profile data for dashboards.
+
+## How Domain Schemas Work With The SDK
+
+Domain schemas are configured on the tenant, not in SDK code.
+
+That means this code stays the same:
+
+```ts
+import { MemoryOS } from "@memoryos/sdk";
+
+const client = new MemoryOS(process.env.MEMORYOS_API_KEY!);
+
+await client.add(
+  messages,
+  "customer-123",
+  "support-bot",
+  { source: "chat" },
+);
+
+const result = await client.get(
+  "How should the assistant answer?",
+  "customer-123",
+);
+```
+
+What changes is the tenant setting:
+
+| Tenant setting | What `add()` does | What `get()` returns |
+| --- | --- | --- |
+| General Engine | Generic memory extraction | Generic prompt-ready memory |
+| EdTech Schema | Generic memory + EdTech overlay | Generic memory + tutoring/student context |
+| Customer Support Schema | Generic memory + Support overlay | Generic memory + support/customer context |
+
+For Support, `systemPromptAddition` can include current issue, support history, resolution preference, sentiment risk, and safety rules. Your own tools still provide live truth such as order status, invoice status, refunds, or ticket updates.
+
+Use the same SDK methods for all three modes.
 
 ## `add()`
 
