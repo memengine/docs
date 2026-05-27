@@ -1,88 +1,25 @@
 ---
 title: "Introduction"
-description: "What MemoryOS is, why teams use it, and how tenant memory and Memory Passport fit together."
+description: "Choose the right MemoryOS path: General Engine, domain-specific memory, or Memory Passport."
 ---
 
-MemoryOS is a memory infrastructure layer for AI products. It gives you three connected capabilities: tenant-scoped memory for your own application, domain-aware memory schemas for industry-specific products, and a user-controlled Memory Passport layer for cross-agent sharing when a person wants multiple AI agents to remember them consistently.
+MemoryOS is a memory infrastructure layer for AI products. It lets your AI remember the right things about the right user without your team rebuilding extraction, retrieval, ranking, lifecycle cleanup, conflict handling, domain schemas, permissions, and dashboard controls from scratch.
 
-MemoryOS exists so your team does not have to build extraction, retrieval, ranking, lifecycle cleanup, version history, permissions, consent UX, domain-specific memory modeling, quota handling, and graceful degradation in-house just to make an AI product remember the right things about the right user at the right time.
+Most developers should start by choosing one path.
 
-## What problem does this solve?
+## Choose your path
 
-Without MemoryOS, teams usually end up building three different systems at once:
+| If you are building | Start here | What you get |
+| --- | --- | --- |
+| A chatbot, assistant, copilot, coding agent, or general SaaS AI feature | [General Engine](/concepts/general-engine) | Tenant-scoped long-term memory for facts, preferences, goals, procedures, relationships, and expertise |
+| A tutoring, learning, exam-prep, or student-coaching product | [EdTech tutor cookbook](/cookbooks/edtech-tutor) | Student memory for grade, curriculum, weak topics, strong topics, learning style, exams, and review urgency |
+| A customer support bot, support copilot, or agent-assist product | [Support agent cookbook](/cookbooks/support-agent) | Customer support memory for open issues, issue history, communication preference, support type, sentiment, and escalation risk |
+| HR, healthcare, agriculture, or another domain that is not available yet | [General Engine](/concepts/general-engine) | Production-safe generic memory today; move to a domain schema when that domain becomes available |
+| User-controlled memory shared across multiple agents or apps | [Memory Passport](/concepts/memory-passport) | Consent-based universal memory using agent keys and user UUI tokens |
 
-- a memory pipeline that turns raw conversations into durable profile facts, goals, and preferences
-- a retrieval layer that can rank the right memories quickly enough to use inside live AI calls
-- a permissions and consent layer for deciding who is allowed to read or write which memories
+## The simple integration model
 
-MemoryOS gives you those pieces as one platform so your product team can focus on the user experience instead of stitching together memory extraction, vector search, context building, quota enforcement, lifecycle operations, and privacy controls from scratch.
-
-## What MemoryEngine does
-
-MemoryEngine is the runtime layer inside MemoryOS. It is not just a vector database wrapper.
-
-On the write path, MemoryEngine:
-
-- quality-gates noisy or unsafe ingestion attempts before they become jobs
-- extracts durable memories from conversations using the extraction prompt
-- resolves conflicts when new memories contradict older memories
-- records version history for debugging and GDPR export
-- stores memories in PostgreSQL and indexes searchable vectors separately
-
-On the read path, MemoryEngine:
-
-- retrieves candidate memories with hybrid ranking
-- combines semantic relevance, importance, recency, and hot-tier cache results
-- builds `system_prompt_addition` in `bullets`, `json`, or `xml`
-- respects tenant isolation or Memory Passport category grants
-- degrades safely when dependencies or quotas are unhealthy
-
-On the operations path, MemoryEngine:
-
-- decays stale memories over time
-- auto-archives low-value inactive memories from search while keeping PostgreSQL history
-- promotes frequently used high-value memories to the hot tier
-- tracks extraction jobs, dead-letter failures, and dependency circuit states
-
-## Domain-aware memory
-
-MemoryOS uses one SDK for all domains.
-
-If a tenant enables a domain schema such as EdTech, normal `add()` and `get()` calls become domain-aware internally:
-
-- `add()` still stores general memories, and also updates structured domain memory such as `edtech_memories`
-- `get()` still returns `system_prompt_addition`, and also includes domain-aware context when available
-- conflict routing uses the active tenant domain before falling back to generic routing
-- optional profile helpers such as `get_edtech_profile()` expose structured data for dashboards
-
-That means an education company does not install a separate SDK. The tenant is domain-aware; the SDK stays generic.
-
-## The two-layer identity model
-
-For the standard tenant-scoped API, MemoryOS uses two identity layers on every integration:
-
-1. **Tenant identity**
-   Your MemoryOS API key identifies your company or workspace. All quotas, rate limits, webhooks, and billing controls are scoped at the tenant level.
-2. **`external_user_id`**
-   Inside your tenant, every end user is identified by an `external_user_id` that you choose, such as `customer-123`, `acct_7781`, or `user_42`.
-
-That means the same `external_user_id` can exist in two different tenants without colliding, because MemoryOS always evaluates it inside tenant scope.
-
-## The cross-agent layer
-
-MemoryOS also supports a separate **Memory Passport** model for user-controlled sharing across agents.
-
-- the user signs in to the consent app with email and OTP
-- MemoryOS maintains a universal identity and internal `uui_...` token for agent-to-agent API calls
-- an agent requests access to specific categories such as `preference` or `expertise`
-- the user grants or revokes access through a consent flow
-- the agent uses its own `agent_sk_...` key plus the user's UUI token to read or write only the categories that were approved
-
-This lets multiple AI agents share memories about the same person without exposing the rest of that person's memory graph.
-
-## What you send
-
-For every write or retrieve request, you authenticate with a tenant API key and pass an `external_user_id` for the end user:
+For tenant-scoped memory, your backend uses one MemoryOS API key and one stable `external_user_id` per end user.
 
 ```http
 Authorization: ApiKey mem_...
@@ -94,23 +31,77 @@ Authorization: ApiKey mem_...
 }
 ```
 
-## Start here
+The main integration is always:
 
-Start with the [Quickstart](/quickstart) if you want tenant-scoped application memory.
+```text
+add() after meaningful conversations
+get() before the next model call
+prepend system_prompt_addition when available
+```
 
-If you want user-controlled cross-agent sharing, read:
+## General Engine versus domains
 
-- [Memory Passport](/concepts/memory-passport)
-- [Cross-agent memory sharing](/guides/cross-agent-sharing)
+Every tenant can use the General Engine. It is the default.
 
-If you are building for a specific industry, read:
+Domain schemas add industry-specific memory on top of the General Engine.
 
-- [Domain schemas](/concepts/domain-schemas)
-- [EdTech domain cookbook](/guides/edtech-domain)
+```text
+General tenant
+  add() -> generic extraction
+  get() -> generic system_prompt_addition
 
-If you want to understand the engine internals, read:
+Domain tenant
+  add() -> generic extraction + domain overlay
+  get() -> generic context + domain-aware context
+```
 
-- [MemoryEngine](/concepts/memory-engine)
-- [Memory lifecycle and versioning](/concepts/memory-lifecycle)
+The SDK does not change. The tenant setting changes backend behavior.
 
+Available production domains:
 
+- **General Engine** for broad AI memory
+- **EdTech Schema** for learning products
+- **Support Schema** for customer support products
+
+Coming later:
+
+- HR Tech
+- HealthTech
+- AgriTech
+
+## What MemoryEngine does
+
+MemoryEngine is the runtime behind MemoryOS.
+
+On writes, it:
+
+- quality-gates noisy or unsafe ingestion attempts
+- extracts durable memories from conversations
+- resolves conflicts against existing memory
+- records version history
+- stores canonical records and vector indexes
+- runs domain overlays when enabled
+
+On reads, it:
+
+- retrieves relevant memories
+- ranks by relevance, importance, recency, and hot-tier signals
+- builds `system_prompt_addition`
+- adds domain-aware context when enabled
+- degrades safely when dependencies or quotas are unhealthy
+
+## Dashboard entry
+
+Use the workspace dashboard for setup, domain selection, usage, API keys, users, quality logs, and domain-specific views such as student or support dashboards.
+
+There is also a **Dashboard** button in the top navigation.
+
+## Start building
+
+Start with:
+
+- [Quickstart](/quickstart) for the fastest code path
+- [General Engine](/concepts/general-engine) for the default memory model
+- [Domain schemas](/concepts/domain-schemas) for EdTech and Support
+- [Authentication](/authentication) for API key format and identity
+- [Memory Passport](/concepts/memory-passport) only if you need user-controlled cross-agent memory

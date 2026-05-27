@@ -3,7 +3,7 @@ title: "Quickstart"
 description: "Install the SDK, store a tenant-scoped memory, retrieve it, and use MemoryOS in a real AI call."
 ---
 
-This quickstart covers the fastest tenant-scoped path:
+This quickstart covers the fastest tenant-scoped path for the General Engine:
 
 1. Install the SDK
 2. Store a memory
@@ -12,7 +12,11 @@ This quickstart covers the fastest tenant-scoped path:
 
 If you are looking for the new cross-agent Memory Passport flow, jump to [Cross-agent memory sharing](/guides/cross-agent-sharing).
 
-If your tenant has a domain schema enabled, such as EdTech, the same SDK calls below still apply. Domain extraction and domain-aware retrieval happen inside MemoryOS. See [Domain schemas](/concepts/domain-schemas) and the [EdTech cookbook](/guides/edtech-domain).
+If you are building a domain-specific product, the same SDK calls below still apply after you enable the tenant domain. Use:
+
+- [EdTech tutor cookbook](/cookbooks/edtech-tutor) for tutoring, learning, and exam-prep products
+- [Support agent cookbook](/cookbooks/support-agent) for customer support AI
+- [Domain schemas](/concepts/domain-schemas) to choose between General, EdTech, Support, and future domains
 
 ## Step 1: Install the SDK
 
@@ -246,7 +250,8 @@ See the full [Python SDK reference](/sdk/python) and [TypeScript SDK reference](
 For domain-specific products, also see:
 
 - [Domain schemas](/concepts/domain-schemas)
-- [EdTech domain cookbook](/guides/edtech-domain)
+- [EdTech tutor cookbook](/cookbooks/edtech-tutor)
+- [Support agent cookbook](/cookbooks/support-agent)
 
 For the Memory Passport flow, also see:
 
