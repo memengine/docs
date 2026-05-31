@@ -3,7 +3,7 @@ title: "MemoryEngine"
 description: "How MemoryOS extracts, ranks, formats, and protects AI memory."
 ---
 
-MemoryEngine is the runtime engine behind MemoryOS. It turns conversations into durable memories, retrieves the right memories later, and produces prompt-ready context for your AI application.
+MemoryEngine is the runtime engine behind MemoryOS. It turns conversations into durable memories, retrieves the right memories at the right time, and produces prompt-ready context for your AI application.
 
 It is not just a vector search layer. MemoryEngine combines extraction, quality gates, conflict resolution, importance scoring, lifecycle cleanup, version history, and graceful degradation.
 
@@ -87,6 +87,24 @@ Conflict changes are recorded in memory version history.
 
 Conflict routing is domain-aware. For an EdTech tenant, personal student facts such as `exam_date`, `grade_level`, and `weak_topic` route to user-session clarification. Shared institutional facts such as `curriculum_standard` or `institution_policy` route to tenant review. Unknown entities fall back to the generic router.
 
+### Resolution paths
+
+MemoryOS uses several conflict resolution paths:
+
+| Path | When it happens | Outcome |
+| --- | --- | --- |
+| Same-user automatic update | A new memory supersedes an older memory for the same user | Old memory is archived and the new memory points to the previous version |
+| Same-user merge | Two memories are compatible but incomplete separately | MemoryOS stores a merged memory and archives the old version |
+| Same-user reject | The new extracted memory is duplicate or lower quality | Incoming memory is rejected and not stored |
+| Keep both | The memories differ by time or both are still valid | Both memories remain available with version history |
+| Cross-user per-user scoped | A conflict is actually personal to each user | Conflict is ignored as not a shared-context conflict |
+| Cross-user recency weighted | One shared claim is much newer than the other | Older claim is weighted down automatically |
+| Cross-user confidence weighted | One shared claim has much higher confidence | Lower-confidence claim is weighted down automatically |
+| User-session clarification | The conflict is personal and only the user can confirm it | A question appears in the consent app's **Pending Questions** tab |
+| Tenant review | The conflict is about team, organization, institution, or workspace truth | Tenant admins resolve it in the dashboard **Conflicts** page |
+
+The consent app only shows conflicts from the **user-session clarification** path. Automatic resolutions and tenant-review conflicts do not appear in the user's Pending Questions tab.
+
 ## Domain overlays
 
 Domain overlays add structured product-specific memory without changing the SDK.
@@ -127,7 +145,7 @@ Provider order is configured with:
 LLM_PROVIDER_ORDER=gemini,openai,anthropic
 ```
 
-If one provider fails with a timeout, `5xx`, rate limit, or auth error, MemoryOS can fall through to the next configured provider. Operator health shows each provider as `CLOSED`, `OPEN`, `HALF_OPEN`, or `NOT CONFIGURED`.
+If one provider fails with a timeout, `5xx`, rate limit, or auth error, MemoryOS falls through to the next configured provider. Operator health shows each provider as `CLOSED`, `OPEN`, `HALF_OPEN`, or `NOT CONFIGURED`.
 
 ## Related pages
 

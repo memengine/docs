@@ -44,4 +44,4 @@ Very short or content-free messages are likely to score poorly.
 
 ## Operational note
 
-A blocked write returns HTTP `200`, but the response `status` indicates the block layer such as `L2` or `L4`. Your application should inspect the response body, not only the status code.
+A blocked write returns HTTP `200`, but the response `status` indicates the blocking layer, such as `L2` or `L4`. Inspect the response body, not just the status code.

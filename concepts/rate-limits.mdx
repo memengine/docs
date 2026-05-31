@@ -8,9 +8,9 @@ MemoryOS applies two kinds of limits:
 - **Per-user rate limits** to protect the system from burst traffic
 - **Plan limits** for monthly call and token usage
 
-If you are wondering how many requests you can make per minute, the answer depends on your tenant's plan tier.
-
 ## Per-user requests per minute
+
+Request limits are enforced per `external_user_id`, not across your whole tenant.
 
 | Plan | Requests per user per minute |
 | --- | --- |
@@ -18,8 +18,6 @@ If you are wondering how many requests you can make per minute, the answer depen
 | Starter | 10 |
 | Growth | 30 |
 | Enterprise | Unlimited |
-
-These limits are enforced per `external_user_id`, not across your whole tenant.
 
 ## Plan limits
 

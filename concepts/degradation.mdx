@@ -3,7 +3,7 @@ title: "Degradation Modes"
 description: "How MemoryOS behaves when quotas or dependencies force partial service."
 ---
 
-MemoryOS exposes a quota and dependency envelope on every request so your application can keep running even when memory behavior changes.
+MemoryOS exposes a quota and dependency envelope on every request so your application keeps running even when memory behavior changes.
 
 ## Modes
 
@@ -44,7 +44,7 @@ else:
 
 Key rule:
 
-- **Still make the LLM call**
+- **Always make the LLM call**
 - only skip MemoryOS prompt context when passthrough is active
 
 ## Webhook events

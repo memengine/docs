@@ -14,7 +14,7 @@ get() -> retrieve customer context before answering
 
 When a tenant enables `domain_schema: "support"`, MemoryOS still runs the General Engine, then adds a structured support overlay in `support_memories`.
 
-## What It Remembers
+## What it remembers
 
 | Field | Meaning |
 | --- | --- |
@@ -29,7 +29,7 @@ When a tenant enables `domain_schema: "support"`, MemoryOS still runs the Genera
 | `risk_signals` | Fraud, churn, legal, compliance, VIP, safety, or escalation signals |
 | `support_context` | Vertical-specific JSONB context such as orders, invoices, bookings, plans, or transactions |
 
-## Support Types
+## Support types
 
 Supported support types:
 
@@ -41,7 +41,7 @@ Supported support types:
 - `edtech_support`
 - `general_info`
 
-## Enable From Dashboard
+## Enable from dashboard
 
 Most teams should enable the Support Schema from the workspace dashboard first.
 
@@ -61,7 +61,7 @@ Most teams should enable the Support Schema from the workspace dashboard first.
 
 The API examples below do the same thing programmatically.
 
-## Routing Modes
+## Routing modes
 
 Support products are not all the same. A bank usually has one vertical. A helpdesk platform like Intercom, Crisp, or Zendesk may serve many verticals.
 
@@ -73,7 +73,7 @@ MemoryOS supports three routing modes:
 | `multi` | Intercom, Crisp, Zendesk-style helpdesk platforms | Classify each conversation within an allowed list |
 | `auto` | Early testing or broad demos | Classify each conversation across all support types |
 
-### Single Vertical
+### Single vertical
 
 Use this when your whole product belongs to one support vertical.
 
@@ -85,7 +85,7 @@ Use this when your whole product belongs to one support vertical.
 }
 ```
 
-### Multi-Vertical Helpdesk
+### Multi-vertical helpdesk
 
 Use this for support platforms that serve many customer businesses.
 
@@ -114,7 +114,7 @@ Customer C asks about a failed UPI payment -> banking_fintech
 
 Classification happens inside the support extraction pass. It does not require a separate detection call.
 
-### Auto Detect
+### Auto detect
 
 Use this for experimentation when you do not want an allow-list.
 
@@ -126,7 +126,7 @@ Use this for experimentation when you do not want an allow-list.
 }
 ```
 
-## Enable With API
+## Enable with API
 
 If you use the dashboard, no API key is needed because you are already logged in.
 
@@ -226,7 +226,7 @@ The response includes:
 }
 ```
 
-## Retrieval Safety Rules
+## Retrieval safety rules
 
 Support memory is not a live system of record. It is remembered customer context.
 
@@ -247,7 +247,7 @@ For `banking_fintech`, MemoryOS also adds:
 
 These rules are deliberately small and deterministic. They add no extra LLM call and only a few prompt tokens.
 
-## MemoryOS Versus Your Support Tools
+## MemoryOS versus your support tools
 
 Production support agents should combine MemoryOS with your operational tools.
 
@@ -262,7 +262,7 @@ Production support agents should combine MemoryOS with your operational tools.
 | Refund creation | Your payment/support tool |
 | Ticket SLA timer | Your helpdesk system |
 
-The safe production pattern:
+The recommended production pattern:
 
 ```text
 1. Call MemoryOS get() for remembered support context.
@@ -271,7 +271,7 @@ The safe production pattern:
 4. Store the conversation back with MemoryOS add().
 ```
 
-## PII And Regulated Data
+## PII and regulated data
 
 The Support Schema includes extraction-time redaction for high-risk identifiers, especially for banking/fintech.
 
@@ -294,7 +294,7 @@ Avoid sending:
 
 PNR values are allowed for travel support because they are operational booking references, not financial credentials.
 
-## Workspace Dashboard Endpoints
+## Workspace dashboard endpoints
 
 Use tenant endpoints for dashboards and support analytics.
 
@@ -307,7 +307,7 @@ Use tenant endpoints for dashboards and support analytics.
 
 Normal model responses should use SDK `get()`, not dashboard endpoints.
 
-## Related Pages
+## Related pages
 
 - [Cookbook: support agent memory](/cookbooks/support-agent)
 - [Domain schemas](/concepts/domain-schemas)

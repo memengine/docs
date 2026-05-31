@@ -3,9 +3,9 @@ title: "Memory Passport"
 description: "How MemoryOS lets a user create one identity and control what each AI agent can access."
 ---
 
-Memory Passport is the user-controlled identity layer in MemoryOS. It lets one person sign in with email and OTP, maintain a universal memory identity, and decide which agents can access which categories of memory.
+Memory Passport is the user-controlled identity layer in MemoryOS. It lets one person sign in with email and OTP, maintain a universal memory identity, and decide which agents can access which categories of their memory.
 
-Humans do not need to manage raw `uui_...` tokens. The `uui_...` token exists for agent-to-agent SDK calls after consent has been granted.
+Human users do not need to manage raw `uui_...` tokens. The `uui_...` token exists for agent-to-agent SDK calls after consent has been granted.
 
 <img
   src="/images/Screenshot 2026-05-26 190405.png"
@@ -14,7 +14,7 @@ Humans do not need to manage raw `uui_...` tokens. The `uui_...` token exists fo
 
 ## Why Memory Passport exists
 
-Tenant-scoped memory is great when one application wants to remember its own users.
+Tenant-scoped memory works well when one application wants to remember its own users.
 
 Memory Passport solves a different problem:
 
@@ -28,11 +28,7 @@ That makes Memory Passport a privacy layer as much as a memory layer.
 
 ### Universal user
 
-When a person registers or signs in through the consent app, MemoryOS creates or resolves a universal user. Human login uses:
-
-- email address
-- 6-digit OTP code
-- short-lived session cookie for the consent app
+When a person registers or signs in through the consent app, MemoryOS creates or resolves a universal user.
 
 MemoryOS also maintains an agent-facing token shaped like:
 
@@ -49,7 +45,7 @@ https://consent.memoryos.io/manage
 ```
 
 <img
-  src="/images/Screenshot 2026-05-26 192212.png"
+  src="/images/Screenshot 2026-05-27 175019.png"
   alt="Memory Passport manage page showing active agent grants and revoke actions"
 />
 
@@ -59,8 +55,24 @@ A global agent is an agent profile that can request Memory Passport access. It h
 
 - a public profile
 - a verification status
-- requested default categories
+- requested default categories for consent links
 - an `agent_sk_...` API key for universal memory APIs
+
+The tenant creates a global agent with:
+
+```http
+POST /v1/agents/global
+Authorization: ApiKey mem_...
+```
+
+MemoryOS returns:
+
+- `id`: public `agent_id` for consent URLs
+- `raw_agent_api_key`: one-time `agent_sk_...` secret for backend universal API calls
+
+The raw agent key should be stored server-side and is not shown on the public profile.
+
+Default categories are not a hard limit. They are the starting selection shown to the user. A consent URL can preselect another subset for a specific feature, and the user can add or remove categories before approving.
 
 ### Permission grant
 
@@ -123,6 +135,31 @@ MemoryOS then checks whether there is an active grant for that agent and whether
 5. agent can read or write only within that grant
 6. user can revoke the grant at any time
 7. user can delete the entire Memory Passport and all universal memories
+
+## Pending questions
+
+The Memory Passport manage page has a **Pending Questions** tab.
+
+This tab is only for conflicts that MemoryOS deliberately routes back to the end user. It is not a general conflict queue.
+
+Pending questions appear when:
+
+- MemoryOS detects two conflicting memories
+- the conflict is personal to the user
+- automatic recency or confidence rules are not enough
+- the active domain router says the user is the right person to answer
+
+Examples:
+
+| Conflict | Routed to |
+| --- | --- |
+| Student exam date changed from March 10 to March 15 | Pending Questions |
+| User changed preferred explanation language | Pending Questions |
+| User has two different personal goals recorded | Pending Questions |
+| Two admins disagree on institution curriculum | Tenant dashboard review |
+| Workspace policy conflicts with another workspace policy | Tenant dashboard review |
+
+When the user answers, MemoryOS marks the clarification resolved. If they choose one version, the other memory is archived. If they choose neither, the conflict is ignored for that user-session path.
 
 ## Privacy guarantees
 

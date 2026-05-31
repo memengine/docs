@@ -19,13 +19,13 @@ This page explains the lifecycle system for tenant-scoped memories.
 
 ## Weekly lifecycle manager
 
-The lifecycle manager runs as an internal maintenance process. It is designed to run during off-peak hours and report results to the operator console.
+The lifecycle manager runs as an internal maintenance process during off-peak hours and reports results to the operator console.
 
 It performs four jobs:
 
 1. Decay stale memories
 2. Auto-archive low-value inactive memories
-3. Promote high-value frequently used memories to the hot tier
+3. Promote high-value, frequently used memories to the hot tier
 4. Recompute baseline importance when needed
 
 ## Decay

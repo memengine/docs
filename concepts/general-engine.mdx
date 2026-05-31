@@ -3,7 +3,7 @@ title: "General Engine"
 description: "The default MemoryOS engine for tenant-scoped AI memory across assistants, copilots, agents, and SaaS products."
 ---
 
-The General Engine is the default MemoryOS runtime. Use it when your product needs reliable long-term memory but does not need an industry-specific schema.
+The General Engine is the default MemoryOS runtime. Use it when your product needs reliable long-term memory but does not require an industry-specific schema.
 
 It works for most AI products:
 
@@ -38,7 +38,7 @@ Keep these in your own product database:
 - source-of-truth course enrollment
 - payroll, HRIS, or compliance records
 
-MemoryOS stores memory extracted from interaction. Your product database remains the system of record.
+MemoryOS stores memory extracted from interactions. Your product database remains the system of record.
 
 ## Write path
 
@@ -95,7 +95,7 @@ The General Engine ranks memories using:
 - hot-tier cache signals
 - category filters when provided
 
-Use a query that describes the current task. This gives better retrieval than a generic query such as `"memory"` or `"preferences"`.
+Use a query that describes the current task. This produces better retrieval than a generic query like `"memory"` or `"preferences"`.
 
 
 ## Quality gate outcomes
@@ -116,7 +116,7 @@ The LLM call should not fail only because memory could not be written.
 
 ## When to move to a domain schema
 
-Stay on the General Engine if prompt-ready memory is enough.
+Stay on the General Engine if prompt-ready memory is sufficient.
 
 Move to a domain schema when your product needs structured domain memory, such as:
 
