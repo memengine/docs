@@ -23,7 +23,7 @@ MemoryOS returns structured JSON errors:
 | `200` | Request succeeded, or a non-fatal add outcome such as passthrough or quality-gate block |
 | `400` | Invalid cursor or malformed tenant-specific request |
 | `401` | Authentication failed |
-| `403` | Tenant context exists but is not allowed for the request |
+| `403` | Tenant context exists but is not permitted for the request |
 | `404` | Resource not found |
 | `422` | Request validation failed |
 | `429` | Rate limited |
@@ -61,11 +61,11 @@ Current public and semi-public API surfaces emit the following codes.
 
 > Current releases do **not** emit `VAL_*` codes. Validation failures are returned as `REQ_422`.
 
-## Consent and universal-memory note
+## Consent and universal memory note
 
 Some Memory Passport flows are intentionally **not** error-driven:
 
 - `POST /v1/universal/memories/retrieve` returns an empty list with `permission_status: "no_grant"` when a user has not granted this agent access
 - revocation therefore looks like a clean empty retrieve result, not a `403`
 
-That behavior is deliberate so an agent cannot use error differences to learn more than the user granted.
+This behavior is deliberate so an agent cannot use error differences to infer more than the user granted.

@@ -20,6 +20,48 @@ The agent API key identifies the requesting agent.
 
 The UUI token identifies the Memory Passport user whose grant is being checked.
 
+## Create a global agent
+
+Create a global agent once per app or AI agent that will request Memory Passport access.
+
+The tenant creates this agent from their backend or tenant dashboard. End users do not create global agents; they only approve or deny access on the consent page.
+
+```http
+POST /v1/agents/global
+Authorization: ApiKey mem_...
+Content-Type: application/json
+```
+
+Request:
+
+```json
+{
+  "name": "Support Copilot",
+  "description": "Customer support agent with access to approved user context.",
+  "website_url": "https://yourapp.com",
+  "logo_url": "https://yourapp.com/logo.png",
+  "default_categories_requested": ["preference", "fact", "goal"],
+  "redirect_uri": ""
+}
+```
+
+`default_categories_requested` sets the default checkboxes when a consent URL does not pass `categories`. It does not limit what the user can approve. A consent link can preselect a different subset with `?categories=preference,goal`, and the final grant stores only the categories the user approves.
+
+Response:
+
+```json
+{
+  "data": {
+    "id": "aa535a7e-b0d6-44df-8e17-8438f6098836",
+    "name": "Support Copilot",
+    "default_categories_requested": ["preference", "fact", "goal"],
+    "raw_agent_api_key": "agent_sk_..."
+  }
+}
+```
+
+Store `raw_agent_api_key` immediately. It is the `agent_sk_...` value used for universal memory calls and should be treated like a backend secret.
+
 ## POST /v1/universal/memories/add
 
 Queues a universal memory extraction job.

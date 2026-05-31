@@ -5,8 +5,8 @@ description: "How tenant API keys, agent API keys, and UUI tokens work in Memory
 
 MemoryOS has two authentication models:
 
-- **workspace-scoped API auth** for the standard `/v1/memories/*` and workspace dashboard APIs
-- **cross-agent auth** for `/v1/universal/*`, where an agent key and a user UUI token are both required
+- **Workspace-scoped API auth** for the standard `/v1/memories/*` and workspace dashboard APIs
+- **Cross-agent auth** for `/v1/universal/*`, where both an agent key and a user UUI token are required
 
 Human users do not sign in with raw UUI tokens. The consent app uses email plus OTP and then sends a signed MemoryOS session token to backend consent endpoints.
 
@@ -41,22 +41,31 @@ Current MemoryOS keys are generated with the `mem_` prefix.
 
 ## Cross-agent auth format
 
-For the universal memory APIs, you send **two credentials together**:
+For the universal memory APIs, send **two credentials together**:
 
 ```http
 Authorization: ApiKey agent_sk_...
 X-MemoryOS-UUI: uui_...
 ```
 
-- `agent_sk_...` identifies the agent that is requesting access
-- `uui_...` identifies the user who granted or denied that access
+- `agent_sk_...` identifies the agent making the request
+- `uui_...` identifies the user who granted or denied access
+
+The `agent_sk_...` key is created when your workspace registers a global agent:
+
+```http
+POST /v1/agents/global
+Authorization: ApiKey mem_...
+```
+
+The response includes `raw_agent_api_key` once. Store it in your backend secret manager or environment variables.
 
 If either header is missing or invalid, the universal APIs return:
 
 - `403`
 - `code: UAT_001`
 
-If the agent only has read-only access and tries to write, MemoryOS returns:
+If the agent has read-only access and attempts a write, MemoryOS returns:
 
 - `403`
 - `code: UAT_002`
@@ -131,7 +140,7 @@ For universal memory access, all of the following must be true:
 >
 > - Load them from environment variables
 > - Rotate keys if they are exposed
-> - Use different keys for dev, staging, and production
+> - Use separate keys for dev, staging, and production
 > - Never commit keys to source control
 > - Never send MemoryOS API keys to the browser
 > - Never log `uui_...` tokens in analytics or frontend error payloads
