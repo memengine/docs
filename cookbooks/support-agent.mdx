@@ -10,7 +10,7 @@ Use this cookbook when you are building:
 - a helpdesk platform like Intercom, Crisp, or Zendesk
 - a support automation layer for SaaS, ecommerce, fintech, travel, telecom, or education
 
-The key idea:
+The core pattern:
 
 ```text
 MemoryOS remembers customer context.
@@ -482,7 +482,7 @@ Then:
 
 Use separate `external_user_id` values for separate real customers. Do not test every vertical under one customer unless you intentionally want one customer profile to contain multiple support histories.
 
-## 10. Dashboard And Analytics
+## 10. Dashboard and analytics
 
 List customers:
 
@@ -500,7 +500,7 @@ Authorization: ApiKey mem_...
 
 These are admin endpoints. Normal AI responses should use SDK `get()`.
 
-## 11. Testing Locally
+## 11. Testing locally
 
 The MemoryOS repository includes a standalone support desk demo:
 
@@ -524,7 +524,7 @@ Use:
 /tools
 ```
 
-## Privacy Checklist
+## Privacy checklist
 
 Before going live:
 
@@ -534,7 +534,7 @@ Before going live:
 - Do not send raw card numbers, OTPs, passwords, Aadhaar, PAN, full account numbers, or full passport numbers.
 - For banking/fintech, always combine MemoryOS with your own compliance-safe support tools.
 
-## Related Pages
+## Related pages
 
 - [Customer Support Schema](/concepts/support-domain)
 - [Domain schemas](/concepts/domain-schemas)

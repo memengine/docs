@@ -7,7 +7,7 @@ MemoryOS can send signed operational events to a tenant webhook URL.
 
 ## Configure the webhook URL
 
-Today, webhook URLs are configured at the tenant level through tenant settings and stored in the tenant budget record.
+Webhook URLs are configured at the tenant level through tenant settings and stored in the tenant budget record.
 
 Common uses:
 
@@ -146,7 +146,7 @@ async def memoryos_webhook(request: Request) -> dict:
     return {"received": True}
 ```
 
-## Important note
+## Signature verification
 
-Verify the HMAC against the **raw request body**, not a re-serialized JSON object. The signature is generated from the raw bytes that MemoryOS sends.
+Verify the HMAC against the **raw request body**, not a re-serialized JSON object. The signature is computed from the exact bytes MemoryOS sends.
 
