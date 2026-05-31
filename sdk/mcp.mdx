@@ -3,7 +3,7 @@ title: MemoryOS MCP Server
 description: Run MemoryOS as a sidecar tool server for AI agents, IDEs, and local assistants.
 ---
 
-MemoryOS MCP lets an agent call MemoryOS as tools instead of importing the SDK in the main application process.
+MemoryOS MCP lets an agent call MemoryOS as tools instead of importing the SDK directly into the main application process.
 
 Use MCP when you want MemoryOS isolated from your core backend, or when your agent runtime already supports the Model Context Protocol.
 
@@ -125,4 +125,4 @@ Your backend tools:
   update_ticket()
 ```
 
-The agent should not say a refund, invoice, or account change was completed unless your own backend tool actually completed it.
+The agent should not claim a refund, invoice, or account change was completed unless your own backend tool actually completed it.

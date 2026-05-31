@@ -79,7 +79,6 @@
           "guides/edtech-domain",
           "guides/cross-agent",
           "guides/cross-agent-sharing",
-          "guides/operator-health",
           "guides/webhooks"
         ]
       }

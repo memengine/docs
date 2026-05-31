@@ -22,7 +22,7 @@ from memoryos.universal import UniversalMemory
 
 There is no separate SDK for domain schemas. If your tenant enables EdTech or Support, `add()` and `get()` remain the main integration path. Optional domain helper methods expose structured profile data for dashboards.
 
-## How Domain Schemas Work With The SDK
+## How domain schemas work with the SDK
 
 Domain schemas are configured on the tenant, not in SDK code.
 
@@ -227,11 +227,11 @@ bundle = client.export(external_user_id="customer-123")
 - `api_keys`
 - `agents`
 
-> `export()` currently targets the user export endpoint, not a tenant-wide export endpoint.
+> `export()` currently maps to the user export endpoint, not a tenant-wide export endpoint.
 
 ### `get_usage()` and `delete_user()`
 
-The current Python SDK does **not** expose `get_usage()` or `delete_user()` methods yet.
+The current Python SDK does not expose `get_usage()` or `delete_user()` methods.
 
 Use the REST API directly for those operations:
 
@@ -290,13 +290,26 @@ client = UniversalMemory(
 )
 ```
 
-Generate the user consent URL from your tenant app:
+Generate the user consent URL from your tenant app. If you omit `redirect_uri`, MemoryOS shows a hosted completion page after approval.
 
 ```python
 consent_url = UniversalMemory.consent_url(
     agent_id="your_global_agent_id",
-    redirect_uri="https://yourapp.com/memoryos/callback",
     state="user_session_id",
+    categories=["preference", "goal"],
+)
+```
+
+`categories` preselects the memory categories for this consent link. Users can still add or remove categories before approving. If you omit it, MemoryOS uses the global agent's default categories.
+
+Pass a callback only if your app needs to update its own UI automatically after consent:
+
+```python
+consent_url = UniversalMemory.consent_url(
+    agent_id="your_global_agent_id",
+    redirect_uri="https://yourapp.com/integrations/memoryos/callback",
+    state="secure_random_state_token",
+    categories=["preference", "fact"],
 )
 ```
 

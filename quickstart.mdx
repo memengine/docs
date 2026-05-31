@@ -238,9 +238,9 @@ void main();
 
 - `add()` may return `queued`, `passthrough`, or a quality-gate block outcome
 - `get()` always returns a typed result object, even when no memories are available
-- if `is_passthrough` is `true`, you should continue the AI call without MemoryOS context
+- if `is_passthrough` is `true`, continue the AI call without MemoryOS context
 - if `has_context` / `hasContext` is `true`, `system_prompt_addition` is safe to prepend to your model call
-- if a domain schema is enabled for your tenant, `system_prompt_addition` can include domain-aware context without changing SDK code
+- if a domain schema is enabled for your tenant, `system_prompt_addition` can include domain-aware context without any SDK changes
 
 Next: read [Authentication](/authentication) for key format, permissions, and the tenant plus `external_user_id` identity model.
 ## Next steps

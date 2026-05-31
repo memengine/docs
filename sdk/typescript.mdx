@@ -24,7 +24,7 @@ Use `MemoryOS` for normal workspace memory inside your tenant. Use `UniversalMem
 
 There is no separate SDK for domain schemas. If your tenant enables EdTech or Support, `add()` and `get()` remain the main integration path. Optional domain helper methods expose structured profile data for dashboards.
 
-## How Domain Schemas Work With The SDK
+## How domain schemas work with the SDK
 
 Domain schemas are configured on the tenant, not in SDK code.
 
@@ -164,12 +164,26 @@ The universal client is independent from `MemoryOS`. It uses agent credentials a
 ```ts
 const consentUrl = UniversalMemoryOS.consentUrl(
   "your_global_agent_id",
-  "https://yourapp.com/memoryos/callback",
+  null,
   userSessionId,
+  ["preference", "goal"],
 );
 ```
 
-Redirect users to this URL when they click a control such as "Connect your memory across apps".
+Redirect users to this URL when they click a control such as "Connect shared memory". If you pass `null` for the callback, MemoryOS shows a hosted completion page after approval.
+
+The fourth argument preselects categories for this consent link. Users can still add or remove categories before approving. If you omit it, MemoryOS uses the global agent's default categories.
+
+Pass a callback only if your app needs to update its own UI automatically:
+
+```ts
+const consentUrl = UniversalMemoryOS.consentUrl(
+  "your_global_agent_id",
+  "https://yourapp.com/integrations/memoryos/callback",
+  secureRandomStateToken,
+  ["preference", "fact"],
+);
+```
 
 ### `universal.add()`
 
@@ -266,7 +280,7 @@ Returns a `MemoryExport` object with:
 
 ## `getUsage()` and `deleteUser()`
 
-The current TypeScript SDK does **not** expose `getUsage()` or `deleteUser()` yet.
+The current TypeScript SDK does not expose `getUsage()` or `deleteUser()`.
 
 Use the REST API directly for those operations:
 
