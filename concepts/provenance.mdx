@@ -1,0 +1,198 @@
+---
+title: "Memory Provenance"
+description: "Track exactly where every memory came from, who wrote it, and when — with authority-based conflict resolution."
+---
+
+Provenance answers three questions about any memory:
+
+- **Who wrote it?** — which service or API key submitted the conversation
+- **Where did it come from?** — a source event ID and payload hash linking back to the original ingestion call
+- **When was it observed?** — the timestamp from your system, not when MemoryOS received it
+
+Most products don't need this. Skip to [Who needs provenance?](#who-needs-provenance) if you're not sure.
+
+## Core objects
+
+### Service Writer
+
+A named identity for one of your backend services. Register it once; reuse it across all `add()` calls from that service.
+
+| Field | Meaning |
+| --- | --- |
+| `service_key` | Stable slug — `chat-service`, `crm-sync`, `support-bot` |
+| `display_name` | Human-readable label for the dashboard |
+| `authority_rules` | Priority scores (0–100) per category for conflict resolution |
+| `api_key_id` | Optional — binds the writer to a specific API key for credential verification |
+
+### Memory Source Event
+
+Created automatically when an `add()` call includes a `source` block. Ties the extraction job and all resulting memories to:
+
+- your system's event ID
+- the exact time it happened in your system (`observed_at`)
+- a SHA-256 hash of the conversation payload
+- optional evidence references and scope metadata
+
+Every memory produced by the job carries `source_event_id` pointing back to this event.
+
+### Authority Rules
+
+When two writers produce conflicting memories for the same user, `authority_rules` resolve it:
+
+```json
+{
+  "default_priority": 50,
+  "categories": {
+    "fact": 80,
+    "preference": 60
+  }
+}
+```
+
+Higher priority wins. Tiebreaker order: priority → `observed_at` recency → confidence score.
+
+This lets you declare that `crm-service` always wins on `fact` memories while `chat-service` wins on `preference`.
+
+### Payload retention and redaction
+
+Raw message content is retained for a configurable window (`extraction_payload_retention_days`). After expiry, a daily task (03:20 UTC) redacts the content from the job payload, replacing it with `{ "messages_redacted": true }`. The `payload_hash` stays permanently for integrity verification.
+
+---
+
+## How to use it
+
+### 1. Register a Service Writer
+
+```http
+POST /v1/tenant/service-writers
+Authorization: ApiKey mem_...
+Content-Type: application/json
+```
+
+```json
+{
+  "service_key": "chat-service",
+  "display_name": "Chat Backend",
+  "authority_rules": {
+    "default_priority": 50,
+    "categories": { "fact": 80, "preference": 60 }
+  }
+}
+```
+
+### 2. Pass `source` on `add()`
+
+```json
+{
+  "external_user_id": "user-123",
+  "messages": [
+    { "role": "user", "content": "I prefer dark mode and compact layouts." }
+  ],
+  "source": {
+    "service": "chat-service",
+    "event_id": "evt_ab12cd34",
+    "observed_at": "2026-06-11T09:55:00Z",
+    "scope": { "session_id": "sess_xyz", "channel": "web" },
+    "evidence": [
+      { "source_type": "conversation", "reference": "conv_ab12cd34" }
+    ]
+  }
+}
+```
+
+| Field | Required | Notes |
+| --- | --- | --- |
+| `service` | Yes | Must match a registered `service_key` |
+| `event_id` | Yes | Your system's stable event identifier |
+| `observed_at` | No | Defaults to `now()` |
+| `scope` | No | Arbitrary key-value metadata |
+| `evidence` | No | References to source documents |
+
+### 3. Idempotency protection
+
+Retrying with the same `event_id` returns the original job response — no duplicate extraction.
+
+Retrying with the same `event_id` but different messages returns `PROV_409 source_event_payload_mismatch`. This protects against accidental data mutation.
+
+---
+
+## Provenance in responses
+
+Memories with a source event include a `provenance` field in `list` and `retrieve` responses:
+
+```json
+{
+  "content": "User prefers dark mode and compact layouts.",
+  "source_event_id": "evt_ab12cd34",
+  "provenance": {
+    "service": "chat-service",
+    "event_id": "evt_ab12cd34",
+    "observed_at": "2026-06-11T09:55:00Z",
+    "received_at": "2026-06-11T09:55:02Z",
+    "payload_hash": "sha256:abc123...",
+    "scope": { "session_id": "sess_xyz" }
+  }
+}
+```
+
+Memories without a `source` block have `provenance: null`.
+
+---
+
+## Managing writers
+
+```http
+GET /v1/tenant/service-writers
+```
+
+```http
+PATCH /v1/tenant/service-writers/{writer_id}
+Content-Type: application/json
+```
+
+```json
+{
+  "display_name": "Chat Backend v2",
+  "authority_rules": { "default_priority": 60, "categories": { "fact": 90 } },
+  "is_active": true
+}
+```
+
+Set `"is_active": false` to deactivate. Existing source events and memories are preserved.
+
+## Auditing source events
+
+```http
+GET /v1/tenant/source-events?external_user_id=user-123&source_service=chat-service&limit=50
+```
+
+Returns `observed_at`, `received_at`, `payload_hash`, linked `extraction_job_id`, `evidence_refs`, and `scope`.
+
+---
+
+## Error codes
+
+| Code | HTTP | Meaning |
+| --- | --- | --- |
+| `PROV_403` | 403 | `api_key_id` doesn't match the writer's bound key |
+| `PROV_404` | 404 | Service writer not found |
+| `PROV_409` | 409 | `service_key` already registered, or `event_id` exists with different payload |
+| `PROV_422` | 422 | `service` not a registered writer, or invalid `api_key_id` |
+
+---
+
+## Who needs provenance?
+
+| Scenario | Do you need it? |
+| --- | --- |
+| Single service writing memories | No |
+| Multiple services writing to the same user | Yes — use authority rules to control which wins |
+| Compliance audit trail with verifiable payload hash | Yes |
+| Exactly-once ingestion with retry safety | Yes |
+| Automatic payload redaction after retention window | Yes |
+
+## Related pages
+
+- [Memory Engine](/concepts/memory-engine)
+- [Memory Lifecycle](/concepts/memory-lifecycle)
+- [POST /v1/memories/add](/api-reference/add)
