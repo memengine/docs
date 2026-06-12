@@ -3,168 +3,108 @@ title: "Authentication"
 description: "How tenant API keys, agent API keys, and UUI tokens work in MemoryOS."
 ---
 
-MemoryOS has two authentication models:
+MemoryOS has two auth models:
 
-- **Workspace-scoped API auth** for the standard `/v1/memories/*` and workspace dashboard APIs
-- **Cross-agent auth** for `/v1/universal/*`, where both an agent key and a user UUI token are required
+- **Tenant API key** — for `/v1/memories/*` and all workspace APIs
+- **Cross-agent dual auth** — for `/v1/universal/*`, which requires both an agent key and a user UUI token
 
-Human users do not sign in with raw UUI tokens. The consent app uses email plus OTP and then sends a signed MemoryOS session token to backend consent endpoints.
-
-## Tenant API key format
-
-Send your API key in the `Authorization` header:
-
-<img
-  src="/images/Screenshot 2026-05-26 184414.png"
-  alt="Create a MemoryOS tenant API key in the dashboard"
-/>
+## Tenant API key
 
 ```http
 Authorization: ApiKey mem_...
 ```
 
-Current MemoryOS keys are generated with the `mem_` prefix.
+All current keys use the `mem_` prefix. The header format is exact — these all return `AUTH_001`:
 
-> Use exactly this header format:
->
-> ```http
-> Authorization: ApiKey mem_...
-> ```
->
-> Wrong examples that trigger `AUTH_001`:
->
-> ```http
-> Authorization: mem_...
-> Authorization: Bearer mem_...
-> X-API-Key: mem_...
-> ```
+```http
+Authorization: mem_...
+Authorization: Bearer mem_...
+X-API-Key: mem_...
+```
 
-## Cross-agent auth format
+Keep your API key server-side. Never send it to the browser.
 
-For the universal memory APIs, send **two credentials together**:
+## Cross-agent auth
 
 ```http
 Authorization: ApiKey agent_sk_...
 X-MemoryOS-UUI: uui_...
 ```
 
-- `agent_sk_...` identifies the agent making the request
-- `uui_...` identifies the user who granted or denied access
+Both headers are required for every universal memory call. `agent_sk_...` identifies the agent. `uui_...` identifies which Memory Passport user has granted access.
 
-The `agent_sk_...` key is created when your workspace registers a global agent:
+Get your `agent_sk_...` key by registering a global agent:
 
 ```http
 POST /v1/agents/global
 Authorization: ApiKey mem_...
 ```
 
-The response includes `raw_agent_api_key` once. Store it in your backend secret manager or environment variables.
+The response includes `raw_agent_api_key` once. Store it in your backend secret manager — it's never shown again.
 
-If either header is missing or invalid, the universal APIs return:
-
-- `403`
-- `code: UAT_001`
-
-If the agent has read-only access and attempts a write, MemoryOS returns:
-
-- `403`
-- `code: UAT_002`
+If either header is missing or invalid, the API returns `403 UAT_001`. A read-only grant attempting a write returns `403 UAT_002`.
 
 ## Identity model
 
-Every request combines:
-
-- **Tenant identity** from the API key
-- **End-user identity** from `external_user_id`
-
-Example:
+Every tenant-scoped request combines **tenant identity** (from the API key) with **end-user identity** (from `external_user_id` in the request body):
 
 ```json
-{
-  "external_user_id": "customer-123"
-}
+{ "external_user_id": "customer-123" }
 ```
 
-This lets one tenant safely store and retrieve memories for many different users.
+One tenant safely stores memories for many users. Memories are isolated by `(tenant_id, external_user_id)`.
 
-For cross-agent memory sharing, the identity model is different:
+For cross-agent calls, identity is: **agent** (`agent_sk_...`) + **user** (`uui_...`) + **scope** (active `PermissionGrant` categories). The grant must be active and the requested category must be in `categories_allowed`.
 
-- **Agent identity** comes from `agent_sk_...`
-- **User identity** comes from `uui_...`
-- **Permission scope** comes from the active grant between that user and that agent
+Human users manage their Memory Passport through the consent app using email + OTP — not raw `uui_...` tokens.
 
-For human consent and manage screens:
+## Common mistakes
 
-- **Human identity** comes from email plus OTP
-- **Consent session** comes from a signed session token
-- **Agent API calls** still use `agent_sk_...` plus `uui_...`
-
-## Common authentication mistakes
-
-| Mistake | What happens | Correct version |
+| Mistake | Error | Fix |
 | --- | --- | --- |
-| Sending the raw key only | `AUTH_001 unauthorized` | `Authorization: ApiKey mem_...` |
-| Using `Bearer mem_...` | `AUTH_001 unauthorized` | `Authorization: ApiKey mem_...` |
-| Calling `/v1/universal/*` with only one credential | `UAT_001 cross_agent_auth_failed` | Send both `Authorization: ApiKey agent_sk_...` and `X-MemoryOS-UUI: uui_...` |
-| Using a revoked or expired UUI grant | Universal retrieve returns no memories or write is denied | Re-run the consent flow to create an active grant |
-| Asking users to remember raw `uui_...` tokens | Users lose access or get confused | Use email plus OTP in the consent app |
-| Forgetting `external_user_id` on tenant routes | `REQ_422` or tenant resolution errors | Always include `external_user_id` in write and retrieve requests |
-| Reusing a key from the wrong tenant | Data is scoped to the wrong workspace | Use one API key per tenant/workspace |
-| Storing the key in browser code | Secret leaks to clients | Keep MemoryOS API keys server-side |
+| Raw key without scheme | `AUTH_001` | `Authorization: ApiKey mem_...` |
+| `Bearer mem_...` | `AUTH_001` | `Authorization: ApiKey mem_...` |
+| Only one credential on `/v1/universal/*` | `UAT_001` | Send both `agent_sk_...` and `uui_...` |
+| Revoked or expired grant | Empty retrieve result | Re-run the consent flow |
+| Missing `external_user_id` on tenant routes | `REQ_422` | Always include it in write and retrieve requests |
+| Key stored in browser code | Secret leak | Keep MemoryOS keys server-side only |
 
 ## Key permissions
 
-API keys store a permissions array. Current integrations commonly use these values:
-
-| Permission | Intended use |
+| Permission | Use |
 | --- | --- |
 | `read` | Retrieve memories and read list/export data |
-| `write` | Add new memories and create ingestion jobs |
-| `delete` | Delete memories or perform GDPR-style cleanup operations |
-| `admin` | Internal or operational actions where a key needs broad control |
+| `write` | Add memories and create extraction jobs |
+| `delete` | Delete memories or run GDPR cleanup |
+| `admin` | Broad operational control |
 
-## Cross-agent permission model
+## Security checklist
 
-Agent API keys do not automatically grant access to user memories.
+- Load keys from environment variables
+- Use separate keys for dev, staging, and production
+- Rotate immediately if a key is exposed
+- Never commit keys to source control
+- Never log `uui_...` tokens in analytics or error payloads
+- Treat `agent_sk_...` like any other backend secret
 
-For universal memory access, all of the following must be true:
+## Quick example
 
-1. the agent is active
-2. the user exists and has a valid `uui_...` token
-3. the user granted this specific agent access
-4. the memory category being accessed is inside `categories_allowed`
+<CodeGroup>
 
-## Security best practices
-
-> Keep MemoryOS API keys on the server only.
->
-> - Load them from environment variables
-> - Rotate keys if they are exposed
-> - Use separate keys for dev, staging, and production
-> - Never commit keys to source control
-> - Never send MemoryOS API keys to the browser
-> - Never log `uui_...` tokens in analytics or frontend error payloads
-> - Treat `agent_sk_...` keys like any other server-side credential
-
-## Example
-
-### Python
-
-```python
+```python Python
 import os
-
 from memoryos import Memory
 
 client = Memory(api_key=os.environ["MEMORYOS_API_KEY"])
 ```
 
-### TypeScript
-
-```ts
+```ts TypeScript
 import { MemoryOS } from "@memoryos/sdk";
 
 const client = new MemoryOS(process.env.MEMORYOS_API_KEY!);
 ```
+
+</CodeGroup>
 
 ## Related pages
 
