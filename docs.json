@@ -68,7 +68,8 @@
         "pages": [
           "concepts/degradation",
           "concepts/memory-passport",
-          "concepts/rate-limits"
+          "concepts/rate-limits",
+          "concepts/provenance"
         ]
       },
       {

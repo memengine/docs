@@ -3,36 +3,21 @@ title: "Webhooks"
 description: "Configure tenant webhooks, understand event types, and verify MemoryOS webhook signatures."
 ---
 
-MemoryOS can send signed operational events to a tenant webhook URL.
-
-## Configure the webhook URL
-
-Webhook URLs are configured at the tenant level through tenant settings and stored in the tenant budget record.
-
-Common uses:
-
-- quota alerts
-- mode changes
-- processing delay notifications
-- monthly quota resets
+MemoryOS sends signed operational events to a tenant webhook URL for quota alerts, mode changes, and processing notifications.
 
 ## Event types
-
-Current operational webhook events are:
 
 | Event | Meaning |
 | --- | --- |
 | `quota.warning` | Tenant crossed the alert threshold |
 | `quota.critical` | Remaining quota is critically low |
-| `quota.exhausted` | Tenant is exhausted and a quota mode action was applied |
-| `quota.reset` | Monthly quota counters were reset |
+| `quota.exhausted` | Quota exhausted, mode action applied |
+| `quota.reset` | Monthly counters reset |
 | `mode.changed` | Tenant mode changed |
 | `processing.delayed` | Queue delay crossed the warning threshold |
-| `processing.recovered` | Processing recovered after delay |
+| `processing.recovered` | Processing recovered after a delay |
 
 ## Delivery headers
-
-MemoryOS signs webhook deliveries with these headers:
 
 | Header | Meaning |
 | --- | --- |
@@ -57,29 +42,22 @@ MemoryOS signs webhook deliveries with these headers:
 }
 ```
 
-## Verify signatures in Python
+## Verify the signature
 
-```python
+Verify against the **raw request body bytes** — not a re-serialized JSON object.
+
+<CodeGroup>
+
+```python Python
 import hashlib
 import hmac
 
-
-def verify_memoryos_webhook(
-    body_bytes: bytes,
-    signature_header: str,
-    webhook_secret: str,
-) -> bool:
-    expected = hmac.new(
-        webhook_secret.encode("utf-8"),
-        body_bytes,
-        hashlib.sha256,
-    ).hexdigest()
+def verify_memoryos_webhook(body_bytes: bytes, signature_header: str, webhook_secret: str) -> bool:
+    expected = hmac.new(webhook_secret.encode("utf-8"), body_bytes, hashlib.sha256).hexdigest()
     return hmac.compare_digest(expected, signature_header)
 ```
 
-## Verify signatures in TypeScript
-
-```ts
+```ts TypeScript
 import crypto from "node:crypto";
 
 export function verifyMemoryOSWebhook(
@@ -87,41 +65,28 @@ export function verifyMemoryOSWebhook(
   signatureHeader: string,
   webhookSecret: string,
 ): boolean {
-  const expected = crypto
-    .createHmac("sha256", webhookSecret)
-    .update(body, "utf8")
-    .digest("hex");
-
-  return crypto.timingSafeEqual(
-    Buffer.from(expected, "utf8"),
-    Buffer.from(signatureHeader, "utf8"),
-  );
+  const expected = crypto.createHmac("sha256", webhookSecret).update(body, "utf8").digest("hex");
+  return crypto.timingSafeEqual(Buffer.from(expected, "utf8"), Buffer.from(signatureHeader, "utf8"));
 }
 ```
+
+</CodeGroup>
 
 ## FastAPI handler example
 
 ```python
 import json
 import os
+import hashlib
+import hmac
 
 from fastapi import FastAPI, HTTPException, Request
 
-
 app = FastAPI()
 
-
 def verify_memoryos_webhook(body_bytes: bytes, signature_header: str, webhook_secret: str) -> bool:
-    import hashlib
-    import hmac
-
-    expected = hmac.new(
-        webhook_secret.encode("utf-8"),
-        body_bytes,
-        hashlib.sha256,
-    ).hexdigest()
+    expected = hmac.new(webhook_secret.encode("utf-8"), body_bytes, hashlib.sha256).hexdigest()
     return hmac.compare_digest(expected, signature_header)
-
 
 @app.post("/webhooks/memoryos")
 async def memoryos_webhook(request: Request) -> dict:
@@ -131,22 +96,15 @@ async def memoryos_webhook(request: Request) -> dict:
     if not signature:
         raise HTTPException(status_code=401, detail="Missing signature")
 
-    webhook_secret = os.environ["MEMORYOS_WEBHOOK_SECRET"]
-    if not verify_memoryos_webhook(raw_body, signature, webhook_secret):
+    if not verify_memoryos_webhook(raw_body, signature, os.environ["MEMORYOS_WEBHOOK_SECRET"]):
         raise HTTPException(status_code=401, detail="Invalid signature")
 
     payload = json.loads(raw_body.decode("utf-8"))
-    event = payload["event"]
 
-    if event == "quota.warning":
-        print("Quota warning received", payload["data"])
-    elif event == "processing.delayed":
-        print("Processing delay received", payload["data"])
+    if payload["event"] == "quota.warning":
+        print("Quota warning:", payload["data"])
+    elif payload["event"] == "processing.delayed":
+        print("Processing delay:", payload["data"])
 
     return {"received": True}
 ```
-
-## Signature verification
-
-Verify the HMAC against the **raw request body**, not a re-serialized JSON object. The signature is computed from the exact bytes MemoryOS sends.
-
