@@ -5,7 +5,117 @@ description: "Choose the right MemoryOS path: General Engine, domain-specific me
 
 MemoryOS is a memory infrastructure layer for AI products. It lets your AI remember the right things about the right users — without your team rebuilding extraction, retrieval, ranking, lifecycle cleanup, conflict handling, domain schemas, permissions, and dashboard controls from scratch.
 
-Start by choosing a path.
+## The problem MemoryOS solves
+
+Every AI product eventually hits the same wall: **your AI forgets everything the moment the conversation ends.**
+
+Here are three real scenarios where that hurts:
+
+**Customer support bot** — A customer reported a billing issue last week. They come back today with a follow-up. Your bot asks them to explain the problem all over again. The customer is frustrated. Your agent has no idea who they are.
+
+**AI tutor** — A student has been struggling with quadratic equations for three sessions. Every new session, the tutor starts from scratch. It never adjusts its teaching style. It never remembers the student is preparing for JEE Main in March.
+
+**AI career coach** — A user told your assistant their goal is to get a senior engineering role in six months. Three conversations later, the assistant has no memory of that goal and gives generic advice that ignores everything the user already said.
+
+MemoryOS fixes this by giving your AI a persistent, structured memory layer that works across every session.
+
+---
+
+## Without MemoryOS vs. with MemoryOS
+
+### Support agent — returning customer
+
+<CodeGroup>
+
+```text Without MemoryOS
+Customer: "Hi, I'm following up on my billing issue."
+
+Agent: "Hi there! How can I help you today?
+        Could you describe your issue?"
+
+Customer: "I already explained this last week..."
+
+Agent: "I'm sorry, I don't have any record of that.
+        Can you start from the beginning?"
+
+→ Customer repeats everything. Trust eroded.
+```
+
+```text With MemoryOS
+Customer: "Hi, I'm following up on my billing issue."
+
+Agent: "Welcome back. I can see you reported a failed
+        payment on your Growth plan last Tuesday.
+        Has the charge appeared on your statement yet?"
+
+→ Agent picks up exactly where things left off.
+```
+
+</CodeGroup>
+
+### AI tutor — returning student
+
+<CodeGroup>
+
+```text Without MemoryOS
+Student: "Can we continue with trigonometry?"
+
+Tutor: "Sure! Let's start with the basics.
+        What is sin(90°)?"
+
+→ Student already covered this. Session wasted.
+```
+
+```text With MemoryOS
+Student: "Can we continue with trigonometry?"
+
+Tutor: "Last time we covered sin and cos identities.
+        You found the double-angle formulas tricky.
+        Want to try a JEE-style problem on those
+        before we move to tan?"
+
+→ Tutor remembers the student's weak spots and exam goal.
+```
+
+</CodeGroup>
+
+### Career coach — goal continuity
+
+<CodeGroup>
+
+```text Without MemoryOS
+User: "What should I focus on this week?"
+
+Coach: "Great question! What are your career goals?"
+
+→ User already shared their goals two sessions ago.
+```
+
+```text With MemoryOS
+User: "What should I focus on this week?"
+
+Coach: "You're three months into your plan to reach
+        senior engineer. Last session you committed
+        to reviewing system design. Did you get
+        a chance to do that?"
+
+→ Coach remembers the goal, the timeline, and the last commitment.
+```
+
+</CodeGroup>
+
+---
+
+## How MemoryOS works (in two lines)
+
+```text
+mem.add(messages, external_user_id)   ← after each conversation
+mem.get(query,    external_user_id)   ← before the next model call
+```
+
+That is the full integration for most products. MemoryOS handles everything in between: extracting what matters, ranking by relevance, resolving conflicts, and returning a ready-to-use `system_prompt_addition`.
+
+---
 
 ## Choose your path
 
@@ -16,6 +126,8 @@ Start by choosing a path.
 | A customer support bot, support copilot, or agent-assist product | [Support agent cookbook](/cookbooks/support-agent) | Customer support memory for open issues, issue history, communication preferences, support type, sentiment, and escalation risk |
 | HR, healthcare, agriculture, or another domain not yet available | [General Engine](/concepts/general-engine) | Production-safe generic memory today; migrate to a domain schema when it becomes available |
 | User-controlled memory shared across multiple agents or apps | [Memory Passport](/concepts/memory-passport) | Consent-based universal memory using agent keys and user UUI tokens |
+
+---
 
 ## The simple integration model
 
@@ -38,6 +150,8 @@ add() after meaningful conversations
 get() before the next model call
 prepend system_prompt_addition when available
 ```
+
+---
 
 ## General Engine versus domains
 
@@ -69,6 +183,8 @@ Coming later:
 - HealthTech
 - AgriTech
 
+---
+
 ## What MemoryEngine does
 
 MemoryEngine is the runtime behind MemoryOS.
@@ -90,11 +206,15 @@ On reads, it:
 - adds domain-aware context when enabled
 - degrades safely when dependencies or quotas are unhealthy
 
+---
+
 ## Dashboard
 
 Use the workspace dashboard for setup, domain selection, usage, API keys, users, quality logs, and domain-specific views such as student or support dashboards.
 
 There is also a **Dashboard** button in the top navigation.
+
+---
 
 ## Start building
 
