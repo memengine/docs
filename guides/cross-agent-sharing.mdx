@@ -22,7 +22,7 @@ Memory Passport has four moving parts:
 | Global agent | Your workspace | Public agent profile plus `agent_sk_...` key |
 | Consent page | MemoryOS | User signs in, chooses categories, approves duration |
 | Permission grant | MemoryOS | Records which agent can access which categories |
-| Universal API call | Your backend/agent | Uses `agent_sk_...` plus `uui_...` after consent |
+| Universal API call | Your backend/agent | Uses `agent_sk_...` plus the user's Memory Passport identity after consent |
 
 Universal memory API calls require both credentials:
 
@@ -31,7 +31,7 @@ Authorization: ApiKey agent_sk_...
 X-MemoryOS-UUI: uui_...
 ```
 
-The agent key identifies **which app is asking**. The UUI token identifies **which Memory Passport user is being accessed**.
+The agent key identifies **which app is asking**. The UUI token identifies **which Memory Passport user is being accessed**. Human users should not need to copy or remember this token; use the hosted consent and manage screens for normal user flows.
 
 ## Step 0: Register a global agent
 
@@ -151,7 +151,7 @@ Category behavior:
 After approval, the user lands on the MemoryOS completion page:
 
 ```text
-https://consent.memoryos.io/complete?status=granted&state=...
+MemoryOS completion page
 ```
 
 This page tells the user that access was granted and that they can return to your app.
@@ -195,7 +195,7 @@ Grant rules:
 
 - access type may be `read_only` or `read_write`
 - grants are category-scoped
-- users can revoke access any time at `https://consent.memoryos.io/manage`
+- users can revoke access any time from the MemoryOS permission center
 - revoked grants return empty retrieve results instead of leaking metadata
 
 ## Step 4: Use universal memory from your agent
@@ -310,13 +310,7 @@ curl -X POST https://api.memoryos.io/v1/universal/memories/add \
 
 ## User management
 
-Users manage active grants at:
-
-```text
-https://consent.memoryos.io/manage
-```
-
-The manage page lets users:
+Users manage active grants in the MemoryOS permission center. It lets users:
 
 - see which agents have access
 - revoke access
@@ -324,6 +318,8 @@ The manage page lets users:
 - answer pending questions when MemoryOS needs the user to resolve a personal memory conflict
 - flag or correct memories
 - delete their Memory Passport data
+
+Pending Questions can ask the user to choose the first version, the second version, **both are correct**, or **neither is correct**. If they choose one version, MemoryOS archives the conflicting version. If they choose both, both memories remain valid for that user. If they choose neither, the clarification is closed without treating either version as confirmed.
 
 ## Privacy guarantees
 
