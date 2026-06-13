@@ -1,60 +1,29 @@
 ---
 title: "Cookbook: choosing an engine"
-description: "Choose between the general engine, available domain schemas, and upcoming domain-specific engines."
+description: "Choose between the General Engine, EdTech, and Support schemas."
 ---
-
-MemoryOS has one SDK and multiple backend memory behaviors.
-
-Choose the tenant domain based on the product you are building. Your application code should still center on `add()` and `get()`.
-
-## Current production choices
-
-| Tenant domain | Status | Use for |
-| --- | --- | --- |
-| General Engine | Available | Any AI product that needs durable user facts, preferences, goals, procedures, relationships, or expertise |
-| EdTech Schema | Available | Tutoring, exam prep, learning apps, student dashboards |
-| Customer Support Schema | Available | Support agents, support copilots, customer continuity, escalation context |
-
-## Upcoming domains
-
-| Domain | Current docs posture |
-| --- | --- |
-| HR Tech | Coming soon; use the general engine for production HR products today |
-| HealthTech | Coming soon; use the general engine for production healthcare products today |
-| AgriTech | Planned |
-
-If you are building an HR product today, start with the general engine and model your own HR source-of-truth data in your application. Move to the HR domain schema when MemoryOS exposes it as an available tenant domain.
 
 ## Decision guide
 
-Use the general engine when:
+| Building | Use |
+| --- | --- |
+| Chatbot, assistant, copilot, coding agent, SaaS personalization | General Engine |
+| Tutoring, exam prep, learning app, student dashboard | EdTech Schema |
+| Support bot, support copilot, helpdesk platform | Support Schema |
+| HR, healthcare, agriculture (not yet available) | General Engine — migrate when the domain ships |
 
-- the product does not need domain-specific structured profiles
-- you only need prompt-ready memory context
-- you want the fastest integration path
+**General Engine** — prompt-ready memory, no schema setup needed. The right default.
 
-Use EdTech when:
+**EdTech** — adds structured student memory: grade level, curriculum, weak/strong topics, exam context, learning style, forgetting stages. Use it when your UI needs student profile data or when the AI should adapt to the student's knowledge state.
 
-- users are students, learners, teachers, tutors, or education admins
-- the AI should remember weak topics, strong topics, grade level, curriculum, exams, or learning style
-- you need student profile data for dashboards
-
-Use Support when:
-
-- users are customers contacting support
-- the AI should remember open issues, customer preferences, sentiment patterns, and escalation risk
-- support admins need customer memory summaries or support stats
+**Support** — adds structured support memory: customer identity hints, open issue, issue history, resolution preference, sentiment, escalation risk. Use it when support context needs to carry across conversations and tickets.
 
 ## Activation
-
-Check available domain choices:
 
 ```http
 GET /v1/tenant/domain-schema
 Authorization: ApiKey mem_...
 ```
-
-Enable a domain:
 
 ```http
 PATCH /v1/tenant/domain-schema
@@ -63,22 +32,16 @@ Content-Type: application/json
 ```
 
 ```json
-{
-  "domain_schema": "edtech"
-}
+{ "domain_schema": "edtech" }
 ```
 
-Disable a domain and return to the general engine:
-
 ```json
-{
-  "domain_schema": null
-}
+{ "domain_schema": null }
 ```
 
 ## Integration rule
 
-Do not branch your main model-call path by domain unless your product UI needs it.
+Don't branch your main model-call path by domain. MemoryOS decides what's in `system_prompt_addition` based on the tenant setting.
 
 ```python
 result = mem.get(
@@ -92,22 +55,17 @@ if result.has_context:
     system_prompt = f"{system_prompt}\n\n{result.system_prompt_addition}"
 ```
 
-MemoryOS decides whether the tenant is general, EdTech, or Support on the backend.
-
 ## When to use profile endpoints
 
-Use profile or tenant domain endpoints for dashboards and settings screens.
-
-Use `get()` for model calls.
+`get()` is for model calls. Domain profile endpoints are for dashboards and admin UI.
 
 | Need | API |
 | --- | --- |
-| Prompt context for an AI response | `POST /v1/memories/retrieve` or SDK `get()` |
-| Store conversation memory | `POST /v1/memories/add` or SDK `add()` |
+| Prompt context for an AI response | SDK `get()` |
+| Store conversation memory | SDK `add()` |
 | Student profile UI | `GET /v1/memories/edtech-profile` |
 | Support customer dashboard | `GET /v1/tenant/customers` |
-| Support aggregate stats | `GET /v1/tenant/support-stats` |
-| Tenant domain settings | `GET /v1/tenant/domain-schema` or `PATCH /v1/tenant/domain-schema` |
+| Tenant domain settings | `GET/PATCH /v1/tenant/domain-schema` |
 
 ## Related pages
 
