@@ -3,172 +3,85 @@ title: "Memory Passport"
 description: "How MemoryOS lets a user create one identity and control what each AI agent can access."
 ---
 
-Memory Passport is the user-controlled identity layer in MemoryOS. It lets one person sign in with email and OTP, maintain a universal memory identity, and decide which agents can access which categories of their memory.
+Memory Passport is the user-controlled identity layer in MemoryOS. One person signs in with email and OTP, maintains a universal memory identity, and decides which agents can access which categories of their memory.
 
-Human users do not need to manage raw `uui_...` tokens. The `uui_...` token exists for agent-to-agent SDK calls after consent has been granted.
+It's a privacy layer as much as a memory layer. Agents don't automatically share user data — the user has to explicitly approve each one.
 
 <img
   src="/images/Screenshot 2026-05-26 190405.png"
   alt="Memory Passport consent screen where a user approves memory categories for an AI agent"
 />
 
-## Why Memory Passport exists
-
-Tenant-scoped memory works well when one application wants to remember its own users.
-
-Memory Passport solves a different problem:
-
-- the same person uses multiple AI agents
-- those agents should not automatically share everything
-- the person should be able to approve, deny, revoke, or delete access themselves
-
-That makes Memory Passport a privacy layer as much as a memory layer.
-
 ## Core objects
 
-### Universal user
+**Universal user** — created when someone registers or signs in through the consent app. MemoryOS maintains an agent-facing `uui_...` token for backend SDK calls. End users interact through the consent app via email + OTP, not raw tokens.
 
-When a person registers or signs in through the consent app, MemoryOS creates or resolves a universal user.
+**Global agent** — an agent profile that can request Memory Passport access. Each has a public profile, a verification status, default requested categories, and an `agent_sk_...` API key for universal memory APIs.
 
-MemoryOS also maintains an agent-facing token shaped like:
-
-```text
-uui_...
-```
-
-This token is used by backend integrations and SDK calls. It should not be the primary login method for students, patients, customers, or other end users.
-
-Human users manage grants from:
-
-```text
-https://consent.memoryos.io/manage
-```
-
-<img
-  src="/images/Screenshot 2026-05-27 175019.png"
-  alt="Memory Passport manage page showing active agent grants and revoke actions"
-/>
-
-### Global agent
-
-A global agent is an agent profile that can request Memory Passport access. It has:
-
-- a public profile
-- a verification status
-- requested default categories for consent links
-- an `agent_sk_...` API key for universal memory APIs
-
-The tenant creates a global agent with:
+Create one with:
 
 ```http
 POST /v1/agents/global
 Authorization: ApiKey mem_...
 ```
 
-MemoryOS returns:
+Returns `id` (public, safe for consent URLs) and `raw_agent_api_key` (one-time secret, store server-side immediately).
 
-- `id`: public `agent_id` for consent URLs
-- `raw_agent_api_key`: one-time `agent_sk_...` secret for backend universal API calls
+**Permission grant** — connects a user to an agent with a specific set of allowed categories, an access mode (`read_only` or `read_write`), and an optional expiry.
 
-The raw agent key should be stored server-side and is not shown on the public profile.
-
-Default categories are not a hard limit. They are the starting selection shown to the user. A consent URL can preselect another subset for a specific feature, and the user can add or remove categories before approving.
-
-### Permission grant
-
-A permission grant connects:
-
-- one Memory Passport user
-- one global agent
-- one set of allowed categories
-- one access mode (`read_only` or `read_write`)
-- an optional expiry
+<img
+  src="/images/Screenshot 2026-05-27 175019.png"
+  alt="Memory Passport manage page showing active agent grants and revoke actions"
+/>
 
 ## Category-scoped sharing
 
-Memory Passport grants are category-scoped, not all-or-nothing.
+Grants are category-scoped. A user can approve `preference` and `expertise` while withholding `goal`, `relationship`, `fact`, and `procedure`. The agent only sees what was explicitly approved.
 
-Current categories are:
-
-- `preference`
-- `fact`
-- `goal`
-- `procedure`
-- `relationship`
-- `expertise`
-
-That means a user can approve:
-
-- `preference` and `expertise`
-
-while still withholding:
-
-- `goal`
-- `relationship`
-- `fact`
-- `procedure`
+Current categories: `preference`, `fact`, `goal`, `procedure`, `relationship`, `expertise`
 
 ## Auth model
 
-Universal memory access requires both:
+Universal memory calls require both headers:
 
 ```http
 Authorization: ApiKey agent_sk_...
 X-MemoryOS-UUI: uui_...
 ```
 
-The agent key identifies **who is asking**.
-
-The UUI token identifies **which user granted access**.
-
-MemoryOS then checks whether there is an active grant for that agent and whether the requested category is allowed.
+`agent_sk_...` identifies the agent. `uui_...` identifies the user. MemoryOS verifies an active grant exists for that pair and that the requested category is in `categories_allowed`.
 
 ## Grant lifecycle
 
-1. a tenant app introduces MemoryOS where it asks the user to connect memory
-2. the agent sends the user to a consent URL
-3. the consent app handles one of three states inline:
-   - new user: create account, then verify OTP
-   - existing user: email plus OTP login
-   - active session: show consent immediately
-4. user approves specific categories and duration
-5. agent can read or write only within that grant
-6. user can revoke the grant at any time
-7. user can delete the entire Memory Passport and all universal memories
+1. App introduces MemoryOS and sends the user to a consent URL
+2. User authenticates via email + OTP (or resumes an active session)
+3. User approves categories, access mode, and duration
+4. Agent can read or write within the grant scope
+5. User can revoke at any time from the permission center
+6. Revocation removes future access — no data leaks on denial
 
-## Pending questions
+## Pending Questions
 
-The Memory Passport manage page has a **Pending Questions** tab.
+The permission center has a **Pending Questions** tab. This surfaces only personal conflicts MemoryOS routes back to the user — not all conflicts, just ones the user needs to resolve themselves.
 
-This tab is only for conflicts that MemoryOS deliberately routes back to the end user. It is not a general conflict queue.
-
-Pending questions appear when:
-
-- MemoryOS detects two conflicting memories
-- the conflict is personal to the user
-- automatic recency or confidence rules are not enough
-- the active domain router says the user is the right person to answer
-
-Examples:
-
-| Conflict | Routed to |
+| Conflict | Where it goes |
 | --- | --- |
 | Student exam date changed from March 10 to March 15 | Pending Questions |
 | User changed preferred explanation language | Pending Questions |
-| User has two different personal goals recorded | Pending Questions |
 | Two admins disagree on institution curriculum | Tenant dashboard review |
-| Workspace policy conflicts with another workspace policy | Tenant dashboard review |
+| Workspace policy conflict | Tenant dashboard review |
 
-When the user answers, MemoryOS marks the clarification resolved. If they choose one version, the other memory is archived. If they choose neither, the conflict is ignored for that user-session path.
+When the user answers:
+- **Choose one version** — the other is archived
+- **Both are correct** — both memories remain active
+- **Neither is correct** — clarification closed, neither confirmed
 
 ## Privacy guarantees
 
-Memory Passport is designed so that:
-
-- an agent cannot infer what other agents were granted
-- revoking a grant removes future access
-- deleting the Memory Passport removes universal memories and active grants
-- permission notifications can send users back to the manage page for immediate revoke
+- An agent cannot see which other agents were granted access
+- Revoked grants return empty results, not errors
+- Deleted Memory Passport removes all universal memories and active grants
+- Universal memories are stored separately from tenant-scoped memory
 
 ## Related pages
 
