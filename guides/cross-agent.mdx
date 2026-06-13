@@ -3,32 +3,24 @@ title: "Cross-agent Integration"
 description: "Tell users about MemoryOS and generate consent links from your tenant app."
 ---
 
-## Tell users before they connect shared memory
+Before sending users to a consent page, explain what's happening. Don't let them discover MemoryOS on their own mid-flow.
 
-If your app lets users share memory across multiple AI apps or agents, explain it before sending them to the MemoryOS consent page.
+## What to tell users
 
-Use plain language first. You can introduce **Memory Passport** as the place where users approve, review, and revoke access.
+Use plain language. Introduce **Memory Passport** as the place where users approve, review, and revoke access.
 
-Suggested product copy:
+Suggested copy:
 
-> We use MemoryOS so you can choose which AI apps may remember and use your approved context. You can review or revoke access at any time at `consent.memoryos.io/manage`.
+> We use MemoryOS so you can choose which AI apps may remember and use your approved context. You can review, narrow, or revoke access any time from the MemoryOS permission center.
 
-## When to show this
-
-Show this in at least one of these places:
-
-- onboarding
-- settings or integrations
-- the screen where the user clicks "Connect shared memory"
+Show this in at least one of: onboarding, settings/integrations, or the screen where the user clicks "Connect shared memory."
 
 <img
   src="/images/consent-flow-placeholder.svg"
   alt="Example connect memory screen before redirecting to Memory Passport consent"
 />
 
-## Consent URL generation
-
-Use the universal SDK helper to generate the consent link you send users to.
+## Generate the consent URL
 
 ```python
 from memoryos.universal import UniversalMemory
@@ -38,12 +30,13 @@ consent_url = UniversalMemory.consent_url(
     state="optional_user_session_state",
     categories=["preference", "goal"],
 )
-
 ```
 
-`categories` preselects the memory categories for this specific consent link. If you omit it, MemoryOS uses the global agent's default categories. The user can still add or remove categories before approving.
+`categories` preselects the memory categories for this specific consent link. If omitted, MemoryOS uses the global agent's defaults. The user can still add or remove before approving.
 
-If your app needs to automatically mark "Memory connected" in its own UI, pass a `redirect_uri` that exists in your app:
+## With app-owned callback
+
+Use a `redirect_uri` when your app needs to update its own UI after consent — for example, showing "Memory connected" in your settings page.
 
 ```python
 consent_url = UniversalMemory.consent_url(
@@ -53,31 +46,16 @@ consent_url = UniversalMemory.consent_url(
     categories=["preference", "fact"],
 )
 ```
-If you provide `redirect_uri`, your callback must:
 
-- verify the returned `state` server-side
-- mark the state token as consumed so it cannot be replayed
-- show a success page when `status=granted`
-- show a retry or cancellation page when `status=denied`
+Your callback must:
+- verify `state` server-side and mark it as consumed
+- handle `status=granted` and `status=denied`
 
-Callback templates are available in:
+Callback templates: `examples/production-memoryos-callbacks/`
 
-```text
-examples/production-memoryos-callbacks/
-```
+If you don't need your app to react immediately, omit `redirect_uri`. MemoryOS shows a hosted completion page after approval.
 
-## Why this matters
+## Related pages
 
-Users should not need to discover MemoryOS on their own.
-
-Your app should:
-
-1. Explain that MemoryOS is being used
-2. Send the user into the consent flow
-
-MemoryOS handles:
-
-- user authentication
-- consent
-- permission management
-
+- [Cross-agent memory sharing](/guides/cross-agent-sharing)
+- [Memory Passport](/concepts/memory-passport)
