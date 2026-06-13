@@ -3,45 +3,33 @@ title: "Quality Gate"
 description: "How MemoryOS filters low-value or risky write traffic before it becomes memory."
 ---
 
-The MemoryOS quality gate runs before memory ingestion is queued. Its job is to prevent low-value, duplicate, or out-of-budget writes from becoming stored memories.
+Every `add()` call passes through a four-layer gate before extraction is queued. Blocked calls return HTTP `200` with a `status` indicating the blocking layer — inspect the body, not just the status code.
 
-## The four layers
+## Layers
 
-| Layer | Purpose | Backend rule |
+| Layer | What it checks | Block reason |
 | --- | --- | --- |
-| `L1` | Per-user rate limiting | Blocks when requests exceed the tenant's per-user per-minute limit |
-| `L2` | Low-quality input filter | Blocks when the quality score is below `0.35` |
-| `L3` | Semantic duplicate detection | Blocks when semantic similarity is above `0.92` |
-| `L4` | Budget governance | Blocks when quota is exhausted and overage policy is `block` |
+| `L1` | Per-user rate limit — requests per minute | `rate_limit_exceeded` |
+| `L2` | Content quality — score below 0.35 | `low_quality` |
+| `L3` | Semantic dedup — similarity above 0.92 | `duplicate_query` |
+| `L4` | Budget — tenant monthly quota exhausted on block policy | `budget_exhausted` |
 
 ## What gets blocked
 
-| Layer | Example input | Typical reason |
-| --- | --- | --- |
-| `L1` | Same user spams many writes in one minute | `rate_limit_exceeded` |
-| `L2` | `"ok"`, `"hi"`, `"??"` | `low_quality` |
-| `L3` | Re-sending the same preference statement repeatedly | `duplicate_query` |
-| `L4` | Tenant is out of monthly calls or tokens on block mode | `budget_exhausted` |
+| Layer | Example input |
+| --- | --- |
+| `L1` | Same user sends many writes in one minute |
+| `L2` | `"ok"`, `"hi"`, `"??"` |
+| `L3` | Sending the same preference statement repeatedly |
+| `L4` | Tenant is out of monthly calls or tokens |
 
-## How quality is scored
+## Quality scoring
 
-The current quality score is based on:
+The L2 score is based on message count, average message length, lexical diversity, and whether the conversation contains a question signal. Short or content-free messages score poorly.
 
-- number of messages
-- average message length
-- lexical diversity
-- whether the conversation contains a question signal
+## How to keep block rates low
 
-Very short or content-free messages are likely to score poorly.
-
-## How to improve your block rate
-
-1. Send meaningful user facts, preferences, goals, or procedures instead of filler text.
-2. Avoid writing the same memory-worthy statement repeatedly.
-3. Batch coherent conversational turns together instead of sending single-word fragments.
-4. Respect the per-user write rate limit.
-5. Monitor `blocked_reason` and `budget_remaining_pct` on `add()` responses.
-
-## Operational note
-
-A blocked write returns HTTP `200`, but the response `status` indicates the blocking layer, such as `L2` or `L4`. Inspect the response body, not just the status code.
+- Send meaningful facts, preferences, goals, or procedures rather than filler text.
+- Don't send the same memory-worthy statement on every turn.
+- Batch coherent conversational turns instead of single-word fragments.
+- Watch `blocked_reason` and `budget_remaining_pct` on `add()` responses.
