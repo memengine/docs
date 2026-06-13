@@ -3,60 +3,50 @@ title: "MemoryEngine"
 description: "How MemoryOS extracts, ranks, formats, and protects AI memory."
 ---
 
-MemoryEngine is the runtime engine behind MemoryOS. It turns conversations into durable memories, retrieves the right memories at the right time, and produces prompt-ready context for your AI application.
+MemoryEngine is the runtime behind MemoryOS. It turns conversations into durable memories, retrieves the right ones at the right time, and returns prompt-ready context for your LLM.
 
-It is not just a vector search layer. MemoryEngine combines extraction, quality gates, conflict resolution, importance scoring, lifecycle cleanup, version history, and graceful degradation.
-
-If a tenant has a domain schema enabled, MemoryEngine also runs a domain overlay after generic extraction and adds domain-aware context during retrieval. The SDK call stays the same.
+It is not a vector search layer. It combines extraction, quality gates, conflict resolution, importance scoring, lifecycle management, version history, and graceful degradation.
 
 ## Write path
 
-When your app calls `POST /v1/memories/add`, MemoryEngine does not immediately write raw chat text into memory.
+`POST /v1/memories/add` triggers this sequence:
 
-The write path is:
-
-1. Validate tenant auth and `external_user_id`
-2. Run the quality gate
-3. Create an extraction job
-4. Extract durable memories from the conversation
+1. Authenticate tenant and resolve `external_user_id`
+2. Run quality gate (L1 rate → L2 quality → L3 dedup → L4 budget)
+3. Create extraction job
+4. Extract durable memories via LLM
 5. Resolve conflicts against existing memories
-6. Store canonical memories in PostgreSQL
-7. Write embeddings to Qdrant for retrieval
-8. Record memory versions for audit and debugging
-9. Run the tenant's domain overlay if `domain_schema` is enabled
+6. Store in PostgreSQL
+7. Write embeddings to Qdrant
+8. Record version history
+9. Run domain overlay if `domain_schema` is enabled
 
-The request returns quickly with a `job_id`. Extraction runs in the background.
+The API returns a `job_id` immediately. Extraction is async.
 
-For example, an EdTech tenant still stores normal generic memories, but the domain overlay also updates `edtech_memories` with grade level, weak topics, learning style, exam context, and forgetting stages.
+With the EdTech schema enabled, the domain overlay also updates `edtech_memories` with grade level, weak topics, learning style, and exam context alongside the normal memory path.
 
 ## Read path
 
-When your app calls `POST /v1/memories/retrieve`, MemoryEngine retrieves memories and builds context that can be prepended to your model prompt.
+`POST /v1/memories/retrieve` triggers this sequence:
 
-The read path is:
-
-1. Resolve the tenant and user
+1. Resolve tenant and user
 2. Check quota and dependency mode
-3. Load hot-tier memories from Redis when available
-4. Search vector memory for remaining slots
-5. Rank with semantic relevance, importance, and recency
+3. Load hot-tier memories from Redis
+4. Search Qdrant for remaining slots
+5. Rank by semantic relevance, importance, and recency
 6. Filter archived and out-of-scope memories
 7. Build `system_prompt_addition`
-8. Prepend domain-aware context if the tenant has an active domain schema
+8. Prepend domain-aware context if a domain schema is active
 
-The returned `system_prompt_addition` is the safest field to pass into your LLM call.
+## Context formats
 
-## ContextBuilder
-
-ContextBuilder turns retrieved memories into high-quality model context.
-
-Supported formats:
+`system_prompt_addition` comes in three formats:
 
 | Format | Use when |
 | --- | --- |
-| `bullets` | You want prompt-ready natural-language context |
+| `bullets` | Prompt-ready natural language — the default |
 | `json` | Your app parses memory context programmatically |
-| `xml` | You want strongly tagged context for models that follow XML well |
+| `xml` | Models that parse XML tags precisely |
 
 Example `bullets` output:
 
@@ -64,88 +54,55 @@ Example `bullets` output:
 What you know about this user:
 Skills & expertise:
 - Comfortable with FastAPI and PostgreSQL.
-- Has experience with retrieval systems.
 Preferences:
 - Prefers concise technical explanations.
 - Likes Python-first examples.
 ```
 
-ContextBuilder intentionally avoids exposing internal ranking details such as raw confidence or importance values inside the prompt text.
-
 ## Conflict resolution
 
-When a new extracted memory contradicts an existing one, MemoryOS resolves the conflict instead of blindly storing both.
+When a new memory contradicts an existing one, MemoryEngine resolves the conflict rather than storing both blindly.
 
-Examples:
-
-| Old memory | New memory | Result |
+| Old memory | New memory | Resolution |
 | --- | --- | --- |
-| User prefers JavaScript examples. | User now prefers Python examples. | Old memory can be archived or superseded |
+| User prefers JavaScript examples. | User now prefers Python examples. | Old archived, new stored |
 | User works at Acme. | User left Acme and joined Northstar. | Newer factual memory wins |
 
-Conflict changes are recorded in memory version history.
+All conflict changes appear in version history. Routing is domain-aware — personal student facts go to user-session clarification, workspace-level facts go to tenant review.
 
-Conflict routing is domain-aware. For an EdTech tenant, personal student facts such as `exam_date`, `grade_level`, and `weak_topic` route to user-session clarification. Shared institutional facts such as `curriculum_standard` or `institution_policy` route to tenant review. Unknown entities fall back to the generic router.
+Resolution paths in full:
 
-### Resolution paths
-
-MemoryOS uses several conflict resolution paths:
-
-| Path | When it happens | Outcome |
+| Path | Trigger | Outcome |
 | --- | --- | --- |
-| Same-user automatic update | A new memory supersedes an older memory for the same user | Old memory is archived and the new memory points to the previous version |
-| Same-user merge | Two memories are compatible but incomplete separately | MemoryOS stores a merged memory and archives the old version |
-| Same-user reject | The new extracted memory is duplicate or lower quality | Incoming memory is rejected and not stored |
-| Keep both | The memories differ by time or both are still valid | Both memories remain available with version history |
-| Cross-user per-user scoped | A conflict is actually personal to each user | Conflict is ignored as not a shared-context conflict |
-| Cross-user recency weighted | One shared claim is much newer than the other | Older claim is weighted down automatically |
-| Cross-user confidence weighted | One shared claim has much higher confidence | Lower-confidence claim is weighted down automatically |
-| User-session clarification | The conflict is personal and only the user can confirm it | A question appears in the consent app's **Pending Questions** tab |
-| Tenant review | The conflict is about team, organization, institution, or workspace truth | Tenant admins resolve it in the dashboard **Conflicts** page |
-
-The consent app only shows conflicts from the **user-session clarification** path. Automatic resolutions and tenant-review conflicts do not appear in the user's Pending Questions tab.
-
-## Domain overlays
-
-Domain overlays add structured product-specific memory without changing the SDK.
-
-```text
-General engine:
-  memories
-  retrieval
-  system_prompt_addition
-
-Domain overlay:
-  edtech_memories or another domain table
-  domain retrieval context
-  domain conflict routing
-  optional domain profile endpoint
-```
-
-Use normal `add()` and `get()` for AI responses. Use optional domain helpers, such as `get_edtech_profile()`, only when building dashboards or analytics.
+| Automatic update | New memory supersedes older one | Old archived, new stored with `previous_version_id` |
+| Merge | Two memories are compatible but incomplete | Merged memory stored, old archived |
+| Reject | Duplicate or lower quality | Incoming not stored |
+| Keep both | Both still valid | Both kept with version history |
+| Cross-user recency | One claim is much newer | Older claim weighted down |
+| Cross-user confidence | One claim has much higher confidence | Lower-confidence claim weighted down |
+| User clarification | Personal conflict, only user can confirm | Question surfaced on next `get()` via `clarification_question` |
+| Tenant review | Workspace or institution truth | Tenant resolves in dashboard Conflicts page |
 
 ## Importance scoring
 
-Each memory has:
+Each memory tracks:
 
-- `original_importance_score`: extraction-time score
-- `importance_score`: live score that can change with usage and decay
-- `access_count`: retrieval count
-- `last_accessed_at`: last retrieval timestamp
+- `original_importance_score` — set at extraction time
+- `importance_score` — live score, changes with usage and decay
+- `access_count` — how many times this memory has been retrieved
+- `last_accessed_at` — last retrieval timestamp
 
-Important memories are ranked higher. Stale low-value memories can decay over time.
+Higher-importance memories rank higher. Stale low-value memories decay over time.
 
 ## Multi-provider extraction
 
-MemoryEngine can use multiple LLM providers for extraction and conflict classification.
-
-Provider order is configured with:
+Provider order is configurable:
 
 ```text
 LLM_PROVIDER_ORDER=gemini,openai,anthropic
 ```
 
-If one provider fails with a timeout, `5xx`, rate limit, or auth error, MemoryOS falls through to the next configured provider. Operator health shows each provider as `CLOSED`, `OPEN`, `HALF_OPEN`, or `NOT CONFIGURED`.
+If a provider fails with a timeout, 5xx, rate limit, or auth error, MemoryEngine falls through to the next one automatically.
 
 ## Related pages
 

@@ -3,58 +3,24 @@ title: "General Engine"
 description: "The default MemoryOS engine for tenant-scoped AI memory across assistants, copilots, agents, and SaaS products."
 ---
 
-The General Engine is the default MemoryOS runtime. Use it when your product needs reliable long-term memory but does not require an industry-specific schema.
+The General Engine is the default. It works for most AI products — chatbots, coding agents, productivity copilots, SaaS personalization, internal knowledge tools — anything that needs persistent user memory without an industry-specific schema.
 
-It works for most AI products:
+## Memory categories
 
-- chatbots and assistants
-- coding agents
-- productivity copilots
-- SaaS personalization
-- internal knowledge helpers
+| Category | Example |
+| --- | --- |
+| `preference` | User prefers concise answers with Python examples. |
+| `fact` | User works in a B2B SaaS support team. |
+| `goal` | User is preparing to launch an AI product. |
+| `procedure` | User wants weekly summaries every Friday. |
+| `relationship` | User reports to the Head of Product. |
+| `expertise` | User is comfortable with FastAPI and PostgreSQL. |
 
-## What it stores
+Keep billing records, permissions, and source-of-truth system data in your own database. MemoryOS stores what comes out of conversations, not what belongs in a system of record.
 
-The General Engine extracts durable memory from conversations into these categories:
+## Write
 
-| Category | Meaning | Example |
-| --- | --- | --- |
-| `preference` | How the user likes things done | User prefers concise answers with Python examples. |
-| `fact` | Stable user or account facts | User works in a B2B SaaS support team. |
-| `goal` | Something the user wants to achieve | User is preparing to launch an AI product. |
-| `procedure` | A repeated workflow or instruction | User wants weekly summaries every Friday. |
-| `relationship` | People, teams, or account relationships | User reports to the Head of Product. |
-| `expertise` | Skills, tools, or areas of knowledge | User is comfortable with FastAPI and PostgreSQL. |
-
-
-## What it does not store
-
-Keep these in your own product database:
-
-- billing records
-- official user profile fields
-- account permissions
-- source-of-truth ticket status
-- source-of-truth course enrollment
-- payroll, HRIS, or compliance records
-
-MemoryOS stores memory extracted from interactions. Your product database remains the system of record.
-
-## Write path
-
-When your backend calls `add()`, MemoryOS:
-
-1. authenticates the tenant API key
-2. resolves `external_user_id` inside that tenant
-3. runs the quality gate
-4. queues extraction
-5. extracts durable memory
-6. resolves conflicts against existing memory
-7. stores canonical records
-8. indexes vectors for retrieval
-9. records version history
-
-The API returns quickly with a job result. Extraction runs asynchronously.
+`add()` authenticates the tenant, resolves `external_user_id`, runs the quality gate, queues extraction, resolves conflicts, stores memories, and indexes vectors — then returns a job result. Extraction is async.
 
 ```python
 result = mem.add(
@@ -68,9 +34,22 @@ result = mem.add(
 )
 ```
 
-## Read path
+Possible outcomes:
 
-Call `get()` before your model call. MemoryOS retrieves relevant memories and returns `system_prompt_addition`, which is safe to prepend to your system prompt.
+| Status | What to do |
+| --- | --- |
+| `queued` | Continue normally |
+| `passthrough` | Skip memory context, still call the LLM |
+| `L1` | Per-user rate limit — retry later |
+| `L2` | Low-quality input — don't retry the same message |
+| `L3` | Near-duplicate — avoid repeated writes |
+| `L4` | Budget block — wait for reset or upgrade |
+
+The LLM call should never fail because `add()` was blocked.
+
+## Retrieve
+
+Call `get()` before the model call. MemoryOS ranks memories by semantic relevance, importance, recency, and hot-tier signals, then returns `system_prompt_addition` ready to prepend.
 
 ```python
 memories = mem.get(
@@ -85,44 +64,14 @@ if memories.has_context:
     system_prompt = f"{system_prompt}\n\n{memories.system_prompt_addition}"
 ```
 
-## Retrieval ranking
+Use a query that describes the current task. `"answer this user's question"` retrieves better than `"preferences"` or `"memory"`.
 
-The General Engine ranks memories using:
+## When to switch to a domain schema
 
-- semantic relevance to the current query
-- importance score
-- recency and lifecycle state
-- hot-tier cache signals
-- category filters when provided
+The General Engine is the right default. Move to a domain schema when your product needs structured domain memory:
 
-Use a query that describes the current task. This produces better retrieval than a generic query like `"memory"` or `"preferences"`.
-
-
-## Quality gate outcomes
-
-`add()` may return:
-
-| Status | Meaning | Application behavior |
-| --- | --- | --- |
-| `queued` | Memory extraction was queued | Continue normally |
-| `passthrough` | Writes are skipped in the current quota mode | Continue without persistence |
-| `L1` | Per-user rate limit | Retry later |
-| `L2` | Low-quality input | Do not retry the same message |
-| `L3` | Duplicate or near-duplicate input | Avoid repeated writes |
-| `L4` | Budget governance block | Upgrade or wait for reset |
-| `blocked` | Fallback block state | Log and continue |
-
-The LLM call should not fail only because memory could not be written.
-
-## When to move to a domain schema
-
-Stay on the General Engine if prompt-ready memory is sufficient.
-
-Move to a domain schema when your product needs structured domain memory, such as:
-
-- EdTech student profiles, weak topics, exams, and forgetting-stage context
-- Support customer issue history, support type, sentiment, and escalation risk
-
+- **EdTech** — student profiles, weak topics, exams, forgetting stages
+- **Support** — customer issue history, support type, sentiment, escalation risk
 
 ## Related pages
 
