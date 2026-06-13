@@ -1,81 +1,54 @@
 ---
 title: "Customer Support Schema"
-description: "How MemoryOS remembers customer support context for support bots, copilots, and multi-vertical helpdesk platforms."
+description: "How MemoryOS remembers customer support context for support bots, copilots, and helpdesk platforms."
 ---
 
 The Customer Support Schema is for support chatbots, agent-assist copilots, CRM AI, and helpdesk platforms.
 
-It keeps the normal MemoryOS SDK path:
+The SDK stays the same. Enable `domain_schema: "support"` and MemoryOS adds a structured support overlay to every `add()` and `get()` call.
 
-```text
-add() -> store memory from support conversations
-get() -> retrieve customer context before answering
-```
-
-When a tenant enables `domain_schema: "support"`, MemoryOS still runs the General Engine, then adds a structured support overlay in `support_memories`.
-
-## What it remembers
+## What it stores
 
 | Field | Meaning |
 | --- | --- |
-| `support_type` | The active support vertical for this customer or conversation |
-| `customer_identity` | Account hints, tier, customer name, verified status, or account reference |
-| `communication_preference` | Channel, tone, detail level, and technical comfort |
+| `support_type` | Active support vertical for this customer |
+| `customer_identity` | Account hints, tier, name, verified status |
+| `communication_preference` | Channel, tone, detail level, technical comfort |
 | `language_profile` | Preferred language and regional style |
-| `current_open_issue` | The issue future support replies should start from |
-| `issue_history` | Useful prior support issues without dumping every ticket |
-| `resolution_preference` | Refund, replacement, callback, workaround, escalation, or self-serve preference |
-| `sentiment_pattern` | Frustration, repeat complaint, high escalation risk, or easy-to-resolve pattern |
-| `risk_signals` | Fraud, churn, legal, compliance, VIP, safety, or escalation signals |
-| `support_context` | Vertical-specific JSONB context such as orders, invoices, bookings, plans, or transactions |
+| `current_open_issue` | The issue future replies should start from |
+| `issue_history` | Useful prior issues without dumping every ticket |
+| `resolution_preference` | Refund, replacement, callback, workaround, escalation, or self-serve |
+| `sentiment_pattern` | Frustration, repeat complaint, escalation risk, or easy-to-resolve |
+| `risk_signals` | Fraud, churn, legal, compliance, VIP, or safety signals |
+| `support_context` | Vertical-specific context: orders, invoices, bookings, plans, transactions |
 
 ## Support types
 
-Supported support types:
+`saas`, `ecommerce`, `banking_fintech`, `travel`, `telecom`, `edtech_support`, `general_info`
 
-- `saas`
-- `ecommerce`
-- `banking_fintech`
-- `travel`
-- `telecom`
-- `edtech_support`
-- `general_info`
+## Enable
 
-## Enable from dashboard
+From the workspace dashboard: **Settings → Domain Schema → Customer Support Schema**, or via API:
 
-Most teams should enable the Support Schema from the workspace dashboard first.
+```http
+PATCH /v1/tenant/domain-schema
+Authorization: ApiKey mem_...
+Content-Type: application/json
+```
 
-1. Open **Settings** in the MemoryOS workspace dashboard.
-2. Find **Domain Schema**.
-3. Select **Customer Support Schema**.
-4. Choose a support routing mode:
-   - `single` for one vertical such as SaaS, ecommerce, banking, travel, telecom, or EdTech support
-   - `multi` for helpdesk platforms such as Intercom, Crisp, or Zendesk
-   - `auto` for early testing
-5. Save changes.
-
-<img
-  src="/images/Screenshot 2026-05-26 152443.png"
-  alt="Enable Customer Support Schema from the MemoryOS tenant settings page"
-/>
-
-The API examples below do the same thing programmatically.
+```json
+{ "domain_schema": "support" }
+```
 
 ## Routing modes
 
-Support products are not all the same. A bank usually has one vertical. A helpdesk platform like Intercom, Crisp, or Zendesk may serve many verticals.
+| Mode | Use when |
+| --- | --- |
+| `single` | One vertical — SaaS, ecommerce, banking, travel, telecom |
+| `multi` | Helpdesk platform serving many verticals |
+| `auto` | Early testing or broad demos |
 
-MemoryOS supports three routing modes:
-
-| Mode | Best for | Behavior |
-| --- | --- | --- |
-| `single` | SBI, Flipkart, MakeMyTrip, Airtel, Udemy-style tenants | Always use one fixed support type |
-| `multi` | Intercom, Crisp, Zendesk-style helpdesk platforms | Classify each conversation within an allowed list |
-| `auto` | Early testing or broad demos | Classify each conversation across all support types |
-
-### Single vertical
-
-Use this when your whole product belongs to one support vertical.
+Single vertical:
 
 ```json
 {
@@ -85,102 +58,7 @@ Use this when your whole product belongs to one support vertical.
 }
 ```
 
-### Multi-vertical helpdesk
-
-Use this for support platforms that serve many customer businesses.
-
-```json
-{
-  "support_type_mode": "multi",
-  "support_type": null,
-  "support_types_allowed": [
-    "saas",
-    "ecommerce",
-    "banking_fintech",
-    "travel",
-    "telecom",
-    "general_info"
-  ]
-}
-```
-
-For example:
-
-```text
-Customer A asks about a delayed order -> ecommerce
-Customer B asks about a failed invoice -> saas
-Customer C asks about a failed UPI payment -> banking_fintech
-```
-
-Classification happens inside the support extraction pass. It does not require a separate detection call.
-
-### Auto detect
-
-Use this for experimentation when you do not want an allow-list.
-
-```json
-{
-  "support_type_mode": "auto",
-  "support_type": null,
-  "support_types_allowed": []
-}
-```
-
-## Enable with API
-
-If you use the dashboard, no API key is needed because you are already logged in.
-
-If you call the API directly, use your tenant API key:
-
-```text
-Authorization: ApiKey mem_your_api_key
-```
-
-### Enable Support
-
-```http
-PATCH /v1/tenant/domain-schema
-Authorization: ApiKey mem_...
-Content-Type: application/json
-```
-
-```json
-{
-  "domain_schema": "support"
-}
-```
-
-Executable `curl` example:
-
-```bash
-curl -X PATCH "https://api.memoryos.io/v1/tenant/domain-schema" \
-  -H "Authorization: ApiKey mem_your_api_key" \
-  -H "Content-Type: application/json" \
-  -d '{"domain_schema":"support"}'
-```
-
-### Configure Routing
-
-Single vertical:
-
-```bash
-curl -X PATCH "https://api.memoryos.io/v1/tenant/support-type" \
-  -H "Authorization: ApiKey mem_your_api_key" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "support_type_mode": "single",
-    "support_type": "saas",
-    "support_types_allowed": []
-  }'
-```
-
 Multi-vertical helpdesk:
-
-```http
-PATCH /v1/tenant/support-type
-Authorization: ApiKey mem_...
-Content-Type: application/json
-```
 
 ```json
 {
@@ -190,125 +68,64 @@ Content-Type: application/json
 }
 ```
 
-Executable `curl` example:
-
-```bash
-curl -X PATCH "https://api.memoryos.io/v1/tenant/support-type" \
-  -H "Authorization: ApiKey mem_your_api_key" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "support_type_mode": "multi",
-    "support_type": null,
-    "support_types_allowed": ["saas", "ecommerce", "banking_fintech", "travel", "telecom", "general_info"]
-  }'
-```
-
-### Check Current Config
-
-```http
-GET /v1/tenant/domain-schema
-Authorization: ApiKey mem_...
-```
-
-```bash
-curl "https://api.memoryos.io/v1/tenant/domain-schema" \
-  -H "Authorization: ApiKey mem_your_api_key"
-```
-
-The response includes:
-
-```json
-{
-  "domain_schema": "support",
-  "support_type_configured": null,
-  "support_type_mode": "multi",
-  "support_types_allowed": ["saas", "ecommerce", "banking_fintech"]
-}
-```
+Classification happens inside the extraction pass — no separate detection call.
 
 ## Retrieval safety rules
 
-Support memory is not a live system of record. It is remembered customer context.
-
-When Support retrieval returns `system_prompt_addition`, MemoryOS prepends guardrails:
+Support retrieval prepends guardrails to `system_prompt_addition`:
 
 ```text
 Support memory usage rules:
 - Treat this as remembered customer context, not live system truth.
-- Do not claim you checked, changed, refunded, cancelled, verified, located, or triggered anything unless your own tool/API result confirms it.
-- If live system data is needed, say you need to check the relevant support system or call the appropriate tool.
+- Do not claim you checked, changed, refunded, cancelled, verified, located, or triggered anything
+  unless your own tool/API result confirms it.
+- If live system data is needed, say you need to check the relevant support system.
 ```
 
-For `banking_fintech`, MemoryOS also adds:
+For `banking_fintech`:
 
 ```text
-- Never ask for or repeat OTPs, passwords, full account numbers, full card numbers, Aadhaar, or PAN values.
+- Never ask for or repeat OTPs, passwords, full account numbers, full card numbers,
+  Aadhaar, or PAN values.
 ```
 
-These rules are deliberately small and deterministic. They add no extra LLM call and only a few prompt tokens.
+These add no extra LLM call — just a few deterministic prompt tokens.
 
-## MemoryOS versus your support tools
+## MemoryOS vs. your support tools
 
-Production support agents should combine MemoryOS with your operational tools.
-
-| Responsibility | Should live in |
+| Belongs in MemoryOS | Belongs in your systems |
 | --- | --- |
-| Customer remembers they prefer refunds | MemoryOS |
-| Customer has an unresolved invoice issue | MemoryOS |
-| Customer has contacted support three times | MemoryOS |
-| Current order status | Your order system |
-| Current invoice status | Your billing system |
-| Account owner verification | Your CRM/auth system |
-| Refund creation | Your payment/support tool |
-| Ticket SLA timer | Your helpdesk system |
+| Customer prefers refunds over replacements | Current order status |
+| Unresolved billing issue from last session | Current invoice status |
+| Customer contacted support three times | Account owner verification |
+| Escalation risk signals | Refund creation |
+| Communication style preference | Ticket SLA timer |
 
-The recommended production pattern:
+The recommended flow:
 
 ```text
-1. Call MemoryOS get() for remembered support context.
-2. Call your tools for live truth.
-3. Give both to your model.
-4. Store the conversation back with MemoryOS add().
+1. mem.get() — remembered support context
+2. your tools — live truth (orders, invoices, tickets)
+3. combine both in the model call
+4. mem.add() — store the conversation
 ```
 
-## PII and regulated data
+## PII guidance
 
-The Support Schema includes extraction-time redaction for high-risk identifiers, especially for banking/fintech.
+Prefer stable internal IDs for `external_user_id`. Keep ticket IDs in `metadata`. Never send raw card data, OTPs, passwords, Aadhaar, PAN, full account numbers, or full passport numbers to MemoryOS. PNR values for travel are fine — they're operational references, not financial credentials.
 
-Never send unnecessary sensitive data to MemoryOS. Prefer:
-
-- stable internal customer IDs in `external_user_id`
-- ticket IDs in `metadata`
-- account references or masked identifiers
-- concise support summaries instead of full operational records
-
-Avoid sending:
-
-- raw payment card data
-- OTPs
-- passwords or access tokens
-- Aadhaar or PAN numbers
-- full bank account numbers
-- full passport numbers
-- full IMEI numbers
-
-PNR values are allowed for travel support because they are operational booking references, not financial credentials.
-
-## Workspace dashboard endpoints
-
-Use tenant endpoints for dashboards and support analytics.
+## Dashboard endpoints
 
 | Need | Endpoint |
 | --- | --- |
 | Customer support memory list | `GET /v1/tenant/customers` |
 | Aggregate support stats | `GET /v1/tenant/support-stats` |
-| Configure support routing | `PATCH /v1/tenant/support-type` |
+| Configure routing | `PATCH /v1/tenant/support-type` |
 | Current domain config | `GET /v1/tenant/domain-schema` |
 
-Normal model responses should use SDK `get()`, not dashboard endpoints.
+Use SDK `get()` for model calls, not dashboard endpoints.
 
 ## Related pages
 
 - [Cookbook: support agent memory](/cookbooks/support-agent)
 - [Domain schemas](/concepts/domain-schemas)
-- [General Engine](/concepts/general-engine)
