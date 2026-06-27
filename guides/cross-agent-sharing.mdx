@@ -1,8 +1,6 @@
 ---
 title: "Cross-agent Memory Sharing"
-description: "Production-oriented Memory Passport flow for consented memory across agents."
 ---
-
 This guide covers **Memory Passport**, the user-controlled cross-agent memory flow in MemoryOS.
 
 Use this flow when:
@@ -11,17 +9,27 @@ Use this flow when:
 - agents should not automatically share everything
 - the user must approve, review, and revoke access themselves
 
-For the standard one-app pattern, use tenant-scoped [Quickstart](/quickstart) instead.
+For the normal single-app setup, use the tenant-specific [Quickstart](/quickstart) instead.
 
 ## Production flow at a glance
 
-Memory Passport has four moving parts:
+Memory Passport has two user-facing flows. Keep them separate in your product.
+
+| Flow | Starts from | Use it for | Link shape |
+| --- | --- | --- | --- |
+| Agent consent | Your app or agent | User selects which data categories the AI agent can access | `/consent?agent_id=...` |
+| Secure-link connector | Your signed-in app account | User links your app account to their Passport without OAuth | `/connect?agent_id=...&link_token=...` |
+
+
+
+Memory Passport has these moving parts:
 
 | Part | Owned by | Purpose |
 | --- | --- | --- |
-| Global agent | Your workspace | Public agent profile plus `agent_sk_...` key |
+| Passport agent | Your workspace | Public agent profile plus `agent_sk_...` key |
 | Consent page | MemoryOS | User signs in, chooses categories, approves duration |
 | Permission grant | MemoryOS | Records which agent can access which categories |
+| Connector link | Your backend + MemoryOS | Short-lived account handoff for a signed-in user |
 | Universal API call | Your backend/agent | Uses `agent_sk_...` plus the user's Memory Passport identity after consent |
 
 Universal memory API calls require both credentials:
@@ -31,31 +39,32 @@ Authorization: ApiKey agent_sk_...
 X-MemoryOS-UUI: uui_...
 ```
 
-The agent key identifies **which app is asking**. The UUI token identifies **which Memory Passport user is being accessed**. Human users should not need to copy or remember this token; use the hosted consent and manage screens for normal user flows.
+The agent key identifies **which app is asking**. The UUI token identifies **which Memory Passport user is being accessed**.
 
-## Step 0: Register a global agent
+## Step 0: Set up your AI agent
 
-Before you send users to consent, register the AI agent that is requesting access.
+<Warning>
+Register the AI agent before sending users to the consent page. This step is required: the consent page needs a public agent identity to show users who is requesting access, and MemoryOS needs the `agent_id` to create a valid grant.
+</Warning>
 
-### Recommended: use the tenant dashboard
+### Recommended: use the dashboard
 
-1. Open **Tenant Dashboard -> Memory Passport**
-2. Click **Create Global Agent**
-3. Add the agent name, website, logo, and description
+1. Open **Dashboard -> Memory Passport**
+2. Click **Create Passport agent**
+3. Provide your agent name, website, logo, and description for verification.
 4. Choose default requested categories
 5. Copy the public `agent_id`
-6. Copy the one-time `agent_sk_...` secret into your backend secret manager
-7. Use the **Consent URL Builder** to generate and preview a test link
+6. Copy and securely save your Agent API Key before continuing
 
-The same page shows verification status. New agents appear as **Pending MemoryOS review** until the MemoryOS operator team verifies them.
 
-Production rules:
+New agents appear as **Pending MemoryOS review** until the MemoryOS operator team verifies them.
 
-- `agent_id` is public and can be copied into consent links
-- `agent_sk_...` is secret and is shown only once
-- store `agent_sk_...` server-side, never in browser code
-- default categories are only a starting selection, not a hard maximum
-- users can add or remove categories before approval
+<Warning>
+  **`agent_sk_...` is shown exactly once.** Copy it into your backend secret manager or environment variables before leaving this page. There is no way to retrieve it again — if you lose it, you must rotate the key.
+
+  Never put `agent_sk_...` in browser code, client-side config, or version control.
+</Warning>
+
 
 ### Optional: create agents from your backend
 
@@ -89,23 +98,18 @@ MemoryOS returns two important values:
 - `id` is the public `agent_id` used in consent URLs
 - `raw_agent_api_key` is shown once and must be stored server-side
 
-`default_categories_requested` are only the default checkboxes shown on consent links that do not pass a `categories` parameter. They are not a hard maximum. The end user always makes the final choice before a grant is created.
+<Warning>`default_categories_requested` are pre-selected checkboxes only — the end user can add or remove any category before approving.</Warning>
 
-The user sees this profile on the consent page:
-
-- app / agent name
-- description
-- verification status
-- requested memory categories
-- website or logo, if configured
 
 Fetch the public profile to preview what the user will see:
 
 ```bash
-curl https://api.memoryos.io/v1/agents/global/your_global_agent_id
+curl https://api.memoryos.io/v1/agents/global/your_agent_id
 ```
 
 ## Step 1: Explain shared memory in your app
+
+<Tip>TThe consent page gives your users control over their information. They can review requested permissions, grant or revoke access, and choose how conflicting context should be handled across applications</Tip>
 
 Do not surprise users with a consent screen. Add a clear button such as:
 
@@ -117,9 +121,15 @@ Suggested product copy:
 
 > We use MemoryOS so you can choose which AI apps may remember and use your approved context. You can review or revoke access at any time.
 
-## Step 2: Send the user to MemoryOS consent
+## Step 2A: Add the agent consent button
 
-The lowest-friction flow does **not** require a customer callback route. If you omit `redirect_uri`, MemoryOS shows a hosted completion page after approval.
+In your app, add a clear user-facing button:
+
+```text
+Connect shared memory
+```
+
+When clicked, generate a consent URL and redirect the user to it:
 
 ```python
 from memoryos.universal import UniversalMemory
@@ -130,7 +140,7 @@ consent_url = UniversalMemory.consent_url(
 )
 ```
 
-For most production flows, pass the categories your current feature wants to preselect:
+For most production flows, pass the categories your current feature wants to preselect. The user can still change them before approval:
 
 ```python
 consent_url = UniversalMemory.consent_url(
@@ -140,25 +150,9 @@ consent_url = UniversalMemory.consent_url(
 )
 ```
 
-Category behavior:
+By default, no callback endpoint is required. If redirect_uri is omitted, MemoryOS displays a hosted completion page after the user finishes the consent flow.
 
-- if `categories` is provided in the consent URL, those categories are preselected
-- if `categories` is omitted, the global agent defaults are preselected
-- if the global agent has no defaults, all universal categories are preselected
-- the user can add or remove categories before approving
-- the saved grant contains only the categories the user finally approved
-
-After approval, the user lands on the MemoryOS completion page:
-
-```text
-MemoryOS completion page
-```
-
-This page tells the user that access was granted and that they can return to your app.
-
-### Optional: app-owned callback
-
-Use an app-owned callback only when your app must automatically update its own UI after consent.
+If your application needs to update its UI, establish a session, or perform additional actions immediately after approval, provide a redirect_uri:
 
 ```python
 consent_url = UniversalMemory.consent_url(
@@ -168,26 +162,538 @@ consent_url = UniversalMemory.consent_url(
     categories=["preference", "fact"],
 )
 ```
+<div className="rounded-xl border border-amber-300 bg-amber-50 p-5 text-amber-950 dark:border-amber-400/40 dark:bg-amber-400/10 dark:text-amber-100">
+  <p className="font-semibold">Multi-agent-service company flow starts here</p>
+  </div>
+### Production helper for multiple agents
 
-If you provide `redirect_uri`, your route must exist and must verify `state` server-side. Otherwise users can approve access and land on a 404.
+If your company has multiple AI agents, do not manually create consent URLs. Create each Passport agent once in the dashboard, store the public `agent_id` for each agent, and generate the URL dynamically from one helper.
 
-Copy-paste callback examples are available in:
+<Tip>
+One company can have many agents. Each agent gets its own `agent_id`, but your app uses the same consent URL helper for all of them.
+</Tip>
 
-```text
-examples/production-memoryos-callbacks/
+```ts
+const CONSENT_BASE_URL =
+  process.env.NEXT_PUBLIC_MEMORYOS_CONSENT_BASE_URL ?? "https://consent.memoryos.io";
+
+const MEMORYOS_AGENT_IDS = {
+  support: process.env.NEXT_PUBLIC_MEMORYOS_SUPPORT_AGENT_ID!,
+  billing: process.env.NEXT_PUBLIC_MEMORYOS_BILLING_AGENT_ID!,
+  onboarding: process.env.NEXT_PUBLIC_MEMORYOS_ONBOARDING_AGENT_ID!,
+};
+
+type AgentKey = keyof typeof MEMORYOS_AGENT_IDS;
+
+export function buildMemoryOSConsentUrl({
+  agent,
+  categories,
+  state,
+  redirectUri,
+}: {
+  agent: AgentKey;
+  categories: string[];
+  state: string;
+  redirectUri?: string;
+}) {
+  const url = new URL(`${CONSENT_BASE_URL}/consent`);
+  url.searchParams.set("agent_id", MEMORYOS_AGENT_IDS[agent]);
+  url.searchParams.set("categories", categories.join(","));
+  url.searchParams.set("state", state);
+
+  if (redirectUri) {
+    url.searchParams.set("redirect_uri", redirectUri);
+  }
+
+  return url.toString();
+}
 ```
 
-## Step 3: Let MemoryOS create the grant
+Use the helper from any product button:
 
-When the user approves access, MemoryOS creates or updates the grant. Your app normally does **not** call `/v1/uui/me/grants` directly.
+```tsx
+"use client";
 
-The consent page handles:
+import { buildMemoryOSConsentUrl } from "@/lib/memoryos-consent";
+
+export function ConnectSupportMemoryButton({ userId }: { userId: string }) {
+  function startConsent() {
+    const consentUrl = buildMemoryOSConsentUrl({
+      agent: "support",
+      categories: ["preference", "fact", "goal"],
+      state: `support:${userId}:${crypto.randomUUID()}`,
+      redirectUri: "https://yourapp.com/integrations/memoryos/callback",
+    });
+
+    window.location.href = consentUrl;
+  }
+
+  return (
+    <button type="button" onClick={startConsent}>
+      Connect shared memory
+    </button>
+  );
+}
+```
+
+<Warning>
+The `agent_id` is safe to use in frontend code. The `agent_sk_...` key is not. Keep `agent_sk_...` only on your backend.
+</Warning>
+
+
+## Step 2B: Add the secure-link connector button
+
+Use this when your product does not have OAuth/OIDC yet, but you want a signed-in app user to link their app account to their Memory Passport.
+
+<Note>
+Use a consent URL when an AI agent needs permission to read Passport memory. Use a secure-link connector when your service needs to prove that the signed-in user in your app is the same person who owns the Memory Passport. This is what makes multi-service memory work across products like support desks, banks, e-commerce apps, and AI agents without asking users to paste permanent tokens.
+</Note>
+
+<Tip>
+Add the connector button once in your app account settings or onboarding flow. If your company has multiple agents, they can all reuse the same verified account connection, while each agent still asks for its own consent grant.
+</Tip>
+
+1. The user signs in to your app.
+2. They click **Connect Memory Passport**.
+3. Your backend already knows the signed-in user's stable ID.
+4. Your backend creates a one-time connector link.
+5. Your app redirects the user to that link.
+
+Add **one backend route** and **one frontend button** in your app.
+
+Required environment variables:
+
+| Variable | Where it comes from |
+| --- | --- |
+| `MEMORYOS_API_KEY` | Dashboard -> API Keys |
+| `MEMORYOS_SUPPORT_AGENT_ID`, `MEMORYOS_BILLING_AGENT_ID`, etc. | Dashboard -> Memory Passport -> create agent |
+| `MEMORYOS_API_URL` | MemoryOS API base URL (https://api.memoryos.io) |
+| `MEMORYOS_CONSENT_BASE_URL` | MemoryOS consent app URL (https://consent.memoryos.io) |
+
+<Note>Never put `MEMORYOS_API_KEY` in browser code</Note>
+
+<Tip>
+For one-agent products, you can keep a single `MEMORYOS_AGENT_ID`. For multi-agent products, keep a server-side map of agent names to agent IDs and let the route choose the right one.
+</Tip>
+
+### Next.js App Router example
+
+Create this route in your app:
+
+```text
+src/app/api/memoryos/connect/route.ts
+```
+
+```ts
+import { NextResponse } from "next/server";
+import { auth } from "@/lib/auth";
+
+const MEMORYOS_API_URL = process.env.MEMORYOS_API_URL ?? "https://api.memoryos.io";
+const MEMORYOS_API_KEY = process.env.MEMORYOS_API_KEY;
+const CONSENT_BASE_URL = process.env.MEMORYOS_CONSENT_BASE_URL ?? "https://consent.memoryos.io";
+
+const MEMORYOS_AGENT_IDS = {
+  support: process.env.MEMORYOS_SUPPORT_AGENT_ID,
+  billing: process.env.MEMORYOS_BILLING_AGENT_ID,
+  onboarding: process.env.MEMORYOS_ONBOARDING_AGENT_ID,
+} as const;
+
+type AgentKey = keyof typeof MEMORYOS_AGENT_IDS;
+
+function getAgentId(agent: unknown) {
+  if (typeof agent !== "string" || !(agent in MEMORYOS_AGENT_IDS)) {
+    return null;
+  }
+
+  return MEMORYOS_AGENT_IDS[agent as AgentKey] ?? null;
+}
+
+export async function POST(request: Request) {
+  const session = await auth();
+  const body = await request.json().catch(() => ({}));
+  const agentId = getAgentId(body.agent ?? "support");
+
+  if (!session?.user?.id) {
+    return NextResponse.json({ error: "sign_in_required" }, { status: 401 });
+  }
+
+  if (!MEMORYOS_API_KEY || !agentId) {
+    return NextResponse.json(
+      { error: "memoryos_not_configured" },
+      { status: 500 },
+    );
+  }
+
+  const response = await fetch(`${MEMORYOS_API_URL}/v1/tenant/memory-passport/link-token`, {
+    method: "POST",
+    headers: {
+      Authorization: `ApiKey ${MEMORYOS_API_KEY}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      agent_id: agentId,
+      external_user_id: session.user.id,
+    }),
+  });
+
+  if (!response.ok) {
+    return NextResponse.json(
+      { error: "memoryos_link_failed", detail: await response.text() },
+      { status: 502 },
+    );
+  }
+
+  const payload = await response.json();
+  const url = new URL(`${CONSENT_BASE_URL}/connect`);
+  url.searchParams.set("agent_id", agentId);
+  url.searchParams.set("link_token", payload.data.link_token);
+
+  return NextResponse.json({ redirect_url: url.toString() });
+}
+```
+
+Replace `auth()` with your app's normal authentication helper. The only required value is a stable signed-in user ID.
+
+Frontend button:
+
+```tsx
+"use client";
+
+export function ConnectMemoryPassportButton() {
+  async function connectMemoryPassport() {
+    const response = await fetch("/api/memoryos/connect", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ agent: "support" }),
+    });
+
+    if (!response.ok) {
+      throw new Error("Could not start Memory Passport connection");
+    }
+
+    const payload = await response.json();
+    window.location.href = payload.redirect_url;
+  }
+
+  return (
+    <button type="button" onClick={connectMemoryPassport}>
+      Connect Memory Passport
+    </button>
+  );
+}
+```
+
+### Node.js / Express example
+
+```ts
+import express from "express";
+
+const app = express();
+app.use(express.json());
+
+const MEMORYOS_API_URL = process.env.MEMORYOS_API_URL ?? "https://api.memoryos.io";
+const MEMORYOS_API_KEY = process.env.MEMORYOS_API_KEY; // mem_..., server-side only
+const CONSENT_BASE_URL = process.env.MEMORYOS_CONSENT_BASE_URL ?? "https://consent.memoryos.io";
+
+const MEMORYOS_AGENT_IDS = {
+  support: process.env.MEMORYOS_SUPPORT_AGENT_ID,
+  billing: process.env.MEMORYOS_BILLING_AGENT_ID,
+  onboarding: process.env.MEMORYOS_ONBOARDING_AGENT_ID,
+};
+
+function getAgentId(agent) {
+  if (typeof agent !== "string" || !(agent in MEMORYOS_AGENT_IDS)) {
+    return null;
+  }
+
+  return MEMORYOS_AGENT_IDS[agent] ?? null;
+}
+
+app.post("/integrations/memoryos/connect", async (req, res) => {
+  const signedInUser = req.user;
+  const agentId = getAgentId(req.body?.agent ?? "support");
+
+  if (!signedInUser) {
+    return res.status(401).json({ error: "sign_in_required" });
+  }
+
+  if (!MEMORYOS_API_KEY || !agentId) {
+    return res.status(500).json({ error: "memoryos_not_configured" });
+  }
+
+  const response = await fetch(`${MEMORYOS_API_URL}/v1/tenant/memory-passport/link-token`, {
+    method: "POST",
+    headers: {
+      Authorization: `ApiKey ${MEMORYOS_API_KEY}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      agent_id: agentId,
+      external_user_id: signedInUser.id,
+    }),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    return res.status(502).json({
+      error: "memoryos_link_failed",
+      detail: errorText,
+    });
+  }
+
+  const payload = await response.json();
+  const linkToken = payload.data.link_token;
+
+  const url = new URL(`${CONSENT_BASE_URL}/connect`);
+  url.searchParams.set("agent_id", agentId);
+  url.searchParams.set("link_token", linkToken);
+
+  return res.json({ redirect_url: url.toString() });
+});
+```
+
+This Express example assumes your authentication middleware sets `req.user`. Replace it with your app's real session object.
+
+Frontend button:
+
+```ts
+async function connectMemoryPassport() {
+  const response = await fetch("/integrations/memoryos/connect", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ agent: "support" }),
+  });
+  const payload = await response.json();
+  window.location.href = payload.redirect_url;
+}
+```
+
+### Python / FastAPI example
+
+```python
+import os
+from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel
+import httpx
+
+router = APIRouter()
+
+MEMORYOS_API_URL = os.getenv("MEMORYOS_API_URL", "https://api.memoryos.io")
+MEMORYOS_API_KEY = os.environ["MEMORYOS_API_KEY"]  # mem_..., server-side only
+CONSENT_BASE_URL = os.getenv("MEMORYOS_CONSENT_BASE_URL", "https://consent.memoryos.io")
+
+MEMORYOS_AGENT_IDS = {
+    "support": os.getenv("MEMORYOS_SUPPORT_AGENT_ID"),
+    "billing": os.getenv("MEMORYOS_BILLING_AGENT_ID"),
+    "onboarding": os.getenv("MEMORYOS_ONBOARDING_AGENT_ID"),
+}
+
+
+class ConnectMemoryPassportRequest(BaseModel):
+    agent: str = "support"
+
+
+@router.post("/integrations/memoryos/connect")
+async def connect_memory_passport(
+    body: ConnectMemoryPassportRequest,
+    current_user = Depends(get_current_user),
+):
+    agent_id = MEMORYOS_AGENT_IDS.get(body.agent)
+
+    if not agent_id:
+        raise HTTPException(status_code=400, detail="unknown_agent")
+
+    async with httpx.AsyncClient(timeout=10) as client:
+        response = await client.post(
+            f"{MEMORYOS_API_URL}/v1/tenant/memory-passport/link-token",
+            headers={
+                "Authorization": f"ApiKey {MEMORYOS_API_KEY}",
+                "Content-Type": "application/json",
+            },
+            json={
+                "agent_id": agent_id,
+                "external_user_id": current_user.id,
+            },
+        )
+
+    if response.status_code >= 400:
+        raise HTTPException(
+            status_code=502,
+            detail={"error": "memoryos_link_failed", "response": response.text},
+        )
+
+    link_token = response.json()["data"]["link_token"]
+    redirect_url = (
+        f"{CONSENT_BASE_URL}/connect"
+        f"?agent_id={agent_id}"
+        f"&link_token={link_token}"
+    )
+    return {"redirect_url": redirect_url}
+```
+
+Replace `get_current_user` with your normal authentication dependency.
+
+The connector token expires after 15 minutes, works once, and is bound to your tenant, agent, and customer record. Create it on your backend; never expose your tenant API key in browser code.
+
+### What users should see
+
+In your app, use plain copy:
+
+```text
+Connect Memory Passport
+MemoryOS will open so you can approve this connection, choose what this AI can access, and revoke access anytime.
+```
+
+After the user opens the connector link, MemoryOS handles sign-in, consent, category selection, and connection creation.
+
+### Manual dashboard generator
+
+Tenant Dashboard -> Memory Passport includes a manual connector-link generator. Use it only to check one user flow during development. Production apps should generate the connector link server-side when the signed-in user clicks your button.
+
+## Step 2C: OAuth connectors
+
+Use this when your product already has OAuth/OIDC for your own users.
+
+In the MemoryOS consent/manage app, this appears as a **Connect account** action. The user chooses your company, signs in on your normal login/approval page, and then lands back on a clear success screen showing that their account is connected.
+
+<Note>
+In your product copy, say: **Connect your account** or **Connect Memory Passport**.
+</Note>
+
+### OAuth user flow
+
+1. The user opens the MemoryOS consent/manage app.
+2. They click **Connect account**.
+3. They choose your company from the organisation directory.
+4. MemoryOS redirects them to your OAuth authorize URL.
+5. The user signs in on your normal login page.
+6. Your OAuth server redirects back to the MemoryOS OAuth callback.
+7. MemoryOS verifies the account and creates a verified organisation connection.
+
+<Tip>
+Use secure-link connector mode from Step 2B if you do not have OAuth yet. Use OAuth when you already have an OAuth/OIDC login system and want the cleanest user-first account connection flow.
+</Tip>
+
+### What you need to build
+
+OAuth connector mode is not magic. Your product must expose the normal OAuth/OIDC endpoints that MemoryOS can call.
+
+| Endpoint | Purpose |
+| --- | --- |
+| `GET /oauth/authorize` | Shows your login/approval screen and returns an authorization code |
+| `POST /oauth/token` | Exchanges the authorization code for an access token |
+| `GET /oauth/userinfo` | Returns the signed-in user's stable account ID |
+
+MemoryOS stores only a tenant-scoped hash of the returned user ID. It never stores the user's password, OAuth token, or raw account ID.
+
+### Step 1: Register your organisation connector
+
+Register your organisation directory entry once. This tells MemoryOS where to send users when they choose your company.
+
+```bash
+curl -X POST https://api.memoryos.io/v1/tenant/directory/register \
+  -H "Content-Type: application/json" \
+  -H "Authorization: ApiKey mem_..." \
+  -d '{
+    "display_name": "Acme Support",
+    "category": "saas",
+    "website_url": "https://acme.com",
+    "logo_url": "https://acme.com/logo.png",
+    "oauth_client_id": "memoryos-oauth-client-id",
+    "oauth_client_secret": "memoryos-oauth-client-secret",
+    "oauth_authorization_url": "https://acme.com/oauth/authorize",
+    "oauth_token_url": "https://acme.com/oauth/token",
+    "oauth_userinfo_url": "https://acme.com/oauth/userinfo",
+    "oauth_scopes": ["openid", "profile"],
+    "is_public": true
+  }'
+```
+
+Store `oauth_client_secret` only in your backend or MemoryOS connector configuration. Do not place OAuth secrets in public docs, frontend code, or mobile apps.
+
+### Step 2: Implement your authorize endpoint
+
+MemoryOS sends the user to your authorize endpoint with a callback URL and state token:
+
+```http
+GET https://acme.com/oauth/authorize
+  ?client_id=memoryos-oauth-client-id
+  &redirect_uri=https://consent.memoryos.io/oauth/callback
+  &scope=openid%20profile
+  &state=csrf_state_from_memoryos
+  &response_type=code
+```
+
+Your app should show the normal login or approval screen. After the user approves the connection, redirect to the MemoryOS OAuth callback:
+
+```http
+302 https://consent.memoryos.io/oauth/callback
+  ?code=temporary_authorization_code
+  &state=csrf_state_from_memoryos
+```
+
+### Step 3: Implement your token endpoint
+
+MemoryOS calls your token endpoint to exchange the temporary code for an access token:
+
+```http
+POST https://acme.com/oauth/token
+Content-Type: application/x-www-form-urlencoded
+
+grant_type=authorization_code
+&code=temporary_authorization_code
+&redirect_uri=https://consent.memoryos.io/oauth/callback
+&client_id=memoryos-oauth-client-id
+&client_secret=your_client_secret
+```
+
+### Step 4: Implement your userinfo endpoint
+
+MemoryOS calls your userinfo endpoint with the access token. Return a stable user reference:
+
+```json
+{
+  "sub": "user_8a72",
+  "email": "user@example.com"
+}
+```
+
+MemoryOS hashes `sub` with your organisation ID and creates the verified connection in the user's Passport.
+
+### What the user sees after OAuth
+
+After MemoryOS verifies the userinfo response, the user sees a success screen in the consent/manage app:
+
+```text
+Account connected
+Your Acme Support account is now connected to your Memory Passport.
+You can disconnect this anytime from Connections.
+```
+
+## Step 3: Let MemoryOS complete the user action
+
+MemoryOS handles the user-facing action after your app redirects the user.
+
+There are two different records:
+
+| User action | MemoryOS creates | What it means |
+| --- | --- | --- |
+| User approves an agent consent URL | Permission grant | This agent can read the approved memory categories |
+| User opens a secure-link connector or OAuth connector | Organisation connection | This Passport user is linked to this service account |
+
+<Warning>
+An organisation connection is not the same as an agent permission grant. The connection proves account ownership. The grant decides which agent can read or write memory.
+</Warning>
+
+The consent and connector pages handle:
 
 - new user account creation
 - email OTP login
 - category selection
 - duration selection
 - grant creation
+- secure-link connector creation
+- OAuth connector completion
 - grant notification
 - revoke/manage link
 
@@ -195,12 +701,28 @@ Grant rules:
 
 - access type may be `read_only` or `read_write`
 - grants are category-scoped
-- users can revoke access any time from the MemoryOS permission center
-- revoked grants return empty retrieve results instead of leaking metadata
+- revoked grants return empty results instead of leaking whether memory exists
 
 ## Step 4: Use universal memory from your agent
 
-Once your agent has a valid `agent_sk_...` and the user's `uui_...` token, it can retrieve only the categories the user approved.
+After the user has approved your agent, your backend or agent can call Universal Memory.
+
+Universal API calls require:
+
+| Credential | Header | Meaning |
+| --- | --- | --- |
+| Agent API key | `Authorization: ApiKey agent_sk_...` | Which AI agent is asking |
+| Memory Passport user token | `X-MemoryOS-UUI: uui_...` | Which Passport user is being accessed |
+
+MemoryOS checks the active grant for that exact `(agent, user)` pair before returning anything.
+
+<Note>
+The consent redirect returns `status` and `state`; it does not put the user's `uui_...` token in the URL. Use `state` to match the consent result to your app session. Keep any UUI token or Passport session handling server-side or in the MemoryOS consent/manage app.
+</Note>
+
+<Tip>
+If the user connected your service account through Step 2B or 2C, that connection helps MemoryOS know the Passport user belongs to your signed-in account. Your agent still needs an active grant before Universal Memory retrieval returns context.
+</Tip>
 
 ```python
 from memoryos.universal import UniversalMemory
@@ -217,6 +739,8 @@ with UniversalMemory(
     if result.has_context:
         system_prompt = BASE_PROMPT + "\n\n" + result.system_prompt_addition
 ```
+
+If this agent does not have an active grant for this user, retrieval returns no context and includes a permission status such as `no_grant_for_user`.
 
 If the grant is `read_write`, the agent can also add universal memories:
 
@@ -243,76 +767,40 @@ If the grant is `read_only`, write attempts return:
 
 ## Integration note
 
-The hosted completion page removes the need for every customer to build a callback route.
+The hosted completion page removes the need for every product to build a callback route.
 
-However, universal API calls still require a `uui_...` token. For production apps, the clean long-term pattern is an app-owned account-linking flow where your backend can securely associate your logged-in user with their Memory Passport identity.
+Use hosted completion when:
 
-Until a server-side token exchange flow is available, use hosted completion for:
+- your app only needs user-facing permission confirmation
+- you are testing the flow manually
+- your product does not need to update its own UI immediately
 
-- demos
-- pilots
-- local agents
-- manual testing
-- user-facing permission confirmation
+Use app-owned callback mode when your app needs to update its UI immediately after consent. MemoryOS redirects to your callback with:
 
-Use app-owned callback mode when:
-
-- your app needs to update its UI immediately after consent
-- your backend already has a secure way to associate the app user with the Memory Passport user
-- you are building a full production cross-agent integration
-
-## Supported categories
-
-Current Memory Passport categories are:
-
-- `preference`
-- `fact`
-- `goal`
-- `procedure`
-- `relationship`
-- `expertise`
-
-## REST API examples
-
-Retrieve universal memory:
-
-```bash
-curl -X POST https://api.memoryos.io/v1/universal/memories/retrieve \
-  -H "Content-Type: application/json" \
-  -H "Authorization: ApiKey agent_sk_..." \
-  -H "X-MemoryOS-UUI: uui_..." \
-  -d '{
-    "query": "How should I tailor the response?",
-    "limit": 5,
-    "format": "bullets"
-  }'
+```text
+?status=granted&state=your_state
 ```
 
-Add universal memory:
+or:
 
-```bash
-curl -X POST https://api.memoryos.io/v1/universal/memories/add \
-  -H "Content-Type: application/json" \
-  -H "Authorization: ApiKey agent_sk_..." \
-  -H "X-MemoryOS-UUI: uui_..." \
-  -d '{
-    "messages": [
-      {
-        "role": "user",
-        "content": "Please remember that I prefer short, structured explanations and Python examples."
-      }
-    ],
-    "metadata": {
-      "source": "learning-agent"
-    }
-  }'
+```text
+?status=denied&state=your_state
 ```
+
+Use secure-link connector mode when your app needs to associate a signed-in app account with the user's Memory Passport identity.
+
+Use OAuth connector mode when your product already has OAuth/OIDC and you want users to start account linking from the MemoryOS consent/manage app.
+
+For raw REST request and response examples, use the [Universal Memory APIs](/api-reference/universal) reference.
+
 
 ## User management
 
-Users manage active grants in the MemoryOS permission center. It lets users:
+Users manage grants, connections, memories, and questions in the MemoryOS consent/manage app. It lets users:
 
 - see which agents have access
+- see which organisations are connected
+- disconnect an organisation connection
 - revoke access
 - review memories
 - answer pending questions when MemoryOS needs the user to resolve a personal memory conflict
@@ -326,6 +814,8 @@ Pending Questions can ask the user to choose the first version, the second versi
 Memory Passport is designed so that:
 
 - one agent cannot see which other agents were granted access
+- one organisation cannot add itself to a user's Passport without user action
+- organisation connections do not automatically grant agent memory access
 - denied or revoked grants return empty results
 - universal memories are stored separately from tenant-scoped memory
 - grants are category-scoped and revocable
