@@ -7,6 +7,8 @@ Universal memory APIs are used by global agents after a user grants access throu
 
 These endpoints are separate from tenant-scoped `/v1/memories/*` APIs.
 
+For the full product flow, use [Cross-agent memory sharing](/guides/cross-agent-sharing). This page is only the API reference.
+
 ## Authentication
 
 Universal memory calls require two headers:
@@ -22,9 +24,7 @@ The UUI token identifies the Memory Passport user whose grant is being checked.
 
 ## Create a global agent
 
-Create a global agent once per app or AI agent that will request Memory Passport access.
-
-The tenant creates this agent from their backend or tenant dashboard. End users do not create global agents; they only approve or deny access on the consent page.
+Creates an agent identity that can request Memory Passport access.
 
 ```http
 POST /v1/agents/global
@@ -45,8 +45,6 @@ Request:
 }
 ```
 
-`default_categories_requested` sets the default checkboxes when a consent URL does not pass `categories`. It does not limit what the user can approve. A consent link can preselect a different subset with `?categories=preference,goal`, and the final grant stores only the categories the user approves.
-
 Response:
 
 ```json
@@ -60,7 +58,14 @@ Response:
 }
 ```
 
-Store `raw_agent_api_key` immediately. It is the `agent_sk_...` value used for universal memory calls and should be treated like a backend secret.
+Store `raw_agent_api_key` immediately. It is shown once.
+
+Notes
+
+- tenants create global agents; end users do not
+- `id` is the public `agent_id` used in consent and connector URLs
+- `raw>_agent_api_key` is the backend-only `agent_sk_...`
+- `default_categories_requested` only preselects consent checkboxes; the user makes the final choice
 
 ## POST /v1/universal/memories/add
 
@@ -136,7 +141,7 @@ No-grant response:
   "data": [],
   "system_prompt_addition": "",
   "is_passthrough": false,
-  "permission_status": "no_grant",
+  "permission_error": "no_grant_for_user",
   "categories_available": []
 }
 ```
@@ -165,18 +170,53 @@ Example response:
 }
 ```
 
-## Consent and manage endpoints
+## Secure-link connector token
 
-Human users interact through the consent app:
+Creates a one-time connector token for a signed-in app user.
 
-```text
-MemoryOS consent page
-MemoryOS permission center
+```http
+POST /v1/tenant/memory-passport/link-token
+Authorization: ApiKey mem_...
+Content-Type: application/json
 ```
 
-Most teams should generate consent links from **Tenant Dashboard -> Memory Passport**. Self-hosted deployments should configure the consent app URL in their deployment settings before sharing links with users.
+Request:
 
-Backend endpoints include:
+```json
+{
+  "agent_id": "aa535a7e-b0d6-44df-8e17-8438f6098836",
+  "external_user_id": "cust_8a72"
+}
+```
+
+Response:
+
+```json
+{
+  "data": {
+    "link_token": "plink_...",
+    "expires_in_seconds": 900
+  }
+}
+```
+
+Build the user redirect URL:
+
+```text
+https://consent.memoryos.io/connect?agent_id=aa535a7e-b0d6-44df-8e17-8438f6098836&link_token=plink_...
+```
+
+Rules:
+
+- generate the token only after the user is signed in to your app
+- the token is single-use
+- the token expires automatically
+- do not ask the user to type their own app user ID
+- do not expose your tenant API key in frontend code
+
+## Consent and manage endpoints
+
+The consent/manage app uses these user-scoped endpoints:
 
 | Endpoint | Purpose |
 | --- | --- |
@@ -187,6 +227,9 @@ Backend endpoints include:
 | `GET /v1/uui/me/grants` | List active grants |
 | `POST /v1/uui/me/grants` | Create or update a grant |
 | `DELETE /v1/uui/me/grants/{grant_id}` | Revoke a grant |
+| `GET /v1/uui/organisations` | List public connector directory entries |
+| `GET /v1/uui/me/connections` | List the user's connected services |
+| `DELETE /v1/uui/me/connections/{connection_id}` | Disconnect a service |
 | `DELETE /v1/uui/me` | Delete Memory Passport data |
 
 ## Related pages
