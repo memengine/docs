@@ -1,6 +1,5 @@
 ---
 title: "General Engine"
-description: "The default MemoryOS engine for tenant-scoped AI memory across assistants, copilots, agents, and SaaS products."
 ---
 
 The General Engine is the default. It works for most AI products — chatbots, coding agents, productivity copilots, SaaS personalization, internal knowledge tools — anything that needs persistent user memory without an industry-specific schema.
@@ -15,8 +14,6 @@ The General Engine is the default. It works for most AI products — chatbots, c
 | `procedure` | User wants weekly summaries every Friday. |
 | `relationship` | User reports to the Head of Product. |
 | `expertise` | User is comfortable with FastAPI and PostgreSQL. |
-
-Keep billing records, permissions, and source-of-truth system data in your own database. MemoryOS stores what comes out of conversations, not what belongs in a system of record.
 
 ## Write
 
@@ -45,7 +42,7 @@ Possible outcomes:
 | `L3` | Near-duplicate — avoid repeated writes |
 | `L4` | Budget block — wait for reset or upgrade |
 
-The LLM call should never fail because `add()` was blocked.
+<Tip>Blocking add() should not affect LLM calls.</Tip>
 
 ## Retrieve
 
@@ -77,6 +74,5 @@ The General Engine is the right default. Move to a domain schema when your produ
 
 - [Cookbook: general AI memory](/cookbooks/general-ai-memory)
 - [Domain schemas](/concepts/domain-schemas)
-- [MemoryEngine](/concepts/memory-engine)
 - [POST /v1/memories/add](/api-reference/add)
 - [POST /v1/memories/retrieve](/api-reference/retrieve)
