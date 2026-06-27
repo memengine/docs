@@ -21,19 +21,18 @@
         "pages": [
           "introduction",
           "quickstart",
-          "authentication",
-          "cookbooks/domain-selection"
+          "authentication"
         ]
       },
       {
-        "group": "General Engine",
+        "group": "Tenant-Scoped Memory",
         "pages": [
           "concepts/general-engine",
           "cookbooks/general-ai-memory",
-          "concepts/memory-engine",
-          "concepts/memories",
           "concepts/quality-gate",
-          "concepts/memory-lifecycle"
+          "concepts/memory-lifecycle",
+          "api-reference/add",
+          "api-reference/retrieve"
         ]
       },
       {
@@ -47,6 +46,14 @@
         ]
       },
       {
+        "group": "Memory Passport",
+        "pages": [
+          "concepts/memory-passport",
+          "guides/cross-agent-sharing",
+          "api-reference/universal"
+        ]
+      },
+      {
         "group": "SDKs",
         "pages": [
           "sdk/python",
@@ -57,9 +64,6 @@
       {
         "group": "API Reference",
         "pages": [
-          "api-reference/add",
-          "api-reference/retrieve",
-          "api-reference/universal",
           "api-reference/errors"
         ]
       },
@@ -67,7 +71,6 @@
         "group": "Advanced Concepts",
         "pages": [
           "concepts/degradation",
-          "concepts/memory-passport",
           "concepts/rate-limits",
           "concepts/provenance"
         ]
@@ -78,8 +81,6 @@
           "guides/openai",
           "guides/anthropic",
           "guides/edtech-domain",
-          "guides/cross-agent",
-          "guides/cross-agent-sharing",
           "guides/webhooks"
         ]
       }
