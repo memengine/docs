@@ -29,6 +29,20 @@ Returns `id` (public, safe for consent URLs) and `raw_agent_api_key` (one-time s
 
 **Permission grant** — connects a user to an agent with a specific set of allowed categories, an access mode (`read_only` or `read_write`), and an optional expiry.
 
+**Connector** - links a user's account in another service to their Memory Passport. Connectors are useful when a company wants to prove "this Passport belongs to this signed-in customer" before sharing account-specific context.
+
+There are two connector paths:
+
+- **OAuth connector** - the user starts from MemoryOS Passport, authenticates with the service, and returns to MemoryOS.
+- **Secure-link connector** - the user starts inside the company's app, clicks **Connect Memory Passport**, and the company's backend creates a one-time MemoryOS link for that signed-in user.
+
+Consent URLs and connectors solve different problems:
+
+| Flow | Purpose |
+| --- | --- |
+| Consent URL | Lets an AI agent request access to Passport memory categories |
+| Connector | Links an external service account to the user's Passport |
+
 <img
   src="/images/Screenshot 2026-05-27 175019.png"
   alt="Memory Passport manage page showing active agent grants and revoke actions"
@@ -59,6 +73,19 @@ X-MemoryOS-UUI: uui_...
 4. Agent can read or write within the grant scope
 5. User can revoke at any time from the permission center
 6. Revocation removes future access — no data leaks on denial
+
+## Connector lifecycle
+
+For a secure-link connector:
+
+1. User signs in to the company's app
+2. User clicks **Connect Memory Passport**
+3. Company backend calls `/v1/tenant/memory-passport/link-token`
+4. App redirects the user to `/connect?agent_id=...&link_token=...`
+5. MemoryOS verifies the one-time link and creates the connection
+6. User can disconnect the service from Passport later
+
+The company should not manually create links for each user. The app backend generates them automatically for the signed-in user.
 
 ## Pending Questions
 
