@@ -1,94 +1,169 @@
 {
   "$schema": "https://mintlify.com/docs.json",
-  "theme": "willow",
   "name": "MemoryOS",
+  "theme": "maple",
   "colors": {
-    "primary": "#2E75B6",
-    "dark": "#1B3A5C"
+    "primary": "#3B82F6",
+    "dark": "#60A5FA"
   },
   "favicon": "/favicon.ico",
-  "navbar": {
-    "primary": {
-      "type": "button",
-      "label": "Dashboard",
-      "href": "https://app.memoryos.io"
+  "api": {
+    "mdx": {
+      "server": "https://api.memoryo.dev"
     }
   },
+
+
+"footer": {
+  "socials": {
+    "github": "https://github.com/memengine/memory-api",
+    "x": "https://twitter.com/Aditiiitm",
+    "instagram": "https://instagram.com/memoryos",
+    "threads": "https://threads.net/@memoryos"
+
+  },
+  "links": [
+    {
+      "header": "Docs Navigation",
+      "items": [
+        { "label": "Getting Started", "href": "/introduction" },
+        { "label": "API Reference", "href": "/api-reference/add" },
+        { "label": "SDK Reference", "href": "/sdk/python" },
+        { "label": "Domain Schemas", "href": "/concepts/domain-schemas" },
+        { "label": "Memory Passport", "href": "/concepts/memory-passport" },
+        { "label": "Changelog", "href": "/changelog" }
+      ]
+    },
+   {
+  "header": "Community and Support",
+  "items": [
+    { "label": "support@memoryo.dev", "href": "https://memoryo.dev" }
+  ]
+},
+    
+    {
+      "header": "Links",
+      "items": [
+        { "label": "Privacy Policy", "href": "/privacy" },
+        { "label": "Terms of Service", "href": "/terms" },
+        { "label": "Security Policy", "href": "/security" },
+        { "label": "System Status", "href": "https://status.memoryos.io" }
+      ]
+    }
+  ]
+},
+
+
+
+
   "navigation": {
-    "groups": [
+    "global": {
+      "anchors": [
+        {
+          "anchor": "Dashboard",
+          "icon": "gauge",
+          "href": "https://app.memoryo.dev",
+          "color": {
+            "light": "#3B82F6",
+            "dark": "#60A5FA"
+          }
+        }
+      ]
+    },
+    "tabs": [
       {
-        "group": "Getting Started",
-        "pages": [
-          "introduction",
-          "quickstart",
-          "authentication"
+        "tab": "Docs",
+        "groups": [
+          {
+            "group": "Getting Started",
+            "pages": ["introduction", "quickstart", "authentication"]
+          },
+          {
+            "group": "Tenant-Scoped Memory",
+            "pages": [
+              "concepts/general-engine",
+              "cookbooks/general-ai-memory",
+              "concepts/quality-gate",
+              "concepts/extraction-quality",
+              "concepts/memory-lifecycle"
+            ]
+          },
+          {
+            "group": "Domain Engines",
+            "pages": [
+              "concepts/domain-schemas",
+              "cookbooks/edtech-tutor",
+              "concepts/support-domain",
+              "cookbooks/support-agent"
+            ]
+          },
+          {
+            "group": "Memory Passport",
+            "pages": [
+              "concepts/memory-passport",
+              "guides/cross-agent-sharing"
+            ]
+          },
+          {
+            "group": "Advanced Concepts",
+            "pages": [
+              "concepts/degradation",
+              "concepts/rate-limits",
+              "concepts/provenance",
+              "memory-write-layer"
+            ]
+          }
         ]
       },
       {
-        "group": "Tenant-Scoped Memory",
-        "pages": [
-          "concepts/general-engine",
-          "cookbooks/general-ai-memory",
-          "concepts/quality-gate",
-          "concepts/memory-lifecycle",
-          "api-reference/add",
-          "api-reference/retrieve"
+        "tab": "API Reference",
+        "groups": [
+          {
+            "group": "Memory APIs",
+            "pages": ["api-reference/add", "api-reference/retrieve"]
+          },
+          {
+            "group": "Domain APIs",
+            "pages": ["api-reference/edtech-profile"]
+          },
+          {
+            "group": "Universal APIs",
+            "pages": ["api-reference/universal"]
+          },
+          {
+            "group": "Reference",
+            "pages": ["api-reference/errors"]
+          }
         ]
       },
       {
-        "group": "Domain Engines",
-        "pages": [
-          "concepts/domain-schemas",
-          "cookbooks/edtech-tutor",
-          "concepts/support-domain",
-          "cookbooks/support-agent",
-          "api-reference/edtech-profile"
+        "tab": "SDKs",
+        "groups": [
+          {
+            "group": "SDKs",
+            "pages": ["sdk/python", "sdk/typescript", "sdk/mcp"]
+          }
         ]
       },
       {
-        "group": "Memory Passport",
-        "pages": [
-          "concepts/memory-passport",
-          "guides/cross-agent-sharing",
-          "api-reference/universal"
-        ]
-      },
-      {
-        "group": "SDKs",
-        "pages": [
-          "sdk/python",
-          "sdk/typescript",
-          "sdk/mcp"
-        ]
-      },
-      {
-        "group": "API Reference",
-        "pages": [
-          "api-reference/errors"
-        ]
-      },
-      {
-        "group": "Advanced Concepts",
-        "pages": [
-          "concepts/degradation",
-          "concepts/rate-limits",
-          "concepts/provenance"
-        ]
-      },
-      {
-        "group": "Guides",
-        "pages": [
-          "guides/openai",
-          "guides/anthropic",
-          "guides/edtech-domain",
-          "guides/webhooks"
+        "tab": "Guides",
+        "groups": [
+          {
+            "group": "Integrations",
+            "pages": ["guides/openai", "guides/anthropic"]
+          },
+          {
+            "group": "Domain Guides",
+            "pages": ["guides/edtech-domain"]
+          },
+          {
+            "group": "Operations",
+            "pages": ["guides/webhooks"]
+          },
+          {
+          }
         ]
       }
     ]
-  },
-  "api": {
-    "mdx": {
-      "server": "https://api.memoryos.io"
-    }
   }
 }
