@@ -12,22 +12,21 @@ POST /v1/memories/add
 ## Authentication
 
 ```http
-Authorization: ApiKey mem_...
+Authorization: ApiKey mem_live_xxx
+Content-Type: application/json
 ```
 
-## Headers
+## Simple mode: no source block required
 
-| Header | Required | Notes |
-| --- | --- | --- |
-| `Authorization` | Yes | `ApiKey mem_...` |
-| `Content-Type` | Yes | `application/json` |
-| `Idempotency-Key` | No | Replays the same queued response for duplicate writes |
+<Tip>
+For solo builders, MVPs, small teams, and single-agent products, omit `source`. MemoryOS automatically creates internal event IDs, timestamps, and default provenance.
+</Tip>
 
 ## Request body
 
 ```json
 {
-  "external_user_id": "customer-123",
+  "external_user_id": "customer_123",
   "agent_id": "support-bot",
   "messages": [
     {
@@ -41,31 +40,60 @@ Authorization: ApiKey mem_...
 }
 ```
 
-### Schema
+### Fields
 
 | Field | Type | Required | Notes |
 | --- | --- | --- | --- |
 | `external_user_id` | `string` | Yes | End-user identifier inside your tenant |
 | `agent_id` | `string \| null` | No | Optional agent identifier |
 | `messages` | `ConversationMessage[]` | Yes | At least one message |
-| `metadata` | `object` | No | Arbitrary JSON object |
+| `metadata` | `object` | No | Arbitrary JSON metadata |
+| `source` | `MemorySource \| null` | No | Provenance source block for multi-service governance |
 
-### `ConversationMessage`
+### ConversationMessage
 
 | Field | Type | Required |
 | --- | --- | --- |
 | `role` | `"user" \| "assistant" \| "system"` | Yes |
 | `content` | `string` | Yes |
 
-## Response headers
+## Multi-service mode: add provenance
 
-| Header | Meaning |
-| --- | --- |
-| `X-MemoryOS-Quota-Mode` | Current tenant mode: `FULL`, `PASSTHROUGH`, `DEGRADED_RETRIEVE`, or `BLOCKED` |
-| `X-MemoryOS-Budget-Remaining` | Remaining quota percentage as a decimal string |
-| `X-MemoryOS-Quota-Reset` | Next reset timestamp, if set |
-| `X-MemoryOS-Circuit-Status` | Platform dependency status |
-| `X-MemoryOS-Processing` | `normal` or `delayed` |
+<Warning>
+Use `source` when multiple services can write memories for the same user. This is for Billing, Support, CRM, Product, or other backend services that may disagree and need source-of-truth routing.
+</Warning>
+
+```json
+{
+  "external_user_id": "customer_123",
+  "messages": [
+    {
+      "role": "user",
+      "content": "What plan am I currently using?"
+    },
+    {
+      "role": "assistant",
+      "content": "Your current subscription plan is Growth."
+    }
+  ],
+  "source": {
+    "service": "billing-service",
+    "event_id": "billing-plan-2026-06-30-001",
+    "observed_at": "2026-06-30T10:00:00Z",
+    "scope": {
+      "workspace_id": "ws_123"
+    },
+    "evidence": [
+      {
+        "source_type": "subscription_record",
+        "reference": "billing/subscriptions/ws_123"
+      }
+    ]
+  }
+}
+```
+
+For testing, you may start with one tenant API key and a `source.service` value. For production multi-service traffic, register service writers from the Tenant Dashboard and bind dedicated API keys so authority rules can be applied consistently.
 
 ## Response: queued
 
@@ -84,11 +112,104 @@ Authorization: ApiKey mem_...
 }
 ```
 
+`add()` is asynchronous. A queued response means MemoryOS accepted the request, not that a memory has already been stored.
+
+## Check extraction job status
+
+```http
+GET /v1/memories/jobs/{job_id}
+Authorization: ApiKey mem_live_xxx
+```
+
+Example response:
+
+```json
+{
+  "data": {
+    "job_id": "72a20629-a76d-4a18-ab36-1c2778ba21d0",
+    "status": "completed",
+    "memories_created": 0,
+    "pending_candidates_buffered": 1,
+    "pending_candidates_promoted": 0,
+    "attempts": 2,
+    "queue_name": "free-extraction",
+    "error": null,
+    "error_summary": null,
+    "extraction_metadata": {
+      "compositional_pass_attempted": false,
+      "compositional_pass_used": false,
+      "compositional_entities": 0,
+      "compositional_relationships": 0,
+      "compositional_error": null
+    }
+  }
+}
+```
+
+### Job status fields
+
+| Field | Meaning |
+| --- | --- |
+| `memories_created` | Permanent memories created |
+| `pending_candidates_buffered` | Weak signals buffered instead of stored |
+| `pending_candidates_promoted` | Weak signals promoted to memory |
+| `attempts` | Number of processing attempts, including provider retries |
+| `extraction_metadata` | Two-pass compositional extraction details |
+
+## Working PowerShell polling example
+
+```powershell
+$Api = $env:MEMORYOS_API_BASE_URL
+if (-not $Api) { $Api = "https://api.memoryo.dev" }
+
+$TenantKey = $env:MEMORYOS_API_KEY
+if (-not $TenantKey) { throw "Set MEMORYOS_API_KEY before running this example." }
+
+$UserId = "customer_123"
+
+$body = @{
+  external_user_id = $UserId
+  messages = @(
+    @{
+      role = "user"
+      content = "Maybe I prefer shorter replies for difficult technical topics, but I am not completely sure yet."
+    },
+    @{
+      role = "assistant"
+      content = "Got it. I will adapt if that pattern becomes clearer."
+    }
+  )
+} | ConvertTo-Json -Depth 10
+
+$add = Invoke-RestMethod `
+  -Method Post `
+  -Uri "$Api/v1/memories/add" `
+  -Headers @{
+    Authorization = "ApiKey $TenantKey"
+    "Content-Type" = "application/json"
+  } `
+  -Body $body
+
+$JobId = $add.job_id
+
+for ($i = 1; $i -le 60; $i++) {
+  Start-Sleep -Seconds 3
+
+  $job = Invoke-RestMethod `
+    -Method Get `
+    -Uri "$Api/v1/memories/jobs/$JobId" `
+    -Headers @{ Authorization = "ApiKey $TenantKey" }
+
+  Write-Host "Attempt $i -> status=$($job.data.status), memories=$($job.data.memories_created), buffered=$($job.data.pending_candidates_buffered)"
+
+  if ($job.data.status -in @("completed", "processed", "failed", "dead")) {
+    $job.data | ConvertTo-Json -Depth 10
+    break
+  }
+}
+```
+
 ## Response: blocked by the quality gate
-
-The `status` value is usually the layer that blocked the request.
-
-### Example: `L2`
 
 ```json
 {
@@ -102,62 +223,32 @@ The `status` value is usually the layer that blocked the request.
 }
 ```
 
-Possible blocked `status` values:
-
-- `L1`
-- `L2`
-- `L3`
-- `L4`
-- `blocked` (internal gate fallback)
+Possible blocked `status` values: `L1`, `L2`, `L3`, `L4`, and `blocked`.
 
 ## Nothing to extract
 
-Some conversations pass the quality gate but contain no durable user memory. Examples:
+Some conversations pass the quality gate but contain no durable memory. This is normal.
+
+Examples:
 
 - greetings
 - acknowledgements
-- one-word replies
+- one-session debugging instructions
+- temporary UI instructions
 - off-topic questions
-
-This is not an error. It means the conversation was valid but contained nothing useful to store.
-
-SDKs expose this as `result.nothing_to_extract` / `result.nothingToExtract`.
-
-```python
-result = mem.add(messages=messages, external_user_id="user_123")
-
-if result.was_stored:
-    print("Memory queued")
-elif result.nothing_to_extract:
-    print("Conversation had no storable information")
-```
-
-For tenants with domain schemas enabled, `add()` still uses this same endpoint. Domain-specific extraction runs internally after the general memory path.
-
-## Response: passthrough
-
-When the tenant is in passthrough mode, MemoryOS accepts the call path but does not persist a memory write.
-
-```json
-{
-  "job_id": null,
-  "status": "passthrough",
-  "blocked_reason": null,
-  "retry_after_seconds": null,
-  "budget_remaining_pct": 0.0,
-  "request_id": "11111111-2222-3333-4444-555555555555",
-  "timestamp": "2026-04-17T09:30:00Z"
-}
-```
 
 ## Idempotency-Key
 
 Use `Idempotency-Key` when your application may retry the same write request.
 
-Example:
-
 ```http
 Idempotency-Key: 8b7f95f1-a98c-4d43-b321-889e881d29b8
 ```
 
-MemoryOS stores the queued response for that key and replays it for duplicate requests instead of creating a second job.
+MemoryOS replays the same queued response for duplicate requests instead of creating a second job.
+
+## Related pages
+
+- [Extraction Quality Loop](/concepts/extraction-quality)
+- [Quality Gate](/concepts/quality-gate)
+- [Memory Provenance](/concepts/provenance)
