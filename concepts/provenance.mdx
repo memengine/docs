@@ -1,100 +1,113 @@
 ---
 title: "Memory Provenance"
-description: "Track exactly where every memory came from, who wrote it, and when — with authority-based conflict resolution."
+description: "Track where memories came from, which service wrote them, and how conflicts are resolved."
 ---
 
-Provenance answers three questions about any memory:
+Provenance answers three questions about a memory:
 
-- **Who wrote it?** — which service or API key submitted the conversation
-- **Where did it come from?** — a source event ID and payload hash linking back to the original ingestion call
-- **When was it observed?** — the timestamp from your system, not when MemoryOS received it
+- **Who wrote it?** Which service, API key, Passport agent, or organisation connection observed the claim.
+- **Where did it come from?** Which source event, payload hash, and evidence references produced it.
+- **Why is this version active?** Which authority, recency, confidence, or human decision selected it over another claim.
 
-Most products don't need this. Skip to [Who needs provenance?](#who-needs-provenance) if you're not sure.
+This is the governance layer behind MemoryOS. It matters most when multiple services or agents write memories about the same user.
 
 ## Core objects
 
 ### Service Writer
 
-A named identity for one of your backend services. Register it once; reuse it across all `add()` calls from that service.
+A Service Writer is a named identity for one backend service. Register one writer for each service that observes user facts.
+
+Examples:
+
+- `support-service`
+- `billing-service`
+- `crm-sync`
+- `learning-platform`
 
 | Field | Meaning |
 | --- | --- |
-| `service_key` | Stable slug — `chat-service`, `crm-sync`, `support-bot` |
-| `display_name` | Human-readable label for the dashboard |
-| `authority_rules` | Priority scores (0–100) per category for conflict resolution |
-| `api_key_id` | Optional — binds the writer to a specific API key for credential verification |
+| `service_key` | Stable slug, for example `billing-service` |
+| `display_name` | Human-readable label in dashboards |
+| `authority_rules` | Priority scores per memory category |
+| `api_key_id` | Optional bound API key for credential verification |
 
-### Memory Source Event
+### Source event
 
-Created automatically when an `add()` call includes a `source` block. Ties the extraction job and all resulting memories to:
+A source event is created for an `add()` call that includes a `source` block. It records:
 
-- your system's event ID
-- the exact time it happened in your system (`observed_at`)
-- a SHA-256 hash of the conversation payload
-- optional evidence references and scope metadata
+- your system event ID
+- when your system observed the event
+- which service wrote it
+- SHA-256 payload hash
+- optional evidence references
+- optional scope metadata
 
-Every memory produced by the job carries `source_event_id` pointing back to this event.
+Every memory created by that job points back to the source event.
 
-### Authority Rules
+### Claim revision ledger
 
-When two writers produce conflicting memories for the same user, `authority_rules` resolve it:
+MemoryOS keeps claim revisions so conflict resolution does not erase history. When a newer or more trusted claim supersedes an older one, the older claim is archived instead of deleted.
 
-```json
-{
-  "default_priority": 50,
-  "categories": {
-    "fact": 80,
-    "preference": 60
-  }
-}
-```
+The active memory is what retrieval sees. The ledger keeps the full lineage for audit, dashboard inspection, and future graph work.
 
-Higher priority wins. Tiebreaker order: priority → `observed_at` recency → confidence score.
-
-This lets you declare that `crm-service` always wins on `fact` memories while `chat-service` wins on `preference`.
-
-### Payload retention and redaction
-
-Raw message content is retained for a configurable window (`extraction_payload_retention_days`). After expiry, a daily task (03:20 UTC) redacts the content from the job payload, replacing it with `{ "messages_redacted": true }`. The `payload_hash` stays permanently for integrity verification.
-
----
-
-## How to use it
-
-### 1. Register a Service Writer
+## Register a Service Writer
 
 ```http
 POST /v1/tenant/service-writers
-Authorization: ApiKey mem_...
+Authorization: ApiKey mem_live_xxx
 Content-Type: application/json
 ```
 
 ```json
 {
-  "service_key": "chat-service",
-  "display_name": "Chat Backend",
+  "service_key": "billing-service",
+  "display_name": "Billing Service",
   "authority_rules": {
     "default_priority": 50,
-    "categories": { "fact": 80, "preference": 60 }
+    "categories": {
+      "fact": 80,
+      "preference": 40,
+      "goal": 50
+    }
   }
 }
 ```
 
-### 2. Pass `source` on `add()`
+Use separate API keys per service in production. Bind each writer to its key from the Tenant Dashboard when you are ready for production traffic.
+
+## Send source metadata on `add()`
+
+```http
+POST /v1/memories/add
+Authorization: ApiKey mem_live_xxx
+Content-Type: application/json
+```
 
 ```json
 {
-  "external_user_id": "user-123",
+  "external_user_id": "customer_123",
   "messages": [
-    { "role": "user", "content": "I prefer dark mode and compact layouts." }
+    {
+      "role": "user",
+      "content": "What plan am I currently using?"
+    },
+    {
+      "role": "assistant",
+      "content": "Your current subscription plan is Growth."
+    }
   ],
   "source": {
-    "service": "chat-service",
-    "event_id": "evt_ab12cd34",
-    "observed_at": "2026-06-11T09:55:00Z",
-    "scope": { "session_id": "sess_xyz", "channel": "web" },
+    "service": "billing-service",
+    "event_id": "billing-plan-2026-06-30-001",
+    "observed_at": "2026-06-30T10:00:00Z",
+    "scope": {
+      "workspace_id": "ws_123"
+    },
     "evidence": [
-      { "source_type": "conversation", "reference": "conv_ab12cd34" }
+      {
+        "source_type": "subscription_record",
+        "reference": "billing/subscriptions/ws_123"
+      }
     ]
   }
 }
@@ -102,97 +115,112 @@ Content-Type: application/json
 
 | Field | Required | Notes |
 | --- | --- | --- |
-| `service` | Yes | Must match a registered `service_key` |
-| `event_id` | Yes | Your system's stable event identifier |
-| `observed_at` | No | Defaults to `now()` |
-| `scope` | No | Arbitrary key-value metadata |
-| `evidence` | No | References to source documents |
+| `service` | Yes | Registered `service_key` |
+| `event_id` | Yes | Stable event ID from your system |
+| `observed_at` | No | Defaults to request time if omitted |
+| `scope` | No | JSON metadata such as workspace, region, channel, or ticket |
+| `evidence` | No | References to records in your system; do not include secrets |
 
-### 3. Idempotency protection
+## Idempotency and payload safety
 
-Retrying with the same `event_id` returns the original job response — no duplicate extraction.
+Retrying the same `source.event_id` with the same payload returns the original job path and does not duplicate extraction.
 
-Retrying with the same `event_id` but different messages returns `PROV_409 source_event_payload_mismatch`. This protects against accidental data mutation.
+Retrying the same `source.event_id` with different messages returns a provenance conflict error. This prevents accidental mutation of historical source events.
 
----
+Raw extraction payloads can be redacted after the configured retention window. The payload hash stays so the source event remains verifiable.
 
-## Provenance in responses
+## Conflict resolution
 
-Memories with a source event include a `provenance` field in `list` and `retrieve` responses:
+When two writers produce conflicting memories for the same user, MemoryOS compares claims using this order:
+
+1. Writer authority for the memory category
+2. Source `observed_at` recency
+3. Extraction confidence
+4. Human review when equally trusted sources disagree
+
+Example authority rules:
 
 ```json
 {
-  "content": "User prefers dark mode and compact layouts.",
-  "source_event_id": "evt_ab12cd34",
-  "provenance": {
-    "service": "chat-service",
-    "event_id": "evt_ab12cd34",
-    "observed_at": "2026-06-11T09:55:00Z",
-    "received_at": "2026-06-11T09:55:02Z",
-    "payload_hash": "sha256:abc123...",
-    "scope": { "session_id": "sess_xyz" }
+  "default_priority": 50,
+  "categories": {
+    "fact": 90,
+    "preference": 40
   }
 }
 ```
 
-Memories without a `source` block have `provenance: null`.
+A billing service can be trusted more for subscription facts, while a chat service may be trusted more for user preferences.
 
----
+## Equal-authority conflicts
 
-## Managing writers
+If equally trusted services disagree, MemoryOS does not silently choose one. It creates a review item.
 
-```http
-GET /v1/tenant/service-writers
-```
+Example:
 
-```http
-PATCH /v1/tenant/service-writers/{writer_id}
-Content-Type: application/json
-```
+- Support Service reports: `User's current subscription plan is Starter.`
+- Billing Service reports: `User's current subscription plan is Growth.`
+
+If both have equal authority, the tenant dashboard shows the conflict for review. If it is a personal Memory Passport conflict, it appears in the user's Pending Questions tab.
+
+The losing claim is not hard-deleted. It is kept in the revision ledger and marked inactive or archived.
+
+## Provenance in retrieve responses
+
+`retrieve` and `list` include provenance when available:
 
 ```json
 {
-  "display_name": "Chat Backend v2",
-  "authority_rules": { "default_priority": 60, "categories": { "fact": 90 } },
-  "is_active": true
+  "content": "User's current subscription plan is Growth.",
+  "category": "fact",
+  "source_event_id": "3c3994d0-1c1d-4e1a-9fd1-0f87f82d13da",
+  "provenance": {
+    "service": "billing-service",
+    "event_id": "billing-plan-2026-06-30-001",
+    "observed_at": "2026-06-30T10:00:00Z",
+    "received_at": "2026-06-30T10:00:02Z",
+    "payload_hash": "7ba8601d36046350e1311f08b7a66646338ee75e3b443ebaba35de9607b6e169",
+    "scope": {
+      "workspace_id": "ws_123"
+    }
+  }
 }
 ```
 
-Set `"is_active": false` to deactivate. Existing source events and memories are preserved.
+Legacy memories may have partial provenance. The Operator Console shows provenance coverage and unattributed lineage so the MemoryOS team can backfill safely.
 
-## Auditing source events
+## Inspect source events
 
 ```http
-GET /v1/tenant/source-events?external_user_id=user-123&source_service=chat-service&limit=50
+GET /v1/tenant/source-events?external_user_id=customer_123&source_service=billing-service&limit=50
+Authorization: ApiKey mem_live_xxx
 ```
 
-Returns `observed_at`, `received_at`, `payload_hash`, linked `extraction_job_id`, `evidence_refs`, and `scope`.
-
----
+Use this endpoint to inspect source events, payload hashes, linked extraction jobs, evidence references, and scope metadata.
 
 ## Error codes
 
-| Code | HTTP | Meaning |
-| --- | --- | --- |
-| `PROV_403` | 403 | `api_key_id` doesn't match the writer's bound key |
-| `PROV_404` | 404 | Service writer not found |
-| `PROV_409` | 409 | `service_key` already registered, or `event_id` exists with different payload |
-| `PROV_422` | 422 | `service` not a registered writer, or invalid `api_key_id` |
-
----
+| Code | Meaning |
+| --- | --- |
+| `PROV_403` | API key does not match the writer's bound key |
+| `PROV_404` | Service writer not found |
+| `PROV_409` | Source event exists with a different payload, or writer key already exists |
+| `PROV_422` | Invalid service writer or source payload |
 
 ## Who needs provenance?
 
-| Scenario | Do you need it? |
+| Scenario | Need provenance? |
 | --- | --- |
-| Single service writing memories | No |
-| Multiple services writing to the same user | Yes — use authority rules to control which wins |
-| Compliance audit trail with verifiable payload hash | Yes |
-| Exactly-once ingestion with retry safety | Yes |
-| Automatic payload redaction after retention window | Yes |
+| One simple app writing memories | Optional |
+| Multiple services writing for the same user | Yes |
+| Compliance audit trail | Yes |
+| Exactly-once ingestion with retries | Yes |
+| Conflict resolution between services | Yes |
+| Memory Passport shared context | Yes |
 
 ## Related pages
 
-- [Memory Engine](/concepts/memory-engine)
-- [Memory Lifecycle](/concepts/memory-lifecycle)
+- [Extraction Quality Loop](/concepts/extraction-quality)
+- [Memory Lifecycle and Versioning](/concepts/memory-lifecycle)
 - [POST /v1/memories/add](/api-reference/add)
+- [POST /v1/memories/retrieve](/api-reference/retrieve)
