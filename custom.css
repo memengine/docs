@@ -1,0 +1,38 @@
+/* Target the exact anchor link by its classes seen in DevTools */
+a.nav-anchor.link {
+  color: #3B82F6 !important;
+}
+
+/* Override the text-gray-600 Tailwind class on the anchor text */
+a.nav-anchor.text-gray-600 {
+  color: #3B82F6 !important;
+}
+
+/* Dark mode — override dark:text-gray-400 */
+.dark a.nav-anchor {
+  color: #60A5FA !important;
+}
+
+/* Icon wrapper div — override the gray ring and background */
+a.nav-anchor > div {
+  color: #3B82F6 !important;
+  border-color: rgba(59, 130, 246, 0.4) !important;
+  background-color: rgba(59, 130, 246, 0.1) !important;
+}
+
+.dark a.nav-anchor > div {
+  color: #60A5FA !important;
+  border-color: rgba(96, 165, 250, 0.4) !important;
+  background-color: rgba(96, 165, 250, 0.1) !important;
+}
+
+/* SVG icon inside the div */
+a.nav-anchor svg {
+  color: #3B82F6 !important;
+  fill: #3B82F6 !important;
+}
+
+.dark a.nav-anchor svg {
+  color: #60A5FA !important;
+  fill: #60A5FA !important;
+}
