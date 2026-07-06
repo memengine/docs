@@ -22,49 +22,25 @@ from memoryos.universal import UniversalMemory
 
 There is no separate SDK for domain schemas. If your tenant enables EdTech or Support, `add()` and `get()` remain the main integration path. Optional domain helper methods expose structured profile data for dashboards.
 
-## How domain schemas work with the SDK
+## Tenant-scoped memory
 
-Domain schemas are configured on the tenant, not in SDK code.
+Use `Memory` from your backend with a tenant API key.
 
-That means this code stays the same:
+## For solo builders: simple mode
 
-```python
-from memoryos import Memory
-
-client = Memory(api_key="mem_...")
-
-client.add(
-    messages=messages,
-    external_user_id="customer-123",
-)
-
-result = client.get(
-    query="How should the assistant answer?",
-    external_user_id="customer-123",
-)
-```
-
-What changes is the tenant setting:
-
-| Tenant setting | What `add()` does | What `get()` returns |
-| --- | --- | --- |
-| General Engine | Generic memory extraction | Generic prompt-ready memory |
-| EdTech Schema | Generic memory + EdTech overlay | Generic memory + tutoring/student context |
-| Customer Support Schema | Generic memory + Support overlay | Generic memory + support/customer context |
-
-For Support, `system_prompt_addition` can include current issue, support history, resolution preference, sentiment risk, and safety rules. Your own tools still provide live truth such as order status, invoice status, refunds, or ticket updates.
-
-Use the same SDK methods for all three modes.
-
-## Memory
+<Tip>
+Start here if you are building an MVP, small SaaS app, single chatbot, or solo product. You do not need `event_id`, `run_id`, service writers, or authority rules. MemoryOS creates safe internal source metadata automatically.
+</Tip>
 
 ```python
 from memoryos import Memory
 
-client = Memory(api_key="mem_...")
+client = Memory(api_key="mem_live_xxx")
 ```
 
 ### `add()`
+
+`add()` queues a conversation for extraction. It returns quickly; extraction runs in the background.
 
 ```python
 result = client.add(
@@ -73,52 +49,100 @@ result = client.add(
     agent_id="support-bot",
     metadata={"source": "chat"},
 )
+
+print(result.status)
+print(result.job_id)
 ```
+
+## For multi-service companies: source-aware mode
+
+<Warning>
+Use this when Billing, Support, CRM, Product, or another backend service can write facts about the same user. Source metadata enables auditability, deduplication, conflict handling, and authority rules.
+</Warning>
+
+Use `Memory.source(...)` so your app does not have to manually generate every ID while testing.
+
+```python
+result = client.add(
+    external_user_id="customer-123",
+    messages=[
+        {"role": "user", "content": "What plan am I using?"},
+        {"role": "assistant", "content": "Your current subscription plan is Growth."},
+    ],
+    source=Memory.source(
+        "billing-service",
+        event_id="billing-plan-2026-06-30-001",
+        scope={"workspace_id": "ws_123"},
+        evidence=[
+            {
+                "source_type": "subscription_record",
+                "reference": "billing/subscriptions/ws_123",
+            }
+        ],
+    ),
+)
+```
+
+For testing, one tenant API key plus `Memory.source("billing-service")` is enough. For production multi-service traffic, register `billing-service` once from the Tenant Dashboard and bind a dedicated API key/service writer.
 
 #### Parameters
 
 | Parameter | Type | Required | Notes |
 | --- | --- | --- | --- |
-| `messages` | `list[dict[str, str]] | list[ConversationMessage]` | Yes | At least one message; roles must be `user`, `assistant`, or `system` |
+| `messages` | `list[dict[str, str]] \| list[ConversationMessage]` | Yes | Roles must be `user`, `assistant`, or `system` |
 | `external_user_id` | `str` | Yes | End-user identifier inside your tenant |
-| `agent_id` | `str | None` | No | Optional agent identifier |
-| `metadata` | `dict[str, Any] | None` | No | Optional metadata attached to the ingestion job |
+| `agent_id` | `str \| None` | No | Optional agent identifier |
+| `metadata` | `dict[str, Any] \| None` | No | Optional metadata attached to the ingestion job |
+| `idempotency_key` | `str \| None` | No | Prevents duplicate jobs when your app retries |
+| `source` | `MemorySource \| dict \| None` | No | Provenance source block for multi-service governance |
 
 #### Return fields
 
 | Field | Type | Meaning |
 | --- | --- | --- |
-| `job_id` | `str | None` | Extraction job id when queued |
-| `status` | `str` | Current add outcome |
-| `blocked_reason` | `str | None` | Reason when blocked |
-| `retry_after_seconds` | `int | None` | Retry hint for rate-limit blocks |
-| `budget_remaining_pct` | `float | None` | Remaining quota after the request estimate |
-| `quota_mode` | `"FULL" | "PASSTHROUGH" | "DEGRADED_RETRIEVE" | "BLOCKED"` | Quota envelope mode from response headers |
-| `processing_eta_seconds` | `int | None` | Queue ETA when ingestion is delayed |
-| `processing_status` | `"normal" | "delayed"` | Background ingestion health |
-| `circuit_status` | `"HEALTHY" | "DEGRADED" | "CRITICAL"` | Platform dependency status |
+| `job_id` | `str \| None` | Extraction job id when queued |
+| `status` | `str` | `queued`, `passthrough`, `L1`, `L2`, `L3`, `L4`, or `blocked` |
+| `blocked_reason` | `str \| None` | Reason when blocked |
+| `nothing_to_extract` | `bool` | Request passed the gate but had no durable memory |
+| `retry_after_seconds` | `int \| None` | Retry hint for rate-limit blocks |
+| `budget_remaining_pct` | `float \| None` | Remaining quota estimate |
+| `quota_mode` | `str` | Current quota mode |
+| `processing_eta_seconds` | `int \| None` | Queue ETA when ingestion is delayed |
+| `processing_status` | `str` | Background ingestion health |
+| `circuit_status` | `str` | Platform dependency status |
 
-#### Status outcomes
+### Check extraction job status
 
-| `status` value | Meaning | Typical action |
-| --- | --- | --- |
-| `queued` | Request accepted and extraction job queued | Store `job_id` if you want to track job state |
-| `passthrough` | Tenant is in passthrough mode, so no memory write happens | Continue your app without memory persistence |
-| `L1` | Blocked by per-user rate limit | Retry after `retry_after_seconds` |
-| `L2` | Blocked by low-quality input | Improve message quality before retrying |
-| `L3` | Blocked as semantically duplicate | Avoid sending repeated near-identical content |
-| `L4` | Blocked by budget governance | Upgrade plan or wait for reset |
-| `blocked` | Internal quality-gate failure fallback | Retry later and monitor logs |
+The Python SDK does not yet wrap job polling. Use the REST endpoint with the same API key when you need exact extraction results.
+
+```python
+import requests
+
+job = requests.get(
+    f"{client.base_url}/v1/memories/jobs/{result.job_id}",
+    headers={"Authorization": f"ApiKey {client.api_key}"},
+    timeout=20,
+).json()["data"]
+
+print(job["status"])
+print(job["memories_created"])
+print(job["pending_candidates_buffered"])
+print(job["extraction_metadata"])
+```
+
+`pending_candidates_buffered > 0` means MemoryOS kept a weak signal for reinforcement instead of dropping it.
 
 ### `get()`
 
 ```python
-memories = client.get(
+result = client.get(
     query="How should I answer this user?",
     external_user_id="customer-123",
     limit=5,
     categories=["preference", "goal"],
 )
+
+prompt_addition = result.system_prompt_addition if result.has_context else ""
 ```
 
 #### Parameters
@@ -128,60 +152,126 @@ memories = client.get(
 | `query` | `str` | Yes | Natural-language retrieval query |
 | `external_user_id` | `str` | Yes | End-user identifier inside your tenant |
 | `limit` | `int` | No | Default `10` |
-| `categories` | `list[str] | None` | No | Optional category filter |
-| `time_filter_days` | `int | None` | No | Return only memories from the last N days |
-| `format` | `"bullets" | "json" | "xml"` | No | Format for `system_prompt_addition` |
+| `categories` | `list[str] \| None` | No | Optional category filter |
+| `agent_id` | `str \| None` | No | Optional agent filter |
+| `time_filter_days` | `int \| None` | No | Return only memories from the last N days |
+| `format` | `"bullets" \| "json" \| "xml"` | No | Format for `system_prompt_addition` |
 | `context_max_tokens` | `int` | No | Prompt context token budget, default `500` |
 
 #### Return fields
 
 | Field | Type | Meaning |
 | --- | --- | --- |
+| `retrieval_id` | `str \| None` | Use this when sending feedback |
 | `items` | `list[MemoryResult]` | Retrieved memories |
 | `cached` | `bool` | Whether the result came from the hot cache |
 | `system_prompt_addition` | `str` | Prompt-ready context block |
 | `context_token_count` | `int` | Tokens used by `system_prompt_addition` |
 | `memories_from_hot_tier` | `int` | Number of returned memories served from hot tier |
-| `quota_mode` | `"FULL" | "PASSTHROUGH" | "DEGRADED_RETRIEVE" | "BLOCKED"` | Quota envelope mode |
+| `quota_mode` | `str` | Quota envelope mode |
 | `is_passthrough` | `bool` | `True` when you should skip memory context |
 | `is_degraded` | `bool` | `True` when retrieval is degraded |
-| `circuit_status` | `"HEALTHY" | "DEGRADED" | "CRITICAL"` | Platform dependency status |
+| `circuit_status` | `str` | Platform dependency status |
 
-#### Degradation handling pattern
+### `feedback()`
+
+Use feedback after retrieval to tell MemoryOS whether the memory helped. This improves lifecycle scoring and can queue retrospective extraction after user corrections.
 
 ```python
 result = client.get(
-    query="What should I remember about this user?",
+    query="What language should I use for this user?",
     external_user_id="customer-123",
 )
 
-if not result.has_context:
-    prompt_addition = ""
-else:
-    prompt_addition = result.system_prompt_addition
+# Call your LLM here using result.system_prompt_addition.
+
+if result.retrieval_id:
+    feedback = client.feedback(
+        retrieval_id=result.retrieval_id,
+        outcome="used_successfully",
+        used_memory_ids=[item.id for item in result.items],
+        agent_confidence=0.86,
+        metadata={"agent_id": "support-bot"},
+    )
+
+    print(feedback.feedback_id)
 ```
+
+When a user corrects the answer, send the correction text:
+
+```python
+feedback = client.feedback(
+    retrieval_id=result.retrieval_id,
+    outcome="user_corrected",
+    used_memory_ids=[item.id for item in result.items],
+    correction="Actually I prefer Hindi explanations for billing questions, not English.",
+    agent_confidence=0.2,
+    metadata={"agent_id": "support-bot"},
+)
+
+print(feedback.correction_job_id)
+```
+
+If `correction_job_id` is present, MemoryOS queued an async retrospective extraction pass. Do not block your user flow while that job runs.
+
+## Domain schemas
+
+Domain schemas are configured on the tenant, not in SDK code.
+
+| Tenant setting | What `add()` does | What `get()` returns |
+| --- | --- | --- |
+| General Engine | Generic memory extraction | Generic prompt-ready memory |
+| EdTech Schema | Generic memory + EdTech overlay | Generic memory + tutoring/student context |
+| Customer Support Schema | Generic memory + Support overlay | Generic memory + support/customer context |
+
+Your code stays the same across domain modes. For Support, your own backend tools still provide live truth such as order status, invoice status, refunds, or ticket updates.
 
 ### Domain profile helpers
 
 For domain-aware tenants, normal `get()` already includes domain-aware context. Use profile helpers only when your product needs structured UI data.
-
-EdTech example:
 
 ```python
 profile = client.get_edtech_profile("student_123")
 
 if profile and profile.has_exam_context:
     print(profile.exam_name, profile.exam_date)
-
-if profile:
-    print(profile.weak_topics[:3])
 ```
 
-Async version:
+## AsyncMemory
+
+`AsyncMemory` has the same method surface as `Memory`, but every method is async.
 
 ```python
-profile = await client.get_edtech_profile("student_123")
+import asyncio
+from memoryos import AsyncMemory
+
+async def main() -> None:
+    async with AsyncMemory(api_key="mem_live_xxx") as client:
+        add_result = await client.add(
+            messages=[{"role": "user", "content": "I prefer weekly summaries."}],
+            external_user_id="customer-123",
+        )
+
+        result = await client.get(
+            query="What does this user prefer?",
+            external_user_id="customer-123",
+            limit=5,
+        )
+
+        if result.retrieval_id:
+            await client.feedback(
+                retrieval_id=result.retrieval_id,
+                outcome="used_successfully",
+                used_memory_ids=[item.id for item in result.items],
+            )
+
+        print(add_result.status)
+        print(result.system_prompt_addition)
+
+asyncio.run(main())
 ```
+
+## Other tenant methods
 
 ### `delete()`
 
@@ -198,21 +288,11 @@ Archives by default. Set `hard_delete=True` to permanently delete.
 ### `list()`
 
 ```python
-page = client.list(
-    external_user_id="customer-123",
-    limit=50,
-)
+page = client.list(external_user_id="customer-123", limit=50)
 
 for memory in page.items:
     print(memory.content)
 ```
-
-Returns a `MemoryPage` with:
-
-- `items`
-- `next_cursor`
-- `limit`
-- `total`
 
 ### `export()`
 
@@ -220,73 +300,22 @@ Returns a `MemoryPage` with:
 bundle = client.export(external_user_id="customer-123")
 ```
 
-`export()` maps to `GET /v1/users/me/export` and returns a `MemoryExport` bundle containing:
-
-- `user`
-- `memories`
-- `api_keys`
-- `agents`
-
-> `export()` currently maps to the user export endpoint, not a tenant-wide export endpoint.
-
-### `get_usage()` and `delete_user()`
-
-The current Python SDK does not expose `get_usage()` or `delete_user()` methods.
-
-Use the REST API directly for those operations:
-
-- tenant usage: `GET /v1/tenant/usage`
-- current user deletion: `DELETE /v1/users/me`
-- tenant proxy-user deletion: `DELETE /v1/users/{external_user_id}`
-
-## AsyncMemory
-
-`AsyncMemory` has the same method surface as `Memory`, but every method is async.
-
-Use it when your backend is already async, for example FastAPI, async workers, or high-concurrency chat services. It is not a separate memory engine and it works with General, EdTech, and Support tenants.
-
-```python
-import asyncio
-
-from memoryos import AsyncMemory
-
-
-async def main() -> None:
-    async with AsyncMemory(api_key="mem_...") as client:
-        add_result = await client.add(
-            messages=[{"role": "user", "content": "I prefer weekly summaries."}],
-            external_user_id="customer-123",
-        )
-
-        memories = await client.get(
-            query="What does this user prefer?",
-            external_user_id="customer-123",
-            limit=5,
-        )
-
-        print(add_result.status)
-        print(memories.system_prompt_addition)
-
-
-asyncio.run(main())
-```
+`export()` maps to `GET /v1/users/me/export` and returns a `MemoryExport` bundle.
 
 ## UniversalMemory
 
 `UniversalMemory` is the cross-agent client for the Memory Passport flow. It uses:
 
-- an **agent API key** (`agent_sk_...`)
-- a **user UUI token** (`uui_...`) for the approved Memory Passport user
-
-Import it from the dedicated module:
+- an agent API key (`agent_sk_...`)
+- a user UUI token (`uui_...`) for the approved Memory Passport user
 
 ```python
 from memoryos.universal import UniversalMemory
 
 client = UniversalMemory(
-    agent_api_key="agent_sk_...",
-    uui_token="uui_...",
-    base_url="https://api.memoryos.io",
+    agent_api_key="agent_sk_live_xxx",
+    uui_token="uui_live_xxx",
+    base_url="https://api.memoryo.dev",
 )
 ```
 
@@ -300,113 +329,13 @@ consent_url = UniversalMemory.consent_url(
 )
 ```
 
-`categories` preselects the memory categories for this consent link. Users can still add or remove categories before approving. If you omit it, MemoryOS uses the global agent's default categories.
-
-Pass a callback only if your app needs to update its own UI automatically after consent:
-
-```python
-consent_url = UniversalMemory.consent_url(
-    agent_id="your_global_agent_id",
-    redirect_uri="https://yourapp.com/integrations/memoryos/callback",
-    state="secure_random_state_token",
-    categories=["preference", "fact"],
-)
-```
-
-### `add()`
-
-```python
-from memoryos.universal import UniversalMemory
-
-client = UniversalMemory(
-    agent_api_key="agent_sk_...",
-    uui_token="uui_...",
-)
-
-result = client.add(
-    messages=[
-        {
-            "role": "user",
-            "content": "Please remember that I am strongest in FastAPI, PostgreSQL, and retrieval systems."
-        }
-    ],
-    metadata={"source": "consent-demo"},
-)
-```
-
-#### Parameters
-
-| Parameter | Type | Required | Notes |
-| --- | --- | --- | --- |
-| `messages` | `list[dict[str, str]] \| list[ConversationMessage]` | Yes | Same message shape as tenant-scoped `add()` |
-| `metadata` | `dict[str, Any] \| None` | No | Optional JSON metadata |
-
-#### Behavior
-
-- writes to `/v1/universal/memories/add`
-- uses the active UUI grant to determine whether the agent may write
-- returns `403 UAT_002` if the grant is read-only
-- stores results in the universal memory collection, not the tenant-scoped memory collection
-
-### `get()`
-
-```python
-from memoryos.universal import UniversalMemory
-
-client = UniversalMemory(
-    agent_api_key="agent_sk_...",
-    uui_token="uui_...",
-)
-
-result = client.get(
-    query="What do you know about my technical strengths?",
-    limit=5,
-)
-
-print(result.permission_status)
-print(result.categories_available)
-for item in result.items:
-    print(item.content)
-```
-
-#### Parameters
-
-| Parameter | Type | Required | Notes |
-| --- | --- | --- | --- |
-| `query` | `str` | Yes | Natural-language retrieval query |
-| `limit` | `int` | No | Default `10` |
-
-#### Additional return fields
-
-In addition to the normal `RetrieveResult` fields, universal retrieval adds:
-
-| Field | Type | Meaning |
-| --- | --- | --- |
-| `permission_status` | `str \| None` | Permission-related explanation such as `no_grant_for_user` |
-| `categories_available` | `list[str]` | Categories this agent is currently allowed to read |
-
-#### Empty result behavior
-
-If the user has not granted this agent access, MemoryOS returns:
-
-- `items = []`
-- `permission_status = "no_grant_for_user"`
-- `categories_available = []`
-
-### Lifecycle
-
-```python
-from memoryos.universal import UniversalMemory
-
-with UniversalMemory(
-    agent_api_key="agent_sk_...",
-    uui_token="uui_...",
-) as client:
-    result = client.get("What do you know about this user?", limit=5)
-    print(len(result.items))
-```
+Users can add or remove categories before approving.
 
 ## Related pages
 
+- [POST /v1/memories/add](/api-reference/add)
+- [POST /v1/memories/retrieve](/api-reference/retrieve)
+- [Extraction Quality Loop](/concepts/extraction-quality)
+- [Memory Provenance](/concepts/provenance)
 - [Memory Passport](/concepts/memory-passport)
 - [Cross-agent memory sharing](/guides/cross-agent-sharing)
