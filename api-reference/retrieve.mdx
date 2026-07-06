@@ -12,7 +12,8 @@ POST /v1/memories/retrieve
 ## Authentication
 
 ```http
-Authorization: ApiKey mem_...
+Authorization: ApiKey mem_live_xxx
+Content-Type: application/json
 ```
 
 ## Request body
@@ -30,7 +31,7 @@ Authorization: ApiKey mem_...
 }
 ```
 
-### Schema
+### Fields
 
 | Field | Type | Required | Notes |
 | --- | --- | --- | --- |
@@ -47,6 +48,7 @@ Authorization: ApiKey mem_...
 
 ```json
 {
+  "retrieval_id": "68716fef-731c-4496-bff0-78ccc8ce8bb3",
   "data": [
     {
       "id": "2b8f5f87-bbd4-4f84-9f5f-0cba5033f058",
@@ -55,7 +57,14 @@ Authorization: ApiKey mem_...
       "importance_score": 8.5,
       "last_accessed": "2026-04-17T09:45:00Z",
       "relevance_score": 0.962341,
-      "context_snippet": "- User prefers concise technical explanations and Python examples."
+      "context_snippet": "- User prefers concise technical explanations and Python examples.",
+      "source_event_id": "f9a61e94-67c5-4a9a-9e72-61b8b15df4cc",
+      "provenance": {
+        "service": "support-service",
+        "event_id": "support-chat-8841",
+        "observed_at": "2026-04-17T09:40:00Z",
+        "writer_id": "b7b5b2a8-2a66-4ce3-9b37-2a1d8cf78d4d"
+      }
     }
   ],
   "cached": false,
@@ -63,6 +72,9 @@ Authorization: ApiKey mem_...
   "context_token_count": 18,
   "memories_from_hot_tier": 0,
   "clarification_question": null,
+  "quota_mode": "FULL",
+  "is_degraded": false,
+  "is_passthrough": false,
   "request_id": "b0eb46a4-8794-44c8-b2a9-8f2dfbb4176c",
   "timestamp": "2026-04-17T09:45:03Z"
 }
@@ -74,33 +86,18 @@ Authorization: ApiKey mem_...
 
 | Field | Type | Meaning |
 | --- | --- | --- |
+| `retrieval_id` | `string \| null` | Stable id used when sending retrieval feedback |
 | `data` | `MemorySearchResult[]` | Ranked memory results |
 | `cached` | `boolean` | Whether retrieval came from the hot cache |
 | `system_prompt_addition` | `string` | Prompt-ready memory context |
 | `context_token_count` | `integer \| null` | Token count of the built context when available |
 | `memories_from_hot_tier` | `integer` | Number of returned memories served from Redis hot tier |
 | `clarification_question` | `string \| null` | Optional user-facing question for resolving a pending conflict |
+| `quota_mode` | `"FULL" \| "PASSTHROUGH" \| "DEGRADED_RETRIEVE" \| "BLOCKED"` | Current quota behavior |
+| `is_degraded` | `boolean` | `true` when retrieval is degraded |
+| `is_passthrough` | `boolean` | `true` when memory context should be skipped |
 | `request_id` | `string` | Trace id |
 | `timestamp` | `datetime` | Response timestamp |
-
-## Domain-aware retrieval
-
-If a tenant has a domain schema enabled, the same retrieve endpoint returns domain-aware context in `system_prompt_addition`.
-
-For example, an EdTech tenant may receive tutoring context about exam goals, weak topics, learning style, or forgetting-stage review urgency.
-
-The request shape does not change:
-
-```json
-{
-  "external_user_id": "student_123",
-  "query": "teach this student trigonometry identities",
-  "limit": 8,
-  "context_max_tokens": 600
-}
-```
-
-Use optional domain profile endpoints only when you need structured UI data, not for normal model calls.
 
 ### `MemorySearchResult`
 
@@ -109,10 +106,77 @@ Use optional domain profile endpoints only when you need structured UI data, not
 | `id` | `string` | Memory id |
 | `content` | `string` | Memory text |
 | `category` | `string` | Memory category |
-| `importance_score` | `float` | Importance score |
+| `importance_score` | `float` | Current importance score after lifecycle adjustments |
 | `last_accessed` | `datetime \| null` | Last access timestamp |
 | `relevance_score` | `float` | Final retrieval score |
 | `context_snippet` | `string` | Single-memory rendering in the selected format |
+| `source_event_id` | `string \| null` | Provenance event id when available |
+| `provenance` | `object \| null` | Source, writer, evidence, and processing metadata |
+
+## Send retrieval feedback
+
+Feedback is optional but recommended. It closes the quality loop after your agent uses retrieved memory.
+
+Use it when:
+
+- the retrieved context helped the agent answer correctly
+- the agent ignored a memory because it was not useful
+- the user corrected the agent
+- the agent had to ask for clarification because context was missing
+
+```http
+POST /v1/memories/retrieval-feedback
+Authorization: ApiKey mem_live_xxx
+Content-Type: application/json
+```
+
+### Successful use
+
+```json
+{
+  "retrieval_id": "68716fef-731c-4496-bff0-78ccc8ce8bb3",
+  "outcome": "used_successfully",
+  "used_memory_ids": ["2b8f5f87-bbd4-4f84-9f5f-0cba5033f058"],
+  "agent_confidence": 0.86,
+  "metadata": {
+    "agent_id": "support-bot",
+    "conversation_id": "chat_8841"
+  }
+}
+```
+
+### User correction
+
+```json
+{
+  "retrieval_id": "68716fef-731c-4496-bff0-78ccc8ce8bb3",
+  "outcome": "user_corrected",
+  "used_memory_ids": ["2b8f5f87-bbd4-4f84-9f5f-0cba5033f058"],
+  "correction": "Actually I prefer Hindi explanations for billing questions, not English.",
+  "agent_confidence": 0.2,
+  "metadata": {
+    "agent_id": "support-bot",
+    "conversation_id": "chat_8841"
+  }
+}
+```
+
+Example response:
+
+```json
+{
+  "data": {
+    "feedback_id": "0e6aa7b1-6678-4c76-b675-12f63fbf54c2",
+    "retrieval_id": "68716fef-731c-4496-bff0-78ccc8ce8bb3",
+    "outcome": "user_corrected",
+    "correction_job_id": "d2bb7542-aea1-4090-a70a-0ff2dfd86175"
+  },
+  "request_id": "c772f4e2-1e8f-4852-aa92-9c6548d26a1e",
+  "timestamp": "2026-06-30T10:00:00Z"
+}
+```
+
+`correction_job_id` means MemoryOS queued an async retrospective extraction pass. It does not block the user response.
 
 ## `format` examples
 
@@ -125,8 +189,6 @@ The `format` value controls how MemoryOS renders both `context_snippet` and `sys
   "format": "bullets"
 }
 ```
-
-Example `system_prompt_addition`:
 
 ```text
 What you know about this user:
@@ -141,13 +203,13 @@ What you know about this user:
 }
 ```
 
-Example `system_prompt_addition`:
-
 ```json
 {
-  "preference": [
-    "User prefers concise technical explanations and Python examples."
-  ]
+  "memories": {
+    "preference": [
+      "User prefers concise technical explanations and Python examples."
+    ]
+  }
 }
 ```
 
@@ -158,8 +220,6 @@ Example `system_prompt_addition`:
   "format": "xml"
 }
 ```
-
-Example `system_prompt_addition`:
 
 ```xml
 What you know about this user:
@@ -185,3 +245,28 @@ Use `context_max_tokens` to limit the size of `system_prompt_addition`.
 ```
 
 MemoryOS drops lower-importance memories first when the context is too large. It does not truncate mid-sentence.
+
+## Domain-aware retrieval
+
+If a tenant has a domain schema enabled, the same retrieve endpoint returns domain-aware context in `system_prompt_addition`.
+
+For example, an EdTech tenant may receive tutoring context about exam goals, weak topics, learning style, or forgetting-stage review urgency.
+
+The request shape does not change:
+
+```json
+{
+  "external_user_id": "student_123",
+  "query": "teach this student trigonometry identities",
+  "limit": 8,
+  "context_max_tokens": 600
+}
+```
+
+Use optional domain profile endpoints only when you need structured UI data, not for normal model calls.
+
+## Related pages
+
+- [Extraction Quality Loop](/concepts/extraction-quality)
+- [Memory Provenance](/concepts/provenance)
+- [Memory Lifecycle](/concepts/memory-lifecycle)
