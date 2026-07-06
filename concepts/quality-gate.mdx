@@ -1,35 +1,75 @@
 ---
 title: "Quality Gate"
-description: "How MemoryOS filters low-value or risky write traffic before it becomes memory."
+description: "How MemoryOS blocks noisy, duplicate, rate-limited, or over-budget write traffic before extraction."
 ---
 
-Every `add()` call passes through a four-layer gate before extraction is queued. Blocked calls return HTTP `200` with a `status` indicating the blocking layer — inspect the body, not just the status code.
+The quality gate runs before extraction. It decides whether an `add()` request should be queued at all.
 
-## Layers
+If a request is blocked, MemoryOS still returns HTTP `200`. Check the response body: `status` and `blocked_reason` explain what happened.
 
-| Layer | What it checks | Block reason |
-| --- | --- | --- |
-| `L1` | Per-user rate limit — requests per minute | `rate_limit_exceeded` |
-| `L2` | Content quality — score below 0.35 | `low_quality` |
-| `L3` | Semantic dedup — similarity above 0.92 | `duplicate_query` |
-| `L4` | Budget — tenant monthly quota exhausted on block policy | `budget_exhausted` |
+## Gate layers
 
-## What gets blocked
+| Layer | What it checks | Block reason | Typical action |
+| --- | --- | --- | --- |
+| `L1` | Per-user request rate | `rate_limit_exceeded` | Retry after `retry_after_seconds` |
+| `L2` | Content quality | `low_quality` | Send richer conversation context |
+| `L3` | Semantic duplicate | `duplicate_query` | Avoid resending near-identical writes |
+| `L4` | Tenant budget policy | `budget_exhausted` | Upgrade or wait for quota reset |
 
-| Layer | Example input |
+## Example blocked response
+
+```json
+{
+  "job_id": null,
+  "status": "L2",
+  "blocked_reason": "low_quality",
+  "retry_after_seconds": null,
+  "budget_remaining_pct": 0.9134,
+  "request_id": "11111111-2222-3333-4444-555555555555",
+  "timestamp": "2026-04-17T09:30:00Z"
+}
+```
+
+## What is not a gate block
+
+A request can pass the quality gate and still produce no permanent memory.
+
+That is handled by the extraction quality loop:
+
+| Post-gate outcome | Meaning |
 | --- | --- |
-| `L1` | Same user sends many writes in one minute |
-| `L2` | `"ok"`, `"hi"`, `"??"` |
-| `L3` | Sending the same preference statement repeatedly |
-| `L4` | Tenant is out of monthly calls or tokens |
+| `memories_created > 0` | Durable memory was stored |
+| `pending_candidates_buffered > 0` | Weak signal was buffered, not stored yet |
+| `nothing_to_extract = true` or zero created | Valid conversation, but no durable memory |
 
-## Quality scoring
+For example, this should usually pass the gate but not become a memory:
 
-The L2 score is based on message count, average message length, lexical diversity, and whether the conversation contains a question signal. Short or content-free messages score poorly.
+```text
+Keep going with the current debugging flow and do not change anything else.
+```
+
+It is temporary session context, not long-term user memory.
 
 ## How to keep block rates low
 
-- Send meaningful facts, preferences, goals, or procedures rather than filler text.
-- Don't send the same memory-worthy statement on every turn.
-- Batch coherent conversational turns instead of single-word fragments.
-- Watch `blocked_reason` and `budget_remaining_pct` on `add()` responses.
+- Send coherent conversation turns, not single-word fragments.
+- Do not send the same fact repeatedly on every turn.
+- Use `Idempotency-Key` for application retries.
+- Watch `blocked_reason`, `budget_remaining_pct`, and `processing_status` on `add()` responses.
+- Check job status when you need to know whether extraction stored, buffered, or ignored a signal.
+
+## Dashboard visibility
+
+Tenant Dashboard -> Quality Log shows gate blocks and extraction quality signals in one place:
+
+- block layer counts
+- pending weak signals
+- reinforced signals
+- retrieval feedback events
+- correction jobs
+
+## Related pages
+
+- [Extraction Quality Loop](/concepts/extraction-quality)
+- [POST /v1/memories/add](/api-reference/add)
+- [Memory Lifecycle and Versioning](/concepts/memory-lifecycle)
