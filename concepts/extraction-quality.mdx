@@ -1,0 +1,210 @@
+---
+title: "Extraction Quality Loop"
+description: "How MemoryOS decides whether a conversation becomes memory, a weak signal, or nothing at all."
+---
+
+MemoryOS does not store every sentence it receives. Each `add()` call goes through a quality loop so the memory store stays useful at scale.
+
+The loop has four outcomes:
+
+| Outcome | What happens | Typical example |
+| --- | --- | --- |
+| Stored memory | A durable fact, preference, goal, procedure, relationship, or expertise signal is saved | "I prefer Python examples." |
+| Weak signal | A borderline signal is buffered, not shown in normal retrieval yet | "Maybe I prefer shorter replies, not sure yet." |
+| Nothing to extract | The conversation is valid but has no durable memory | greetings, acknowledgements, temporary debugging flow |
+| Blocked by quality gate | The request is stopped before extraction | rate limited, duplicate, low quality, over budget |
+
+## Why this exists
+
+Naive memory systems drift because they store one-off instructions as permanent truths. MemoryOS separates durable memory from temporary context.
+
+For example, this should not become a permanent preference:
+
+```text
+Keep going with the current debugging flow and do not change anything else.
+```
+
+This is session state, not long-term memory. MemoryOS filters it even if an LLM tries to extract it.
+
+## Soft buffer for weak signals
+
+Borderline memories are held as candidates instead of being dropped or stored immediately.
+
+| Confidence band | Behavior |
+| --- | --- |
+| Strong | Store as memory |
+| Borderline | Buffer as weak signal |
+| Very weak | Drop |
+
+A weak signal can be promoted later when the same signal appears again or retrieval feedback confirms it was useful.
+
+Example weak signal:
+
+```text
+Maybe I prefer shorter replies for difficult technical topics, but I am not completely sure yet.
+```
+
+Expected job result:
+
+```json
+{
+  "memories_created": 0,
+  "pending_candidates_buffered": 1,
+  "pending_candidates_promoted": 0
+}
+```
+
+## Two-pass compositional extraction
+
+Some memories are spread across several turns. MemoryOS can run a lightweight first pass to find entities and relationships, then pass those hints into the normal extractor.
+
+This is used only when the conversation has enough durable multi-turn signal. Short or low-signal chats skip the extra pass to avoid latency and cost.
+
+Example composite conversation:
+
+```json
+[
+  { "role": "user", "content": "I am building an analytics platform, but the product shape is still changing." },
+  { "role": "assistant", "content": "Who is it for?" },
+  { "role": "user", "content": "My team is targeting healthcare operations customers first." },
+  { "role": "assistant", "content": "What workflow matters most?" },
+  { "role": "user", "content": "The goal is to launch weekly reporting for clinics next week." }
+]
+```
+
+The job status exposes whether the compositional pass was attempted:
+
+```json
+{
+  "extraction_metadata": {
+    "compositional_pass_attempted": true,
+    "compositional_pass_used": true,
+    "compositional_entities": 3,
+    "compositional_relationships": 2,
+    "compositional_error": null
+  }
+}
+```
+
+## Retrieval feedback closes the loop
+
+After retrieval, your agent can tell MemoryOS whether the memory helped.
+
+Use feedback when:
+
+- the agent used retrieved memory successfully
+- retrieved memory was ignored or not useful
+- the user corrected the agent
+- the agent needed clarification because memory was missing or wrong
+
+A correction can queue an async retrospective extraction job. That lets MemoryOS learn from real failures without slowing down the user response.
+
+Python example:
+
+```python
+from memoryos import Memory
+
+mem = Memory(api_key="mem_live_xxx")
+
+result = mem.get(
+    query="How should I personalize this reply?",
+    external_user_id="customer_123",
+    limit=5,
+)
+
+# After your agent responds, report whether the memory was useful.
+feedback = mem.feedback(
+    retrieval_id=result.retrieval_id,
+    outcome="used_successfully",
+    used_memory_ids=[item.id for item in result.items[:2]],
+    agent_confidence=0.86,
+)
+
+print(feedback.feedback_id)
+```
+
+User correction example:
+
+```python
+feedback = mem.feedback(
+    retrieval_id=result.retrieval_id,
+    outcome="user_corrected",
+    used_memory_ids=[result.items[0].id],
+    correction="Actually I prefer Hindi explanations for difficult topics, not English.",
+)
+
+if feedback.queued_retrospective_extraction:
+    print("MemoryOS queued a correction pass")
+```
+
+TypeScript example:
+
+```ts
+import { MemoryOS } from "@memoryos/sdk";
+
+const mem = new MemoryOS(process.env.MEMORYOS_API_KEY!);
+
+const result = await mem.get(
+  "How should I personalize this reply?",
+  "customer_123",
+  5,
+);
+
+const feedback = await mem.feedback({
+  retrievalId: result.retrievalId!,
+  outcome: "used_successfully",
+  usedMemoryIds: result.items.slice(0, 2).map((item) => item.id),
+  agentConfidence: 0.86,
+});
+
+console.log(feedback.feedbackId);
+```
+
+## Check job status
+
+`add()` is asynchronous. Store the `job_id` if you need to inspect what happened.
+
+```http
+GET /v1/memories/jobs/{job_id}
+Authorization: ApiKey mem_...
+```
+
+Relevant fields:
+
+| Field | Meaning |
+| --- | --- |
+| `memories_created` | Permanent memories created by the job |
+| `pending_candidates_buffered` | Weak signals buffered for reinforcement |
+| `pending_candidates_promoted` | Weak signals promoted to memory |
+| `attempts` | Processing attempts, including provider retries |
+| `extraction_metadata` | Compositional extraction details |
+
+PowerShell example:
+
+```powershell
+$job = Invoke-RestMethod `
+  -Method Get `
+  -Uri "https://api.memoryos.io/v1/memories/jobs/$JobId" `
+  -Headers @{ Authorization = "ApiKey $TenantKey" }
+
+$job.data | ConvertTo-Json -Depth 10
+```
+
+## Dashboard visibility
+
+Tenant Dashboard -> Quality Log shows:
+
+- pending weak signals
+- reinforced signals
+- retrieval feedback events
+- correction jobs
+
+Operator Console -> Extraction Intelligence shows fleet-wide health for the same loop.
+
+## Related pages
+
+- [Quality Gate](/concepts/quality-gate)
+- [Memory Lifecycle and Versioning](/concepts/memory-lifecycle)
+- [Memory Provenance](/concepts/provenance)
+- [POST /v1/memories/add](/api-reference/add)
+- [POST /v1/memories/retrieve](/api-reference/retrieve)
