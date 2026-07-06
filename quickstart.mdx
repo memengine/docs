@@ -10,7 +10,7 @@ Four steps to get MemoryOS working with your AI:
 4. Use context in a model call
 
 For the cross-agent Memory Passport flow, see [Cross-agent memory sharing](/guides/cross-agent-sharing).
-For domain-specific products, the same calls below still apply — enable your domain first, then use:
+For domain-specific products, the same calls below still apply - enable your domain first, then use:
 - [EdTech tutor cookbook](/cookbooks/edtech-tutor)
 - [Support agent cookbook](/cookbooks/support-agent)
 
@@ -23,6 +23,10 @@ pip install memoryos openai
 # TypeScript
 npm install @memoryos/sdk openai
 ```
+
+## For solo builders: start without source metadata
+
+Use this path for MVPs, single-agent products, and small SaaS apps. It is the recommended first integration.
 
 ## Step 2: Store a memory
 
@@ -101,7 +105,7 @@ if (memories.hasContext) {
 
 ## Step 4: Use context in an AI call
 
-Retrieve before the model call. Prepend `system_prompt_addition` when available. Always call the LLM — even if memory is empty or in passthrough.
+Retrieve before the model call. Prepend `system_prompt_addition` when available. Always call the LLM - even if memory is empty or in passthrough.
 
 <CodeGroup>
 
@@ -164,9 +168,59 @@ console.log(response.output_text);
 
 </CodeGroup>
 
+## For multi-service companies: add source metadata later
+
+<Warning>
+Use this only when multiple backend services write memory for the same user, such as Billing, Support, CRM, and Product. This enables provenance, deduplication, conflict handling, and source-of-truth routing.
+</Warning>
+
+<CodeGroup>
+
+```python Python
+import os
+from memoryos import Memory
+
+client = Memory(api_key=os.environ["MEMORYOS_API_KEY"])
+
+client.add(
+    external_user_id="customer-123",
+    messages=[{"role": "assistant", "content": "Customer is on the Growth plan."}],
+    source=Memory.source(
+        "billing-service",
+        event_id="invoice_evt_8842",
+        scope={"workspace_id": "ws_123"},
+        evidence=[{"source_type": "billing_record", "reference": "invoice_evt_8842"}],
+    ),
+)
+
+client.close()
+```
+
+```ts TypeScript
+import { MemoryOS } from "@memoryos/sdk";
+
+const client = new MemoryOS(process.env.MEMORYOS_API_KEY!);
+
+await client.add(
+  [{ role: "assistant", content: "Customer is on the Growth plan." }],
+  "customer-123",
+  undefined,
+  undefined,
+  MemoryOS.source("billing-service", {
+    eventId: "invoice_evt_8842",
+    scope: { workspaceId: "ws_123" },
+    evidence: [{ sourceType: "billing_record", reference: "invoice_evt_8842" }],
+  }),
+);
+```
+
+</CodeGroup>
+
+For production multi-service traffic, register service writers in the Tenant Dashboard and bind dedicated API keys. You can still start by passing `source.service` with one tenant API key while testing.
+
 ## What to expect
 
-- `add()` returns `queued`, `passthrough`, or a quality gate block — not an error
+- `add()` returns `queued`, `passthrough`, or a quality gate block - not an error
 - `get()` always returns a typed result, even with zero memories
 - `is_passthrough` / `isPassthrough` being true means skip memory context but still call the LLM
 - `system_prompt_addition` is safe to prepend as-is
@@ -174,7 +228,7 @@ console.log(response.output_text);
 
 ## Next steps
 
-- [Authentication](/authentication) — key format, permissions, and identity model
+- [Authentication](/authentication) - key format, permissions, and identity model
 - [Python SDK reference](/sdk/python)
 - [TypeScript SDK reference](/sdk/typescript)
 - [Domain schemas](/concepts/domain-schemas)
