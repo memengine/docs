@@ -22,45 +22,17 @@ const client = new MemoryOS(process.env.MEMORYOS_API_KEY!);
 
 Use `MemoryOS` for normal workspace memory inside your tenant. Use `UniversalMemoryOS` only after a user has granted your global agent access through Memory Passport.
 
-There is no separate SDK for domain schemas. If your tenant enables EdTech or Support, `add()` and `get()` remain the main integration path. Optional domain helper methods expose structured profile data for dashboards.
+## Tenant-scoped memory
 
-## How domain schemas work with the SDK
+## For solo builders: simple mode
 
-Domain schemas are configured on the tenant, not in SDK code.
+<Tip>
+Start here if you are building an MVP, small SaaS app, single chatbot, or solo product. You do not need `eventId`, `runId`, service writers, or authority rules. MemoryOS creates safe internal source metadata automatically.
+</Tip>
 
-That means this code stays the same:
+### `add()`
 
-```ts
-import { MemoryOS } from "@memoryos/sdk";
-
-const client = new MemoryOS(process.env.MEMORYOS_API_KEY!);
-
-await client.add(
-  messages,
-  "customer-123",
-  "support-bot",
-  { source: "chat" },
-);
-
-const result = await client.get(
-  "How should the assistant answer?",
-  "customer-123",
-);
-```
-
-What changes is the tenant setting:
-
-| Tenant setting | What `add()` does | What `get()` returns |
-| --- | --- | --- |
-| General Engine | Generic memory extraction | Generic prompt-ready memory |
-| EdTech Schema | Generic memory + EdTech overlay | Generic memory + tutoring/student context |
-| Customer Support Schema | Generic memory + Support overlay | Generic memory + support/customer context |
-
-For Support, `systemPromptAddition` can include current issue, support history, resolution preference, sentiment risk, and safety rules. Your own tools still provide live truth such as order status, invoice status, refunds, or ticket updates.
-
-Use the same SDK methods for all three modes.
-
-## `add()`
+`add()` queues a conversation for extraction. It returns quickly; extraction runs in the background.
 
 ```ts
 const result = await client.add(
@@ -69,9 +41,44 @@ const result = await client.add(
   "support-bot",
   { source: "chat" },
 );
+
+console.log(result.status);
+console.log(result.jobId);
 ```
 
-### Parameters
+## For multi-service companies: source-aware mode
+
+<Warning>
+Use this when Billing, Support, CRM, Product, or another backend service can write facts about the same user. Source metadata enables auditability, deduplication, conflict handling, and authority rules.
+</Warning>
+
+Pass the optional fifth argument when multiple backend services can write memory for the same user. Use `MemoryOS.source(...)` so your app does not have to manually generate every ID while testing.
+
+```ts
+const result = await client.add(
+  [
+    { role: "user", content: "What plan am I using?" },
+    { role: "assistant", content: "Your current subscription plan is Growth." },
+  ],
+  "customer-123",
+  "support-bot",
+  { source: "support_chat" },
+  MemoryOS.source("billing-service", {
+    eventId: "billing-plan-2026-06-30-001",
+    scope: { workspaceId: "ws_123" },
+    evidence: [
+      {
+        sourceType: "subscription_record",
+        reference: "billing/subscriptions/ws_123",
+      },
+    ],
+  }),
+);
+```
+
+For testing, one tenant API key plus `MemoryOS.source("billing-service")` is enough. For production multi-service traffic, register `billing-service` once from the Tenant Dashboard and bind a dedicated API key/service writer.
+
+#### Parameters
 
 | Parameter | Type | Required | Notes |
 | --- | --- | --- | --- |
@@ -79,14 +86,17 @@ const result = await client.add(
 | `externalUserId` | `string` | Yes | End-user identifier inside your tenant |
 | `agentId` | `string \| undefined` | No | Optional agent identifier |
 | `metadata` | `Record<string, unknown> \| undefined` | No | Optional metadata |
+| `source` | `MemorySource \| undefined` | No | Provenance source block for multi-service governance |
 
-### Return fields
+#### Return fields
 
 | Field | Type | Meaning |
 | --- | --- | --- |
 | `jobId` | `string \| null` | Extraction job id when queued |
-| `status` | `string` | Current add outcome |
+| `status` | `string` | `queued`, `passthrough`, `L1`, `L2`, `L3`, `L4`, or `blocked` |
 | `blockedReason` | `string \| null` | Reason when blocked |
+| `nothingToExtract` | `boolean` | Request passed the gate but had no durable memory |
+| `wasStored` | `boolean` | `true` when the request was queued for possible storage |
 | `retryAfterSeconds` | `number \| null` | Retry hint for L1 blocks |
 | `budgetRemainingPct` | `number \| null` | Remaining tenant budget percentage |
 | `quotaMode` | `"FULL" \| "PASSTHROUGH" \| "DEGRADED_RETRIEVE" \| "BLOCKED"` | Quota mode from headers |
@@ -94,30 +104,57 @@ const result = await client.add(
 | `processingStatus` | `"normal" \| "delayed"` | Background ingestion health |
 | `circuitStatus` | `"HEALTHY" \| "DEGRADED" \| "CRITICAL"` | Platform dependency status |
 
-### Status outcomes
+### Check extraction job status
 
-| `status` value | Meaning | Typical action |
-| --- | --- | --- |
-| `queued` | Request accepted and job queued | Track the job if needed |
-| `passthrough` | Writes are bypassed in the current quota mode | Continue without persistence |
-| `L1` | Per-user rate limit exceeded | Retry after `retryAfterSeconds` |
-| `L2` | Low-quality input was blocked | Improve message quality |
-| `L3` | Duplicate query was blocked | Avoid near-identical writes |
-| `L4` | Budget governance blocked the request | Upgrade or wait for reset |
-| `blocked` | Internal gate fallback | Retry later |
-
-## `get()`
+The TypeScript SDK does not yet wrap job polling. Use the REST endpoint with the same API key when you need exact extraction results.
 
 ```ts
-const memories = await client.get(
+const response = await fetch(
+  `${client.baseUrl}/v1/memories/jobs/${result.jobId}`,
+  {
+    headers: {
+      Authorization: `ApiKey ${client.apiKey}`,
+    },
+  },
+);
+
+const job = (await response.json()).data;
+
+console.log(job.status);
+console.log(job.memories_created);
+console.log(job.pending_candidates_buffered);
+console.log(job.extraction_metadata);
+```
+
+`pending_candidates_buffered > 0` means MemoryOS kept a weak signal for reinforcement instead of dropping it.
+
+### `get()`
+
+```ts
+const result = await client.get(
   "How should I answer this user?",
   "customer-123",
   5,
   ["preference", "goal"],
 );
+
+const promptAddition = result.hasContext ? result.systemPromptAddition : "";
 ```
 
-### Parameters
+You can also use the object form:
+
+```ts
+const result = await client.get({
+  query: "How should I answer this user?",
+  externalUserId: "customer-123",
+  limit: 5,
+  categories: ["preference", "goal"],
+  format: "bullets",
+  contextMaxTokens: 500,
+});
+```
+
+#### Parameters
 
 | Parameter | Type | Required | Notes |
 | --- | --- | --- | --- |
@@ -125,14 +162,16 @@ const memories = await client.get(
 | `externalUserId` | `string` | Yes | End-user identifier inside your tenant |
 | `limit` | `number` | No | Default `10` |
 | `categories` | `MemoryCategory[] \| undefined` | No | Optional category filter |
+| `agentId` | `string \| undefined` | No | Optional agent filter |
 | `timeFilterDays` | `number \| undefined` | No | Return only memories from the last N days |
 | `format` | `"bullets" \| "json" \| "xml"` | No | Format for `systemPromptAddition` |
 | `contextMaxTokens` | `number` | No | Prompt context token budget, default `500` |
 
-### Return fields
+#### Return fields
 
 | Field | Type | Meaning |
 | --- | --- | --- |
+| `retrievalId` | `string \| null` | Use this when sending feedback |
 | `items` | `MemoryItem[]` | Retrieved memories |
 | `cached` | `boolean` | Whether the result came from the hot cache |
 | `systemPromptAddition` | `string` | Prompt-ready context block |
@@ -142,6 +181,105 @@ const memories = await client.get(
 | `isPassthrough` | `boolean` | Skip memory context when `true` |
 | `isDegraded` | `boolean` | Retrieval is degraded when `true` |
 | `circuitStatus` | `"HEALTHY" \| "DEGRADED" \| "CRITICAL"` | Platform dependency status |
+| `hasContext` | `boolean` | `true` when `systemPromptAddition` is safe to use |
+
+Each `MemoryItem` also includes `sourceEventId` and `provenance` when available.
+
+### `feedback()`
+
+Use feedback after retrieval to tell MemoryOS whether the memory helped. This improves lifecycle scoring and can queue retrospective extraction after user corrections.
+
+```ts
+const result = await client.get(
+  "What language should I use for this user?",
+  "customer-123",
+);
+
+// Call your LLM here using result.systemPromptAddition.
+
+if (result.retrievalId) {
+  const feedback = await client.feedback({
+    retrievalId: result.retrievalId,
+    outcome: "used_successfully",
+    usedMemoryIds: result.items.map((item) => item.id),
+    agentConfidence: 0.86,
+    metadata: { agentId: "support-bot" },
+  });
+
+  console.log(feedback.feedbackId);
+}
+```
+
+When a user corrects the answer, send the correction text:
+
+```ts
+const feedback = await client.feedback({
+  retrievalId: result.retrievalId!,
+  outcome: "user_corrected",
+  usedMemoryIds: result.items.map((item) => item.id),
+  correction: "Actually I prefer Hindi explanations for billing questions, not English.",
+  agentConfidence: 0.2,
+  metadata: { agentId: "support-bot" },
+});
+
+console.log(feedback.correctionJobId);
+```
+
+If `correctionJobId` is present, MemoryOS queued an async retrospective extraction pass. Do not block your user flow while that job runs.
+
+## Domain schemas
+
+Domain schemas are configured on the tenant, not in SDK code.
+
+| Tenant setting | What `add()` does | What `get()` returns |
+| --- | --- | --- |
+| General Engine | Generic memory extraction | Generic prompt-ready memory |
+| EdTech Schema | Generic memory + EdTech overlay | Generic memory + tutoring/student context |
+| Customer Support Schema | Generic memory + Support overlay | Generic memory + support/customer context |
+
+Your code stays the same across domain modes. For Support, your own backend tools still provide live truth such as order status, invoice status, refunds, or ticket updates.
+
+### Domain profile helpers
+
+For domain-aware tenants, normal `get()` already includes domain-aware context. Use profile helpers only when your product needs structured UI data.
+
+```ts
+const profile = await client.getEdTechProfile("student_123");
+
+if (profile?.hasExamContext) {
+  console.log(profile.examName, profile.examDate);
+}
+```
+
+## Other tenant methods
+
+### `delete()`
+
+```ts
+const deleted = await client.delete(
+  "1c5d5ab6-73c8-4b12-90e9-0f7f9db8db4f",
+  "customer-123",
+  false,
+);
+```
+
+### `list()`
+
+```ts
+const page = await client.list("customer-123", { limit: 50 });
+
+for (const memory of page.items) {
+  console.log(memory.content);
+}
+```
+
+### `export()`
+
+```ts
+const bundle = await client.export("customer-123");
+```
+
+`export()` maps to `GET /v1/users/me/export` and returns a `MemoryExport` bundle.
 
 ## UniversalMemoryOS
 
@@ -172,18 +310,7 @@ const consentUrl = UniversalMemoryOS.consentUrl(
 
 Redirect users to this URL when they click a control such as "Connect shared memory". If you pass `null` for the callback, MemoryOS shows a hosted completion page after approval.
 
-The fourth argument preselects categories for this consent link. Users can still add or remove categories before approving. If you omit it, MemoryOS uses the global agent's default categories.
-
-Pass a callback only if your app needs to update its own UI automatically:
-
-```ts
-const consentUrl = UniversalMemoryOS.consentUrl(
-  "your_global_agent_id",
-  "https://yourapp.com/integrations/memoryos/callback",
-  secureRandomStateToken,
-  ["preference", "fact"],
-);
-```
+Users can add or remove categories before approving.
 
 ### `universal.add()`
 
@@ -207,90 +334,11 @@ Universal retrieve responses include the normal retrieve fields plus:
 | `categoriesAvailable` | `string[]` | Memory categories the user granted this agent |
 | `permissionStatus` | `string \| null` | Permission status, such as `no_grant_for_user`, when no active grant exists |
 
-### Degradation handling pattern
-
-```ts
-const result = await client.get(
-  "What should I remember about this user?",
-  "customer-123",
-);
-
-const promptAddition = result.hasContext
-  ? result.systemPromptAddition
-  : "";
-```
-
-## Domain profile helpers
-
-For domain-aware tenants, normal `get()` already includes domain-aware context. Use profile helpers only when your product needs structured UI data.
-
-EdTech example:
-
-```ts
-const profile = await client.getEdTechProfile("student_123");
-
-if (profile?.hasExamContext) {
-  console.log(profile.examName, profile.examDate);
-}
-
-console.log(profile?.weakTopics.slice(0, 3));
-```
-
-## `delete()`
-
-```ts
-const deleted = await client.delete(
-  "1c5d5ab6-73c8-4b12-90e9-0f7f9db8db4f",
-  "customer-123",
-  false,
-);
-```
-
-## `list()`
-
-```ts
-const page = await client.list("customer-123", { limit: 50 });
-
-for (const memory of page.items) {
-  console.log(memory.content);
-}
-```
-
-Returns:
-
-- `items`
-- `nextCursor`
-- `limit`
-- `total`
-
-## `export()`
-
-```ts
-const bundle = await client.export("customer-123");
-```
-
-Returns a `MemoryExport` object with:
-
-- `user`
-- `memories`
-- `apiKeys`
-- `agents`
-
-> `export()` currently maps to the user export endpoint, not a tenant-wide export endpoint.
-
-## `getUsage()` and `deleteUser()`
-
-The current TypeScript SDK does not expose `getUsage()` or `deleteUser()`.
-
-Use the REST API directly for those operations:
-
-- tenant usage: `GET /v1/tenant/usage`
-- current user deletion: `DELETE /v1/users/me`
-- tenant proxy-user deletion: `DELETE /v1/users/{external_user_id}`
-
 ## Related pages
 
-For the product flow and consent UX, see:
-
+- [POST /v1/memories/add](/api-reference/add)
+- [POST /v1/memories/retrieve](/api-reference/retrieve)
+- [Extraction Quality Loop](/concepts/extraction-quality)
+- [Memory Provenance](/concepts/provenance)
 - [Memory Passport](/concepts/memory-passport)
 - [Cross-agent memory sharing](/guides/cross-agent-sharing)
