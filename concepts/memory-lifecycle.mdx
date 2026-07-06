@@ -1,34 +1,70 @@
 ---
 title: "Memory Lifecycle and Versioning"
-description: "How memories decay, archive, promote to hot cache, and keep version history."
+description: "How memories are created, buffered, reinforced, archived, and versioned."
 ---
 
-Memories in MemoryOS are living data. They can become more relevant through usage, less relevant through inactivity, get superseded by newer facts, or be soft-archived when they're no longer worth surfacing.
+Memories in MemoryOS are living data. A signal can start as a weak candidate, become a stored memory, gain importance through use, be superseded by a newer claim, or be archived when it should no longer surface.
 
-## States
+## Lifecycle states
 
-| State | Meaning |
+| State | Meaning | Returned by normal retrieval? |
+| --- | --- | --- |
+| Weak candidate | Borderline signal waiting for repeated evidence or feedback | No |
+| Active memory | Durable memory available for retrieval | Yes |
+| Hot memory | Frequently accessed memory cached for faster retrieval | Yes |
+| Archived memory | Kept for audit/export, removed from normal search | No |
+| Versioned memory | Memory with append-only history in `memory_versions` | Current version only |
+
+## From conversation to memory
+
+`add()` is asynchronous. After a request passes the quality gate, extraction can produce:
+
+| Result | Meaning |
 | --- | --- |
-| Active | Searchable, appears in retrieval |
-| Hot | Frequently accessed, cached in Redis for fast retrieval |
-| Archived | Kept in PostgreSQL, removed from normal search |
-| System archived | Auto-archived by the lifecycle manager |
-| Versioned | Change history recorded in `memory_versions` |
+| `memories_created > 0` | One or more durable memories were stored |
+| `pending_candidates_buffered > 0` | Weak signals were buffered instead of stored |
+| `nothing_to_extract = true` or zero created | No durable memory was found |
+
+Weak candidates protect the system from storing uncertain one-off statements as permanent memory.
+
+## Reinforcement
+
+A weak candidate can later be promoted when MemoryOS sees stronger evidence, for example:
+
+- the same signal appears again in a later conversation
+- retrieval feedback confirms the signal was useful
+- a user correction produces a stronger replacement memory
+
+Promotion creates a normal active memory and preserves the lineage from the weak candidate.
+
+## Retrieval feedback
+
+After retrieval, your agent can report whether returned memories were useful.
+
+Feedback can:
+
+- increment useful-memory signals
+- mark a memory as ignored or not useful
+- queue an async correction job when the user corrects the agent
+- help operators see extraction quality problems in the dashboard
+
+See [Extraction Quality Loop](/concepts/extraction-quality) for working SDK examples.
 
 ## Lifecycle manager
 
-The lifecycle manager runs during off-peak hours and performs four jobs:
+The lifecycle manager runs during off-peak hours and performs these jobs:
 
-1. **Decay** — reduce `importance_score` for memories not accessed recently. The original extraction score stays in `original_importance_score`.
-2. **Auto-archive** — soft-remove stale low-value memories from search without deleting them from PostgreSQL.
-3. **Hot promotion** — move high-value, frequently used memories into Redis for faster retrieval.
-4. **Score recompute** — recalculate baseline importance when needed.
+1. **Decay** - reduce `importance_score` for stale memories when appropriate. The original score stays in `original_importance_score`.
+2. **Auto-archive** - soft-remove stale low-value memories from search without deleting them from PostgreSQL.
+3. **Hot promotion** - move high-value, frequently used memories into Redis for faster retrieval.
+4. **Score recompute** - recalculate baseline importance when needed.
+5. **Payload retention** - redact old extraction payloads while preserving source hashes for audit.
 
 Auto-archived memories are marked `is_archived = true` and `system_archived = true`. They stay in the database and appear in GDPR exports. Hard delete is a separate explicit action.
 
 ## Version history
 
-Every meaningful change creates an append-only row in `memory_versions`:
+Every meaningful change creates an append-only row in `memory_versions`.
 
 | Change type | Trigger |
 | --- | --- |
@@ -36,16 +72,17 @@ Every meaningful change creates an append-only row in `memory_versions`:
 | `conflict_update` | Superseded or changed by conflict resolution |
 | `manual_edit` | User or operator edited the memory |
 | `importance_decay` | Importance dropped meaningfully |
-| `importance_boost` | Importance increased through access |
+| `importance_boost` | Importance increased through access or feedback |
 | `archived` | Archived or deleted from active search |
 
 Version rows are never updated or deleted.
 
 ## GDPR export
 
-The export endpoint returns active memories, archived memories, and full version history. Normal retrieval returns only currently searchable memories.
+The export endpoint returns active memories, archived memories, and version history. Normal retrieval returns only currently searchable memories.
 
 ## Related pages
 
-- [MemoryEngine](/concepts/memory-engine)
+- [Extraction Quality Loop](/concepts/extraction-quality)
+- [Memory Provenance](/concepts/provenance)
 - [POST /v1/memories/retrieve](/api-reference/retrieve)
