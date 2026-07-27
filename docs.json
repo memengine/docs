@@ -12,50 +12,91 @@
       "server": "https://api.memoryo.dev"
     }
   },
-
-
-"footer": {
-  "socials": {
-    "github": "https://github.com/memengine/memory-api",
-    "x": "https://twitter.com/Aditiiitm",
-    "instagram": "https://instagram.com/memoryos",
-    "threads": "https://threads.net/@memoryos"
-
-  },
-  "links": [
-    {
-      "header": "Docs Navigation",
-      "items": [
-        { "label": "Getting Started", "href": "/introduction" },
-        { "label": "API Reference", "href": "/api-reference/add" },
-        { "label": "SDK Reference", "href": "/sdk/python" },
-        { "label": "Domain Schemas", "href": "/concepts/domain-schemas" },
-        { "label": "Memory Passport", "href": "/concepts/memory-passport" },
-        { "label": "Changelog", "href": "/changelog" }
-      ]
+  "footer": {
+    "socials": {
+      "github": "https://github.com/memengine/memory-api",
+      "x": "https://twitter.com/Aditiiitm",
+      "instagram": "https://instagram.com/memoryos",
+      "threads": "https://threads.net/@memoryos"
     },
-   {
-  "header": "Community and Support",
-  "items": [
-    { "label": "support@memoryo.dev", "href": "https://memoryo.dev" }
-  ]
-},
-    
-    {
-      "header": "Links",
-      "items": [
-        { "label": "Privacy Policy", "href": "/privacy" },
-        { "label": "Terms of Service", "href": "/terms" },
-        { "label": "Security Policy", "href": "/security" },
-        { "label": "System Status", "href": "https://status.memoryos.io" }
-      ]
-    }
-  ]
-},
-
-
-
-
+    "links": [
+      {
+        "header": "Docs Navigation",
+        "items": [
+          {
+            "label": "Getting Started",
+            "href": "/introduction"
+          },
+          {
+            "label": "API Reference",
+            "href": "/api-reference/add"
+          },
+          {
+            "label": "SDK Reference",
+            "href": "/sdk/python"
+          },
+          {
+            "label": "Domain Schemas",
+            "href": "/concepts/domain-schemas"
+          },
+          {
+            "label": "Memory Passport",
+            "href": "/concepts/memory-passport"
+          },
+          {
+            "label": "Changelog",
+            "href": "/changelog"
+          }
+        ]
+      },
+      {
+        "header": "Community and Support",
+        "items": [
+          {
+            "label": "support@memoryo.dev",
+            "href": "https://memoryo.dev"
+          }
+        ]
+      },
+      {
+        "header": "Links",
+        "items": [
+          {
+            "label": "Privacy Policy",
+            "href": "/privacy"
+          },
+          {
+            "label": "Terms & Conditions",
+            "href": "/terms"
+          },
+          {
+            "label": "Refund & Cancellation",
+            "href": "/refund-cancellation"
+          },
+          {
+            "label": "Cookie Policy",
+            "href": "/cookie-policy"
+          },
+          {
+            "label": "Security Policy",
+            "href": "/security"
+          },
+          {
+            "label": "DPA",
+            "href": "/dpa"
+          },
+          {
+            "label": "Contact Us",
+            "href": "/contact"
+          },
+          {
+            "label": "System Status",
+            "href": "https://status.memoryos.io"
+          }
+        ]
+      }
+    ]
+  },
   "navigation": {
     "global": {
       "anchors": [
@@ -76,7 +117,11 @@
         "groups": [
           {
             "group": "Getting Started",
-            "pages": ["introduction", "quickstart", "authentication"]
+            "pages": [
+              "introduction",
+              "quickstart",
+              "authentication"
+            ]
           },
           {
             "group": "Tenant-Scoped Memory",
@@ -112,6 +157,19 @@
               "concepts/provenance",
               "memory-write-layer"
             ]
+          },
+          {
+            "group": "Legal and Trust",
+            "pages": [
+              "privacy",
+              "terms",
+              "refund-cancellation",
+              "cookie-policy",
+              "security",
+              "support-availability",
+              "dpa",
+              "contact"
+            ]
           }
         ]
       },
@@ -120,19 +178,28 @@
         "groups": [
           {
             "group": "Memory APIs",
-            "pages": ["api-reference/add", "api-reference/retrieve"]
+            "pages": [
+              "api-reference/add",
+              "api-reference/retrieve"
+            ]
           },
           {
             "group": "Domain APIs",
-            "pages": ["api-reference/edtech-profile"]
+            "pages": [
+              "api-reference/edtech-profile"
+            ]
           },
           {
             "group": "Universal APIs",
-            "pages": ["api-reference/universal"]
+            "pages": [
+              "api-reference/universal"
+            ]
           },
           {
             "group": "Reference",
-            "pages": ["api-reference/errors"]
+            "pages": [
+              "api-reference/errors"
+            ]
           }
         ]
       },
@@ -141,7 +208,11 @@
         "groups": [
           {
             "group": "SDKs",
-            "pages": ["sdk/python", "sdk/typescript", "sdk/mcp"]
+            "pages": [
+              "sdk/python",
+              "sdk/typescript",
+              "sdk/mcp"
+            ]
           }
         ]
       },
@@ -150,17 +221,22 @@
         "groups": [
           {
             "group": "Integrations",
-            "pages": ["guides/openai", "guides/anthropic"]
+            "pages": [
+              "guides/openai",
+              "guides/anthropic"
+            ]
           },
           {
             "group": "Domain Guides",
-            "pages": ["guides/edtech-domain"]
+            "pages": [
+              "guides/edtech-domain"
+            ]
           },
           {
             "group": "Operations",
-            "pages": ["guides/webhooks"]
-          },
-          {
+            "pages": [
+              "guides/webhooks"
+            ]
           }
         ]
       }
