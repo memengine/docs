@@ -1,0 +1,46 @@
+---
+title: "Security Policy"
+description: "Security practices, customer responsibilities, and responsible disclosure for MemoryOS."
+---
+
+
+Last updated: July 24, 2026
+
+MemoryOS is memory infrastructure for AI systems. Security matters because memories can include user context, source metadata, permissions, and operational history.
+
+This page describes current security practices. It does not claim SOC 2, HIPAA, ISO, PCI, or formal compliance certification unless a signed agreement explicitly says so.
+
+## Security Principles
+
+- Tenant isolation: tenant data is scoped by workspace and API key.
+- Backend-only secrets: tenant API keys must stay server-side.
+- Least privilege: dashboards and services should use the minimum access needed.
+- Auditability: important memory, source, conflict, grant, and correction actions are logged.
+- User control: Memory Passport users can review, revoke, correct, and delete supported memory records.
+- Provenance: source metadata helps explain where a memory came from and why it was trusted.
+
+## Data Protection
+
+MemoryOS uses encrypted transport for web and API traffic. Production deployments should use managed secrets, restricted database access, network controls, and regular dependency updates.
+
+## API Key Safety
+
+Do not expose API keys in browser code, mobile apps, public repositories, screenshots, client logs, or support tickets without redaction. Rotate keys if they may have been exposed.
+
+## Memory Governance
+
+MemoryOS includes controls for source provenance, service writer identity, conflict decisions, human review, user corrections, Memory Passport grants, revocation, weak-signal extraction buffers, and retrieval feedback.
+
+These controls reduce risk but do not remove the need for responsible application design.
+
+## Responsible Disclosure
+
+Report security issues to support@memoryo.dev with subject `Security report - MemoryOS`.
+
+Please do not perform destructive testing, denial of service, social engineering, spam, or access to data that is not yours.
+
+## Customer Responsibilities
+
+Customers are responsible for configuring authentication and workspace access correctly, keeping API keys and cloud secrets safe, avoiding unnecessary sensitive data, reviewing AI outputs before high-impact use, and deleting or exporting data when required by their own policies.
+
+FTC data security guidance: https://www.ftc.gov/business-guidance/privacy-security/data-security
