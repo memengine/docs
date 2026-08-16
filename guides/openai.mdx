@@ -59,7 +59,11 @@ await memory.add(
   { channel: "support-chat" },
 );
 
-const memories = await memory.get(latestUserMessage, externalUserId, 5);
+const memories = await memory.get({
+  query: latestUserMessage,
+  externalUserId,
+  limit: 5,
+});
 
 let systemPrompt = "You are a helpful assistant.";
 if (!memories.isPassthrough && memories.systemPromptAddition) {
