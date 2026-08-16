@@ -1,186 +1,70 @@
 ---
-title: "Introduction"
+title: "MemoryOS overview"
+description: "Add durable, governed memory to an AI product without building a memory platform from scratch."
 ---
 
-MemoryOS is a memory infrastructure layer for AI products. It lets your AI remember the right things about the right users — without your team rebuilding extraction, retrieval, ranking, lifecycle cleanup, conflict handling, domain schemas, permissions, and dashboard controls from scratch.
-
-## The problem MemoryOS solves:
-
-Every AI product eventually hits the same wall: **your AI forgets everything the moment the conversation ends.**
-Here are three real scenarios where that hurts:
-
-**Customer support bot** — A customer reported a billing issue last week. They come back today with a follow-up. Your bot asks them to explain the problem all over again. The customer is frustrated. Your agent has no idea who they are.
-
-**AI tutor**— A student has been struggling with quadratic equations for three sessions. Every new session, the tutor starts from scratch. It never adjusts its teaching style. It never remembers the student is preparing for JEE Main in March.
-
-**AI career coach**— A user told your assistant their goal is to get a senior engineering role in six months. Three conversations later, the assistant has no memory of that goal and gives generic advice that ignores everything the user already said.
-
-But memory storage is just the beginning. Production AI systems face deeper problems:
-
-**Conflicting information** — A user says they're vegetarian in one session, then orders chicken in another. Without conflict resolution, your AI holds contradictory beliefs about the same user simultaneously.
-
-**Multi-agent chaos** — When multiple agents work in parallel — a planner, an executor, a reviewer — they each build their own fragmented picture of the user. There's no shared ground truth.
-
-**Cross-service amnesia** — A user interacts with your support bot, your onboarding flow, and your recommendation engine. Each service operates in isolation. None of them know what the others learned.
-
-<Info> MemoryOS solves all of this — a persistent, structured memory layer with built-in conflict resolution, a unified memory store across agents, and cross-service memory sharing, so every part of your AI stack knows what it needs to know </Info>
----
-## Without MemoryOS vs. with MemoryOS
-
-### Support agent — returning customer
-
-<CodeGroup>
-
-```text Without MemoryOS
-Customer: "Hi, I'm following up on my billing issue."
-
-Agent: "Hi there! How can I help you today?
-        Could you describe your issue?"
-
-Customer: "I already explained this last week..."
-
-Agent: "I'm sorry, I don't have any record of that.
-        Can you start from the beginning?"
-
-→ Customer repeats everything. Trust eroded.
-```
-
-```text With MemoryOS
-Customer: "Hi, I'm following up on my billing issue."
-
-Agent: "Welcome back. I can see you reported a failed
-        payment on your Growth plan last Tuesday.
-        Has the charge appeared on your statement yet?"
-
-→ Agent picks up exactly where things left off.
-```
-
-</CodeGroup>
-
-### Conflicting information — same user, changing facts
-
-<CodeGroup>
-
-```text Without MemoryOS
-Session 1 — User: "I'm vegetarian, avoid meat in recipes."
-Assistant stores: "User is vegetarian."
-
-Session 2 — User: "Suggest a good chicken dish for dinner."
-Assistant stores: "User eats chicken."
-
-Next session — Assistant holds both facts simultaneously.
-It contradicts itself mid-conversation.
-
-→ No conflict resolution. AI gives inconsistent answers.
-```
-
-```text With MemoryOS
-Session 1 — User: "I'm vegetarian, avoid meat in recipes."
-MemoryOS stores: preference → "User is vegetarian."
-
-Session 2 — User: "Suggest a good chicken dish for dinner."
-MemoryOS detects contradiction with existing preference.
-Newer fact wins. Old memory archived with version history.
-
-Next session — Assistant has one consistent, up-to-date fact.
-
-→ Conflict resolved automatically. No contradictions.
-```
-
-</CodeGroup>
-
-### Cross-service amnesia — user across multiple services
-
-<CodeGroup>
-
-```text Without MemoryOS
-Support bot:       User complained about slow checkout. Ticket closed.
-Onboarding flow:   User skipped the payment setup step.
-Recommendation AI: Suggests premium plan upgrade to the same user.
-
-Each service has its own isolated context.
-None of them know what the others learned.
-
-→ User gets an upgrade pitch right after a bad support experience.
-   Trust destroyed.
-```
-
-```text With MemoryOS
-Support bot:       mem.add() → stores open billing frustration.
-Onboarding flow:   mem.get() → sees unresolved support issue.
-                   Skips upsell. Routes to resolution first.
-Recommendation AI: mem.get() → sees billing issue + skipped setup.
-                   Waits until issue is resolved before suggesting upgrade.
-
-All three services read from the same user memory.
-
-→ Every service knows what the others learned.
-   User gets a coherent, context-aware experience.
-```
-
-</CodeGroup>
-
----
-
-## How MemoryOS works (in two lines)
+MemoryOS is a memory layer for AI applications. Your backend sends completed conversations to MemoryOS and retrieves relevant context before the next model call.
 
 ```text
-mem.add(messages, external_user_id)   ← after each conversation
-mem.get(query,    external_user_id)   ← before the next model call
-```
----
-## Choose your path
-
-| If you are building | Start here | What you get |
-| --- | --- | --- |
-| A chatbot, assistant, copilot, coding agent, or general SaaS AI feature | [General Engine](/concepts/general-engine) | Tenant-scoped long-term memory for facts, preferences, goals, procedures, relationships, and expertise |
-| A tutoring, learning, exam-prep, or student-coaching product | [EdTech Engine](/cookbooks/edtech-tutor) | Student memory for grade, curriculum, weak topics, strong topics, learning style, exams, and review urgency |
-| A customer support bot, support copilot, or agent-assist product | [Support Engine](/cookbooks/support-agent) | Customer support memory for open issues, issue history, communication preferences, support type, sentiment, and escalation risk |
-| HR, healthcare, agriculture, or another domain not yet available | [General Engine](/concepts/general-engine) | Production-safe generic memory today; migrate to a domain schema when it becomes available |
-| User-controlled memory shared across multiple agents or apps | [Memory Passport](/concepts/memory-passport) | Consent-based universal memory using agent keys and user UUI tokens |
-
----
----
-
-## General Engine versus domains
-
-Every tenant can use the General Engine. It is the default.
-
-Domain schemas add industry-specific memory on top of the General Engine.
-
-```text
-General tenant
-  add() -> generic extraction
-  get() -> generic system_prompt_addition
-
-Domain tenant
-  add() -> generic extraction + domain overlay
-  get() -> generic context + domain-aware context
+conversation completed  ->  MemoryOS add  ->  asynchronous extraction
+new user message        ->  MemoryOS get  ->  prompt-ready context  ->  your model
 ```
 
-Available production domains:
+MemoryOS decides what is durable enough to remember, keeps source and version history, and returns only the context relevant to the current request. Your application remains responsible for the conversation, model call, and authoritative business data.
 
-- **General Engine** for broad AI memory
-- **EdTech Schema** for learning products
-- **Support Schema** for customer support products
+## Choose an integration
 
-<Note>Coming later: HR Tech, HealthTech, AgriTech</Note>
----
----
+| What you are building | Integration | Identity | Start here |
+| --- | --- | --- | --- |
+| An assistant, copilot, or SaaS AI feature | Tenant memory | Your stable `external_user_id` | [Quickstart](/quickstart) |
+| A tutor or learning product | Tenant memory with the EdTech schema | Your stable student ID | [EdTech tutor](/cookbooks/edtech-tutor) |
+| A customer-support product | Tenant memory with the Support schema | Your stable customer ID | [Support agent](/cookbooks/support-agent) |
+| Several services writing for the same users | Tenant memory with service writers and provenance | Same user ID across every service | [Provenance](/concepts/provenance) |
+| User-controlled memory shared between independent agents | Memory Passport | Agent key plus user UUI token after consent | [Memory Passport](/concepts/memory-passport) |
 
-## Dashboard
+<Warning>
+Tenant memory and Memory Passport are different security boundaries. A tenant API key cannot read Universal Memory, and an agent key does not grant access without the user's active consent.
+</Warning>
 
-Use the workspace [dashboard]() for setup, domain selection, usage, API keys, users, quality logs, and domain-specific views such as student or support dashboards.
+## The tenant-memory loop
 
+For most products, integration is two server-side calls:
 
----
+1. Call `get()` before your model call.
+2. Add `system_prompt_addition` when `has_context` is true.
+3. Always call your model, including when MemoryOS returns no context or passthrough mode.
+4. Call `add()` after the conversation turn or session you want MemoryOS to examine.
+
+`add()` accepts a conversation, not a prewritten memory. Extraction runs asynchronously, so a `queued` response confirms acceptance rather than immediate storage.
+
+## What MemoryOS stores
+
+The General Engine can extract durable information such as preferences, goals, recurring procedures, relationships, stable facts, and demonstrated expertise. Uncertain signals may remain pending until later evidence reinforces them. Temporary instructions and conversational filler should not become long-term memory.
+
+Domain schemas use the same `add()` and `get()` calls while adding structured domain context. EdTech can maintain learning profiles; Support can maintain customer-support context. Keep grades, payments, ticket state, permissions, and other source-of-truth records in your own systems.
+
+## Multiple services and agents
+
+Use the same `external_user_id` whenever your services refer to the same person. Register a service writer for each production writer and attach a stable source event ID to writes. This gives MemoryOS enough provenance to deduplicate retries, compare authority, preserve lineage, and route genuine conflicts.
+
+Conflicts do not all follow the same path: trusted evidence may resolve automatically, tenant-owned conflicts may require dashboard review, and personal Memory Passport conflicts may be returned to the user as a clarification. Each conflict has one resolution path.
+
+## Memory Passport
+
+Memory Passport is for consent-based memory shared across independent agents or applications. The user approves an agent and chooses allowed categories and access level. Universal API calls then require both the agent's secret API key and the consenting user's UUI token. An organisation connection proves account ownership; it does not replace an agent permission grant.
+
+## Production boundaries
+
+- Call MemoryOS from your backend; never expose API keys in browser or mobile code.
+- Use stable pseudonymous user IDs rather than email addresses.
+- Treat retrieved memory as context, not authorization or transactional truth.
+- Use source metadata for retries and multi-service writes.
+- Continue serving users when memory is empty, delayed, degraded, or unavailable.
 
 ## Start building
 
-Start with:
-
-- [Quickstart](/quickstart) for the fastest code path
-- [General Engine](/concepts/general-engine) for the default memory model
-- [Domain schemas](/concepts/domain-schemas) for EdTech and Support
-- [Authentication](/authentication) for API key format and identity
-- [Memory Passport](/concepts/memory-passport) only if you need user-controlled cross-agent memory
+- [Quickstart](/quickstart) - first tenant-memory integration
+- [Authentication](/authentication) - credentials and security boundaries
+- [Python SDK](/sdk/python) and [TypeScript SDK](/sdk/typescript)
+- [Domain schemas](/concepts/domain-schemas)
+- [Memory Passport](/concepts/memory-passport)
