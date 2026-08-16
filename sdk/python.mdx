@@ -9,6 +9,8 @@ Install the Python SDK:
 pip install memoryos
 ```
 
+The client connects to `https://api.memoryos.dev` by default. Do not pass `base_url` for the hosted service.
+
 ## Clients
 
 - Sync client: `Memory`
@@ -33,9 +35,10 @@ Start here if you are building an MVP, small SaaS app, single chatbot, or solo p
 </Tip>
 
 ```python
+import os
 from memoryos import Memory
 
-client = Memory(api_key="mem_live_xxx")
+client = Memory(api_key=os.environ["MEMORYOS_API_KEY"])
 ```
 
 ### `add()`
@@ -310,12 +313,12 @@ bundle = client.export(external_user_id="customer-123")
 - a user UUI token (`uui_...`) for the approved Memory Passport user
 
 ```python
+import os
 from memoryos.universal import UniversalMemory
 
 client = UniversalMemory(
-    agent_api_key="agent_sk_live_xxx",
-    uui_token="uui_live_xxx",
-    base_url="https://api.memoryo.dev",
+    agent_api_key=os.environ["MEMORYOS_AGENT_API_KEY"],
+    uui_token=os.environ["MEMORYOS_UUI_TOKEN"],
 )
 ```
 
