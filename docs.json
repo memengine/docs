@@ -6,10 +6,10 @@
     "primary": "#3B82F6",
     "dark": "#60A5FA"
   },
-  "favicon": "/favicon.ico",
+  "favicon": "/favicon.svg",
   "api": {
     "mdx": {
-      "server": "https://api.memoryo.dev"
+      "server": "https://api.memoryos.dev"
     }
   },
   "footer": {
@@ -42,10 +42,6 @@
           {
             "label": "Memory Passport",
             "href": "/concepts/memory-passport"
-          },
-          {
-            "label": "Changelog",
-            "href": "/changelog"
           }
         ]
       },
@@ -124,38 +120,32 @@
             ]
           },
           {
-            "group": "Tenant-Scoped Memory",
+            "group": "Core Memory",
             "pages": [
               "concepts/general-engine",
-              "cookbooks/general-ai-memory",
-              "concepts/quality-gate",
-              "concepts/extraction-quality",
-              "concepts/memory-lifecycle"
+              "concepts/memory-lifecycle",
+              "concepts/provenance"
             ]
           },
           {
-            "group": "Domain Engines",
+            "group": "Domain Memory",
             "pages": [
               "concepts/domain-schemas",
               "cookbooks/edtech-tutor",
-              "concepts/support-domain",
-              "cookbooks/support-agent"
+              "concepts/support-domain"
             ]
           },
           {
             "group": "Memory Passport",
             "pages": [
-              "concepts/memory-passport",
-              "guides/cross-agent-sharing"
+              "concepts/memory-passport"
             ]
           },
           {
-            "group": "Advanced Concepts",
+            "group": "Reliability",
             "pages": [
               "concepts/degradation",
-              "concepts/rate-limits",
-              "concepts/provenance",
-              "memory-write-layer"
+              "concepts/rate-limits"
             ]
           },
           {
