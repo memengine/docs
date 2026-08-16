@@ -24,6 +24,8 @@ pip install memoryos openai
 npm install @memoryos/sdk openai
 ```
 
+Both SDKs connect to `https://api.memoryos.dev` by default.
+
 ## For solo builders: start without source metadata
 
 Use this path for MVPs, single-agent products, and small SaaS apps. It is the recommended first integration.
@@ -94,7 +96,11 @@ import { MemoryOS } from "@memoryos/sdk";
 
 const client = new MemoryOS(process.env.MEMORYOS_API_KEY!);
 
-const memories = await client.get("How should I answer this user?", "customer-123", 5);
+const memories = await client.get({
+  query: "How should I answer this user?",
+  externalUserId: "customer-123",
+  limit: 5,
+});
 
 if (memories.hasContext) {
   console.log(memories.systemPromptAddition);
@@ -148,7 +154,11 @@ const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY! });
 const externalUserId = "customer-123";
 const userMessage = "What kind of answer format do I like?";
 
-const memories = await memory.get(userMessage, externalUserId, 5);
+const memories = await memory.get({
+  query: userMessage,
+  externalUserId,
+  limit: 5,
+});
 
 let systemPrompt = "You are a helpful assistant.";
 if (memories.hasContext) {
