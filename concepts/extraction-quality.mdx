@@ -140,7 +140,7 @@ if feedback.queued_retrospective_extraction:
 TypeScript example:
 
 ```ts
-import { MemoryOS } from "@memoryos/sdk";
+import { MemoryOS } from "memoryo-sdk";
 
 const mem = new MemoryOS(process.env.MEMORYOS_API_KEY!);
 
@@ -184,7 +184,7 @@ PowerShell example:
 ```powershell
 $job = Invoke-RestMethod `
   -Method Get `
-  -Uri "https://api.memoryos.io/v1/memories/jobs/$JobId" `
+  -Uri "https://api.memoryo.dev/v1/memories/jobs/$JobId" `
   -Headers @{ Authorization = "ApiKey $TenantKey" }
 
 $job.data | ConvertTo-Json -Depth 10

@@ -42,7 +42,7 @@ memory.close()
 
 ```ts TypeScript
 import Anthropic from "@anthropic-ai/sdk";
-import { MemoryOS } from "@memoryos/sdk";
+import { MemoryOS } from "memoryo-sdk";
 
 const memory = new MemoryOS(process.env.MEMORYOS_API_KEY!);
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY! });

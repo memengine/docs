@@ -1,6 +1,6 @@
 ---
 title: "Cookbook: Support Agent Memory"
-description: "Build a production-ready support agent that combines MemoryOS customer memory with your live support tools."
+description: "Combine governed customer context from MemoryOS with authoritative data and actions from your live support tools."
 ---
 
 Use this cookbook when you are building:
@@ -13,8 +13,8 @@ Use this cookbook when you are building:
 The core pattern:
 
 ```text
-MemoryOS remembers customer context.
-Your tools provide live truth.
+MemoryOS provides governed customer context.
+Your tools provide current business records and actions.
 Your agent combines both.
 ```
 
@@ -51,7 +51,7 @@ Content-Type: application/json
 Executable `curl`:
 
 ```bash
-curl -X PATCH "https://api.memoryos.io/v1/tenant/domain-schema" \
+curl -X PATCH "https://api.memoryo.dev/v1/tenant/domain-schema" \
   -H "Authorization: ApiKey mem_your_api_key" \
   -H "Content-Type: application/json" \
   -d '{"domain_schema":"support"}'
@@ -80,7 +80,7 @@ Content-Type: application/json
 Executable `curl`:
 
 ```bash
-curl -X PATCH "https://api.memoryos.io/v1/tenant/support-type" \
+curl -X PATCH "https://api.memoryo.dev/v1/tenant/support-type" \
   -H "Authorization: ApiKey mem_your_api_key" \
   -H "Content-Type: application/json" \
   -d '{
@@ -121,7 +121,7 @@ Use this if you are a helpdesk platform serving many businesses.
 Executable `curl`:
 
 ```bash
-curl -X PATCH "https://api.memoryos.io/v1/tenant/support-type" \
+curl -X PATCH "https://api.memoryo.dev/v1/tenant/support-type" \
   -H "Authorization: ApiKey mem_your_api_key" \
   -H "Content-Type: application/json" \
   -d '{
@@ -184,7 +184,7 @@ You are a careful customer support assistant.
 
 Rules:
 - Use MemoryOS context as remembered customer context only.
-- Use live tool results as the source of truth for current status and actions.
+- Treat live tool results as authoritative for current status and actions.
 - Do not claim you checked, changed, refunded, cancelled, verified, located, or triggered anything unless a tool result confirms it.
 - If live system data is needed and no tool result is available, say you need to check the relevant system.
 - Ask for only one missing identifier at a time.
@@ -317,7 +317,7 @@ messages = [
 TypeScript backend example:
 
 ```ts
-import { MemoryOS } from "@memoryos/sdk";
+import { MemoryOS } from "memoryo-sdk";
 
 const mem = new MemoryOS(process.env.MEMORYOS_API_KEY!);
 
