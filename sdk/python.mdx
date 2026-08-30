@@ -6,10 +6,10 @@ description: "Reference for the MemoryOS Python SDK, including tenant-scoped mem
 Install the Python SDK:
 
 ```bash
-pip install memoryos
+pip install memoryo-sdk
 ```
 
-The client connects to `https://api.memoryos.dev` by default. Do not pass `base_url` for the hosted service.
+The client connects to `https://api.memoryo.dev` by default. Do not pass `base_url` for the hosted service.
 
 ## Clients
 
@@ -28,10 +28,10 @@ There is no separate SDK for domain schemas. If your tenant enables EdTech or Su
 
 Use `Memory` from your backend with a tenant API key.
 
-## For solo builders: simple mode
+## First integration: simple mode
 
 <Tip>
-Start here if you are building an MVP, small SaaS app, single chatbot, or solo product. You do not need `event_id`, `run_id`, service writers, or authority rules. MemoryOS creates safe internal source metadata automatically.
+Start here when one backend writer supplies context for a stable user. You do not need `event_id`, `run_id`, service writers, or authority rules. MemoryOS creates safe internal source metadata automatically.
 </Tip>
 
 ```python
@@ -86,7 +86,7 @@ result = client.add(
 )
 ```
 
-For testing, one tenant API key plus `Memory.source("billing-service")` is enough. For production multi-service traffic, register `billing-service` once from the Tenant Dashboard and bind a dedicated API key/service writer.
+Register `billing-service` in the Tenant Dashboard before sending it as `source.service`; unknown or inactive service keys are rejected. For production, bind a dedicated API key to the writer so its authority is explicit.
 
 #### Parameters
 
@@ -116,24 +116,18 @@ For testing, one tenant API key plus `Memory.source("billing-service")` is enoug
 
 ### Check extraction job status
 
-The Python SDK does not yet wrap job polling. Use the REST endpoint with the same API key when you need exact extraction results.
+Use `get_job_status()` for one check or `wait_for_job()` when setup, tests, or a workflow must confirm persistence before continuing.
 
 ```python
-import requests
+job = client.wait_for_job(result.job_id, timeout=120, poll_interval=1)
 
-job = requests.get(
-    f"{client.base_url}/v1/memories/jobs/{result.job_id}",
-    headers={"Authorization": f"ApiKey {client.api_key}"},
-    timeout=20,
-).json()["data"]
-
-print(job["status"])
-print(job["memories_created"])
-print(job["pending_candidates_buffered"])
-print(job["extraction_metadata"])
+print(job.status)
+print(job.memories_created)
+print(job.pending_candidates_buffered)
+print(job.extraction_metadata)
 ```
 
-`pending_candidates_buffered > 0` means MemoryOS kept a weak signal for reinforcement instead of dropping it.
+`pending_candidates_buffered > 0` means MemoryOS kept a weak signal for reinforcement instead of dropping it. Normal user-facing requests should queue `add()` without waiting.
 
 ### `get()`
 
@@ -143,6 +137,7 @@ result = client.get(
     external_user_id="customer-123",
     limit=5,
     categories=["preference", "goal"],
+    as_of=None,  # or a timezone-aware datetime for historical retrieval
 )
 
 prompt_addition = result.system_prompt_addition if result.has_context else ""
@@ -160,6 +155,7 @@ prompt_addition = result.system_prompt_addition if result.has_context else ""
 | `time_filter_days` | `int \| None` | No | Return only memories from the last N days |
 | `format` | `"bullets" \| "json" \| "xml"` | No | Format for `system_prompt_addition` |
 | `context_max_tokens` | `int` | No | Prompt context token budget, default `500` |
+| `as_of` | `datetime \| None` | No | Historical validity boundary; must include a timezone |
 
 #### Return fields
 
@@ -175,6 +171,7 @@ prompt_addition = result.system_prompt_addition if result.has_context else ""
 | `is_passthrough` | `bool` | `True` when you should skip memory context |
 | `is_degraded` | `bool` | `True` when retrieval is degraded |
 | `circuit_status` | `str` | Platform dependency status |
+| `clarification_question` | `str \| None` | User clarification required by an unresolved personal conflict |
 
 ### `feedback()`
 
@@ -281,12 +278,11 @@ asyncio.run(main())
 ```python
 deleted = client.delete(
     memory_id="1c5d5ab6-73c8-4b12-90e9-0f7f9db8db4f",
-    external_user_id="customer-123",
     hard_delete=False,
 )
 ```
 
-Archives by default. Set `hard_delete=True` to permanently delete.
+Archives by default. Set `hard_delete=True` to permanently delete. The backend derives tenant scope from the API key and verifies the memory ID; an external user ID is not required.
 
 ### `list()`
 
@@ -303,7 +299,7 @@ for memory in page.items:
 bundle = client.export(external_user_id="customer-123")
 ```
 
-`export()` maps to `GET /v1/users/me/export` and returns a `MemoryExport` bundle.
+`export()` maps to `GET /v1/users/{external_user_id}/export`. It returns the tenant and proxy-user IDs plus that user's memories and complete version history.
 
 ## UniversalMemory
 
@@ -333,6 +329,25 @@ consent_url = UniversalMemory.consent_url(
 ```
 
 Users can add or remove categories before approving.
+
+Universal writes support durable retry identity, and retrieval supports the same prompt formatting controls as tenant retrieval:
+
+```python
+universal.add(
+    [{"role": "user", "content": "I prefer short technical answers."}],
+    metadata={"source": "chat"},
+    idempotency_key="conversation-event-123",
+)
+
+result = universal.get(
+    "How should I personalize this answer?",
+    limit=5,
+    format="json",
+    context_max_tokens=900,
+)
+```
+
+Retrieved universal memory items preserve source-event and provenance fields returned by the API.
 
 ## Related pages
 

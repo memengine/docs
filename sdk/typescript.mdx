@@ -6,10 +6,10 @@ description: "Reference for the MemoryOS TypeScript SDK, including tenant-scoped
 Install the TypeScript SDK:
 
 ```bash
-npm install @memoryos/sdk
+npm install memoryo-sdk
 ```
 
-The client connects to `https://api.memoryos.dev` by default. Do not pass a base URL for the hosted service.
+The client connects to `https://api.memoryo.dev` by default. Do not pass a base URL for the hosted service.
 
 ## Clients
 
@@ -17,7 +17,7 @@ The client connects to `https://api.memoryos.dev` by default. Do not pass a base
 - Universal cross-agent client: `UniversalMemoryOS`
 
 ```ts
-import { MemoryOS, UniversalMemoryOS } from "@memoryos/sdk";
+import { MemoryOS, UniversalMemoryOS } from "memoryo-sdk";
 
 const client = new MemoryOS(process.env.MEMORYOS_API_KEY!);
 ```
@@ -26,10 +26,10 @@ Use `MemoryOS` for normal workspace memory inside your tenant. Use `UniversalMem
 
 ## Tenant-scoped memory
 
-## For solo builders: simple mode
+## First integration: simple mode
 
 <Tip>
-Start here if you are building an MVP, small SaaS app, single chatbot, or solo product. You do not need `eventId`, `runId`, service writers, or authority rules. MemoryOS creates safe internal source metadata automatically.
+Start here when one backend writer supplies context for a stable user. You do not need `eventId`, `runId`, service writers, or authority rules. MemoryOS creates safe internal source metadata automatically.
 </Tip>
 
 ### `add()`
@@ -78,7 +78,7 @@ const result = await client.add(
 );
 ```
 
-For testing, one tenant API key plus `MemoryOS.source("billing-service")` is enough. For production multi-service traffic, register `billing-service` once from the Tenant Dashboard and bind a dedicated API key/service writer.
+Register `billing-service` in the Tenant Dashboard before sending it as `source.service`; unknown or inactive service keys are rejected. For production, bind a dedicated API key to the writer so its authority is explicit.
 
 #### Parameters
 
@@ -89,6 +89,7 @@ For testing, one tenant API key plus `MemoryOS.source("billing-service")` is eno
 | `agentId` | `string \| undefined` | No | Optional agent identifier |
 | `metadata` | `Record<string, unknown> \| undefined` | No | Optional metadata |
 | `source` | `MemorySource \| undefined` | No | Provenance source block for multi-service governance |
+| `idempotencyKey` | `string \| undefined` | No | Sixth argument; sent as `Idempotency-Key` for retry-safe writes |
 
 #### Return fields
 
@@ -108,27 +109,21 @@ For testing, one tenant API key plus `MemoryOS.source("billing-service")` is eno
 
 ### Check extraction job status
 
-The TypeScript SDK does not yet wrap job polling. Use the REST endpoint with the same API key when you need exact extraction results.
+Use `getJobStatus()` for one check or `waitForJob()` when setup, tests, or a workflow must confirm persistence before continuing.
 
 ```ts
-const response = await fetch(
-  `${client.baseUrl}/v1/memories/jobs/${result.jobId}`,
-  {
-    headers: {
-      Authorization: `ApiKey ${client.apiKey}`,
-    },
-  },
-);
-
-const job = (await response.json()).data;
+const job = await client.waitForJob(result.jobId!, {
+  timeoutMs: 120_000,
+  pollIntervalMs: 1_000,
+});
 
 console.log(job.status);
-console.log(job.memories_created);
-console.log(job.pending_candidates_buffered);
-console.log(job.extraction_metadata);
+console.log(job.memoriesCreated);
+console.log(job.pendingCandidatesBuffered);
+console.log(job.extractionMetadata);
 ```
 
-`pending_candidates_buffered > 0` means MemoryOS kept a weak signal for reinforcement instead of dropping it.
+`pendingCandidatesBuffered > 0` means MemoryOS kept a weak signal for reinforcement instead of dropping it. Normal user-facing requests should queue `add()` without waiting.
 
 ### `get()`
 
@@ -153,6 +148,7 @@ const result = await client.get({
   categories: ["preference", "goal"],
   format: "bullets",
   contextMaxTokens: 500,
+  asOf: undefined, // or an ISO 8601 timestamp with timezone
 });
 ```
 
@@ -168,6 +164,7 @@ const result = await client.get({
 | `timeFilterDays` | `number \| undefined` | No | Return only memories from the last N days |
 | `format` | `"bullets" \| "json" \| "xml"` | No | Format for `systemPromptAddition` |
 | `contextMaxTokens` | `number` | No | Prompt context token budget, default `500` |
+| `asOf` | `string \| undefined` | No | Historical validity boundary; ISO 8601 with timezone |
 
 #### Return fields
 
@@ -183,6 +180,7 @@ const result = await client.get({
 | `isPassthrough` | `boolean` | Skip memory context when `true` |
 | `isDegraded` | `boolean` | Retrieval is degraded when `true` |
 | `circuitStatus` | `"HEALTHY" \| "DEGRADED" \| "CRITICAL"` | Platform dependency status |
+| `clarificationQuestion` | `string \| null` | User clarification required by an unresolved personal conflict |
 | `hasContext` | `boolean` | `true` when `systemPromptAddition` is safe to use |
 
 Each `MemoryItem` also includes `sourceEventId` and `provenance` when available.
@@ -260,7 +258,6 @@ if (profile?.hasExamContext) {
 ```ts
 const deleted = await client.delete(
   "1c5d5ab6-73c8-4b12-90e9-0f7f9db8db4f",
-  "customer-123",
   false,
 );
 ```
@@ -281,12 +278,12 @@ for (const memory of page.items) {
 const bundle = await client.export("customer-123");
 ```
 
-`export()` maps to `GET /v1/users/me/export` and returns a `MemoryExport` bundle.
+`export()` maps to `GET /v1/users/{external_user_id}/export`. It returns the tenant and proxy-user IDs plus that user's memories and complete version history.
 
 ## UniversalMemoryOS
 
 ```ts
-import { UniversalMemoryOS } from "@memoryos/sdk";
+import { UniversalMemoryOS } from "memoryo-sdk";
 
 const universal = new UniversalMemoryOS(
   process.env.MEMORYOS_AGENT_API_KEY!,
@@ -320,13 +317,18 @@ Users can add or remove categories before approving.
 const result = await universal.add(
   [{ role: "user", content: "I prefer short technical answers." }],
   { source: "chat" },
+  "conversation-event-123",
 );
 ```
 
 ### `universal.get()`
 
 ```ts
-const result = await universal.get("How should I personalize this answer?", 5);
+const result = await universal.get(
+  "How should I personalize this answer?",
+  5,
+  { format: "json", contextMaxTokens: 900 },
+);
 ```
 
 Universal retrieve responses include the normal retrieve fields plus:
@@ -335,6 +337,8 @@ Universal retrieve responses include the normal retrieve fields plus:
 | --- | --- | --- |
 | `categoriesAvailable` | `string[]` | Memory categories the user granted this agent |
 | `permissionStatus` | `string \| null` | Permission status, such as `no_grant_for_user`, when no active grant exists |
+
+Universal memory items retain `sourceEventId` and `provenance` when the API returns them.
 
 ## Related pages
 

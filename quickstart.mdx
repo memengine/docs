@@ -2,243 +2,139 @@
 title: "Quickstart"
 ---
 
-Four steps to get MemoryOS working with your AI:
+Get your first stored and retrieved memory working from a backend in about ten minutes.
 
-1. Install the SDK
-2. Store a memory
-3. Retrieve memories
-4. Use context in a model call
+## 1. Create an API key
 
-For the cross-agent Memory Passport flow, see [Cross-agent memory sharing](/guides/cross-agent-sharing).
-For domain-specific products, the same calls below still apply - enable your domain first, then use:
-- [EdTech tutor cookbook](/cookbooks/edtech-tutor)
-- [Support agent cookbook](/cookbooks/support-agent)
+Sign in to the [MemoryOS dashboard](https://app.memoryo.dev/api-keys), create an API key, and copy it once. Keep it on your server—never expose it in browser code or commit it to Git.
 
-## Step 1: Install
-
-```bash
-# Python
-pip install memoryos openai
-
-# TypeScript
-npm install @memoryos/sdk openai
-```
-
-Both SDKs connect to `https://api.memoryos.dev` by default.
-
-## For solo builders: start without source metadata
-
-Use this path for MVPs, single-agent products, and small SaaS apps. It is the recommended first integration.
-
-## Step 2: Store a memory
+Set it in the terminal where your backend runs:
 
 <CodeGroup>
 
-```python Python
-import os
-from memoryos import Memory
-
-client = Memory(api_key=os.environ["MEMORYOS_API_KEY"])
-
-result = client.add(
-    messages=[
-        {
-            "role": "user",
-            "content": "Please remember that I prefer concise technical explanations and Python examples.",
-        }
-    ],
-    external_user_id="customer-123",
-)
-
-print(result.status)   # "queued"
-client.close()
+```powershell PowerShell
+$env:MEMORYOS_API_KEY="mem_live_your_key"
 ```
 
-```ts TypeScript
-import { MemoryOS } from "@memoryos/sdk";
-
-const client = new MemoryOS(process.env.MEMORYOS_API_KEY!);
-
-const result = await client.add(
-  [{ role: "user", content: "Please remember that I prefer concise technical explanations and Python examples." }],
-  "customer-123",
-);
-
-console.log(result.status); // "queued"
+```bash macOS / Linux
+export MEMORYOS_API_KEY="mem_live_your_key"
 ```
 
 </CodeGroup>
 
-## Step 3: Retrieve memories
+## 2. Install the SDK
 
 <CodeGroup>
 
-```python Python
-import os
-from memoryos import Memory
-
-client = Memory(api_key=os.environ["MEMORYOS_API_KEY"])
-
-memories = client.get(
-    query="How should I answer this user?",
-    external_user_id="customer-123",
-    limit=5,
-)
-
-if memories.has_context:
-    print(memories.system_prompt_addition)
-
-client.close()
+```bash Python
+pip install memoryo-sdk
 ```
 
-```ts TypeScript
-import { MemoryOS } from "@memoryos/sdk";
-
-const client = new MemoryOS(process.env.MEMORYOS_API_KEY!);
-
-const memories = await client.get({
-  query: "How should I answer this user?",
-  externalUserId: "customer-123",
-  limit: 5,
-});
-
-if (memories.hasContext) {
-  console.log(memories.systemPromptAddition);
-}
+```bash TypeScript
+npm install memoryo-sdk
 ```
 
 </CodeGroup>
 
-## Step 4: Use context in an AI call
+Both SDKs use `https://api.memoryo.dev` by default. The Python package is named `memoryo-sdk`, while its import remains `memoryos`.
 
-Retrieve before the model call. Prepend `system_prompt_addition` when available. Always call the LLM - even if memory is empty or in passthrough.
+## 3. Verify one complete write
+
+Use the same stable user ID your application already uses. Do not use an email address if your internal customer ID is available.
+
+Memory extraction runs asynchronously. The verification example waits for the write job to finish before retrieval, avoiding a race on the first run.
 
 <CodeGroup>
 
 ```python Python
 import os
 from memoryos import Memory
-from openai import OpenAI
 
-memory = Memory(api_key=os.environ["MEMORYOS_API_KEY"])
-openai_client = OpenAI(api_key=os.environ["OPENAI_API_KEY"])
+with Memory(api_key=os.environ["MEMORYOS_API_KEY"]) as memory:
+    write = memory.add(
+        messages=[
+            {"role": "user", "content": "Please remember that I prefer concise Python examples."}
+        ],
+        external_user_id="customer-123",
+    )
 
-external_user_id = "customer-123"
-user_message = "What kind of answer format do I like?"
+    if not write.job_id:
+        raise RuntimeError(f"Memory write was not queued: {write.status}")
 
-memories = memory.get(query=user_message, external_user_id=external_user_id, limit=5)
+    job = memory.wait_for_job(write.job_id)
+    if not job.succeeded:
+        raise RuntimeError(f"Memory write failed: {job.error_summary or job.status}")
 
-system_prompt = "You are a helpful assistant."
-if memories.has_context:
-    system_prompt = f"{system_prompt}\n\n{memories.system_prompt_addition}"
-
-response = openai_client.responses.create(
-    model="gpt-4.1-mini",
-    input=[
-        {"role": "system", "content": system_prompt},
-        {"role": "user", "content": user_message},
-    ],
-)
-
-print(response.output_text)
-memory.close()
+    result = memory.get(
+        query="How should you explain technical topics to me?",
+        external_user_id="customer-123",
+    )
+    print(result.system_prompt_addition)
 ```
 
 ```ts TypeScript
-import OpenAI from "openai";
-import { MemoryOS } from "@memoryos/sdk";
+import { MemoryOS } from "memoryo-sdk";
 
 const memory = new MemoryOS(process.env.MEMORYOS_API_KEY!);
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY! });
 
-const externalUserId = "customer-123";
-const userMessage = "What kind of answer format do I like?";
+const write = await memory.add(
+  [{ role: "user", content: "Please remember that I prefer concise TypeScript examples." }],
+  "customer-123",
+);
 
-const memories = await memory.get({
-  query: userMessage,
-  externalUserId,
-  limit: 5,
-});
-
-let systemPrompt = "You are a helpful assistant.";
-if (memories.hasContext) {
-  systemPrompt = `${systemPrompt}\n\n${memories.systemPromptAddition}`;
+if (!write.jobId) {
+  throw new Error(`Memory write was not queued: ${write.status}`);
 }
 
-const response = await openai.responses.create({
-  model: "gpt-4.1-mini",
-  input: [
-    { role: "system", content: systemPrompt },
-    { role: "user", content: userMessage },
-  ],
-});
+const job = await memory.waitForJob(write.jobId);
+if (!job.succeeded) {
+  throw new Error(`Memory write failed: ${job.errorSummary ?? job.status}`);
+}
 
-console.log(response.output_text);
+const result = await memory.get({
+  query: "How should you explain technical topics to me?",
+  externalUserId: "customer-123",
+});
+console.log(result.systemPromptAddition);
 ```
 
 </CodeGroup>
 
-## For multi-service companies: add source metadata later
+If the printed context reflects the saved preference, your API key, user mapping, worker, persistence, and retrieval path are connected.
 
-<Warning>
-Use this only when multiple backend services write memory for the same user, such as Billing, Support, CRM, and Product. This enables provenance, deduplication, conflict handling, and source-of-truth routing.
-</Warning>
+## 4. Put it around your model call
 
-<CodeGroup>
+In normal application traffic, retrieve context before the model call and queue the completed conversation afterward. You normally do not block the user response while extraction finishes.
 
 ```python Python
-import os
-from memoryos import Memory
+external_user_id = "customer-123"
+user_message = "Explain why this API request failed."
 
-client = Memory(api_key=os.environ["MEMORYOS_API_KEY"])
+context = memory.get(query=user_message, external_user_id=external_user_id)
 
-client.add(
-    external_user_id="customer-123",
-    messages=[{"role": "assistant", "content": "Customer is on the Growth plan."}],
-    source=Memory.source(
-        "billing-service",
-        event_id="invoice_evt_8842",
-        scope={"workspace_id": "ws_123"},
-        evidence=[{"source_type": "billing_record", "reference": "invoice_evt_8842"}],
-    ),
+# Pass context.system_prompt_addition to your model when context.has_context is true.
+# After the model responds, queue the completed conversation:
+memory.add(
+    messages=[
+        {"role": "user", "content": user_message},
+        {"role": "assistant", "content": assistant_reply},
+    ],
+    external_user_id=external_user_id,
 )
-
-client.close()
 ```
 
-```ts TypeScript
-import { MemoryOS } from "@memoryos/sdk";
+Always call your model even when MemoryOS returns no context or reports passthrough mode.
 
-const client = new MemoryOS(process.env.MEMORYOS_API_KEY!);
+## Common first-run problems
 
-await client.add(
-  [{ role: "assistant", content: "Customer is on the Growth plan." }],
-  "customer-123",
-  undefined,
-  undefined,
-  MemoryOS.source("billing-service", {
-    eventId: "invoice_evt_8842",
-    scope: { workspaceId: "ws_123" },
-    evidence: [{ sourceType: "billing_record", reference: "invoice_evt_8842" }],
-  }),
-);
-```
-
-</CodeGroup>
-
-For production multi-service traffic, register service writers in the Tenant Dashboard and bind dedicated API keys. You can still start by passing `source.service` with one tenant API key while testing.
-
-## What to expect
-
-- `add()` returns `queued`, `passthrough`, or a quality gate block - not an error
-- `get()` always returns a typed result, even with zero memories
-- `is_passthrough` / `isPassthrough` being true means skip memory context but still call the LLM
-- `system_prompt_addition` is safe to prepend as-is
-- if your tenant has a domain schema enabled, `system_prompt_addition` includes domain-aware context automatically
+- **Unauthorized:** create a new key in the dashboard and confirm the environment variable is available to the backend process.
+- **Empty result immediately after `add`:** wait for the job when verifying; production writes are asynchronous.
+- **Different users share context:** pass your authenticated application's stable user ID on every `add` and `get` call.
+- **Browser exposes the key:** move MemoryOS calls into a backend route or server process.
 
 ## Next steps
 
-- [Authentication](/authentication) - key format, permissions, and identity model
-- [Python SDK reference](/sdk/python)
-- [TypeScript SDK reference](/sdk/typescript)
-- [Domain schemas](/concepts/domain-schemas)
+- [Python SDK](/sdk/python) or [TypeScript SDK](/sdk/typescript)
+- [Authentication and identity](/authentication)
+- [OpenAI integration](/guides/openai) or [Anthropic integration](/guides/anthropic)
+- [Source-aware multi-service writes](/concepts/provenance) after the basic flow works
