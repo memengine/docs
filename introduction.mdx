@@ -1,16 +1,43 @@
 ---
 title: "MemoryOS overview"
-description: "Add durable, governed memory to an AI product without building a memory platform from scratch."
+description: "Add governed state and context to production AI agents without replacing your existing data systems."
 ---
 
-MemoryOS is a memory layer for AI applications. Your backend sends completed conversations to MemoryOS and retrieves relevant context before the next model call.
+MemoryOS is the governed state and context layer for production AI agents. Your backend sends relevant conversations, corrections, and application events to MemoryOS, then retrieves current, authorized context before the next model call.
+
+Databases store business records. Transcript stores preserve conversations. Vector search finds similar records. MemoryOS governs learned state: what became durable, what changed, which claim is current, where it came from, and which agent may reuse it.
+
+## Where MemoryOS fits
+
+MemoryOS works alongside your existing infrastructure:
+
+| System | Responsibility |
+| --- | --- |
+| Your application database, CRM, and tools | Business records, transactions, permissions, and real actions |
+| Your transcript or event store | Complete conversations and raw event history |
+| Your document or vector retrieval | Static knowledge and semantically similar records |
+| MemoryOS | Governed durable context learned from relevant interactions and events |
+
+MemoryOS is not a complete episodic archive, general document RAG system, agent framework, or replacement for your system of record.
+
+## The governed-context lifecycle
+
+```text
+ingest -> extract -> reconcile -> govern -> retrieve
+```
+
+1. **Ingest** relevant conversations, corrections, and application events.
+2. **Extract** candidate durable state and supporting evidence.
+3. **Reconcile** candidates with existing claims, revisions, and conflicts.
+4. **Govern** validity, provenance, authority, lifecycle, and access policy.
+5. **Retrieve** current, authorized, prompt-ready context.
 
 ```text
 conversation completed  ->  MemoryOS add  ->  asynchronous extraction
 new user message        ->  MemoryOS get  ->  prompt-ready context  ->  your model
 ```
 
-MemoryOS decides what is durable enough to remember, keeps source and version history, and returns only the context relevant to the current request. Your application remains responsible for the conversation, model call, and authoritative business data.
+MemoryOS decides what is durable enough to retain, keeps source and version history, and returns only the context relevant to the current request. Your application remains responsible for the conversation, model call, authoritative business data, and real actions.
 
 ## Choose an integration
 
@@ -41,7 +68,7 @@ For most products, integration is two server-side calls:
 
 The General Engine can extract durable information such as preferences, goals, recurring procedures, relationships, stable facts, and demonstrated expertise. Uncertain signals may remain pending until later evidence reinforces them. Temporary instructions and conversational filler should not become long-term memory.
 
-Domain schemas use the same `add()` and `get()` calls while adding structured domain context. EdTech can maintain learning profiles; Support can maintain customer-support context. Keep grades, payments, ticket state, permissions, and other source-of-truth records in your own systems.
+Domain schemas use the same `add()` and `get()` calls while adding structured domain context. EdTech can maintain learning profiles; Support can maintain customer-support context. Keep grades, payments, ticket state, permissions, and other authoritative business records in your own systems.
 
 ## Multiple services and agents
 
