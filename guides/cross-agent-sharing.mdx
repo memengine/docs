@@ -71,7 +71,7 @@ New agents appear as **Pending MemoryOS review** until the MemoryOS operator tea
 Use the API when you want to automate setup from an internal admin tool, CI workflow, or customer provisioning flow.
 
 ```bash
-curl -X POST https://api.memoryos.io/v1/agents/global \
+curl -X POST https://api.memoryo.dev/v1/agents/global \
   -H "Content-Type: application/json" \
   -H "Authorization: ApiKey mem_..." \
   -d '{
@@ -104,7 +104,7 @@ MemoryOS returns two important values:
 Fetch the public profile to preview what the user will see:
 
 ```bash
-curl https://api.memoryos.io/v1/agents/global/your_agent_id
+curl https://api.memoryo.dev/v1/agents/global/your_agent_id
 ```
 
 ## Step 1: Explain shared memory in your app
@@ -175,7 +175,7 @@ One company can have many agents. Each agent gets its own `agent_id`, but your a
 
 ```ts
 const CONSENT_BASE_URL =
-  process.env.NEXT_PUBLIC_MEMORYOS_CONSENT_BASE_URL ?? "https://consent.memoryos.io";
+  process.env.NEXT_PUBLIC_MEMORYOS_CONSENT_BASE_URL ?? "https://consent.memoryo.dev";
 
 const MEMORYOS_AGENT_IDS = {
   support: process.env.NEXT_PUBLIC_MEMORYOS_SUPPORT_AGENT_ID!,
@@ -267,8 +267,8 @@ Required environment variables:
 | --- | --- |
 | `MEMORYOS_API_KEY` | Dashboard -> API Keys |
 | `MEMORYOS_SUPPORT_AGENT_ID`, `MEMORYOS_BILLING_AGENT_ID`, etc. | Dashboard -> Memory Passport -> create agent |
-| `MEMORYOS_API_URL` | MemoryOS API base URL (https://api.memoryos.io) |
-| `MEMORYOS_CONSENT_BASE_URL` | MemoryOS consent app URL (https://consent.memoryos.io) |
+| `MEMORYOS_API_URL` | MemoryOS API base URL (https://api.memoryo.dev) |
+| `MEMORYOS_CONSENT_BASE_URL` | MemoryOS consent app URL (https://consent.memoryo.dev) |
 
 <Note>Never put `MEMORYOS_API_KEY` in browser code</Note>
 
@@ -288,9 +288,9 @@ src/app/api/memoryos/connect/route.ts
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 
-const MEMORYOS_API_URL = process.env.MEMORYOS_API_URL ?? "https://api.memoryos.io";
+const MEMORYOS_API_URL = process.env.MEMORYOS_API_URL ?? "https://api.memoryo.dev";
 const MEMORYOS_API_KEY = process.env.MEMORYOS_API_KEY;
-const CONSENT_BASE_URL = process.env.MEMORYOS_CONSENT_BASE_URL ?? "https://consent.memoryos.io";
+const CONSENT_BASE_URL = process.env.MEMORYOS_CONSENT_BASE_URL ?? "https://consent.memoryo.dev";
 
 const MEMORYOS_AGENT_IDS = {
   support: process.env.MEMORYOS_SUPPORT_AGENT_ID,
@@ -391,9 +391,9 @@ import express from "express";
 const app = express();
 app.use(express.json());
 
-const MEMORYOS_API_URL = process.env.MEMORYOS_API_URL ?? "https://api.memoryos.io";
+const MEMORYOS_API_URL = process.env.MEMORYOS_API_URL ?? "https://api.memoryo.dev";
 const MEMORYOS_API_KEY = process.env.MEMORYOS_API_KEY; // mem_..., server-side only
-const CONSENT_BASE_URL = process.env.MEMORYOS_CONSENT_BASE_URL ?? "https://consent.memoryos.io";
+const CONSENT_BASE_URL = process.env.MEMORYOS_CONSENT_BASE_URL ?? "https://consent.memoryo.dev";
 
 const MEMORYOS_AGENT_IDS = {
   support: process.env.MEMORYOS_SUPPORT_AGENT_ID,
@@ -478,9 +478,9 @@ import httpx
 
 router = APIRouter()
 
-MEMORYOS_API_URL = os.getenv("MEMORYOS_API_URL", "https://api.memoryos.io")
+MEMORYOS_API_URL = os.getenv("MEMORYOS_API_URL", "https://api.memoryo.dev")
 MEMORYOS_API_KEY = os.environ["MEMORYOS_API_KEY"]  # mem_..., server-side only
-CONSENT_BASE_URL = os.getenv("MEMORYOS_CONSENT_BASE_URL", "https://consent.memoryos.io")
+CONSENT_BASE_URL = os.getenv("MEMORYOS_CONSENT_BASE_URL", "https://consent.memoryo.dev")
 
 MEMORYOS_AGENT_IDS = {
     "support": os.getenv("MEMORYOS_SUPPORT_AGENT_ID"),
@@ -591,7 +591,7 @@ MemoryOS stores only a tenant-scoped hash of the returned user ID. It never stor
 Register your organisation directory entry once. This tells MemoryOS where to send users when they choose your company.
 
 ```bash
-curl -X POST https://api.memoryos.io/v1/tenant/directory/register \
+curl -X POST https://api.memoryo.dev/v1/tenant/directory/register \
   -H "Content-Type: application/json" \
   -H "Authorization: ApiKey mem_..." \
   -d '{
@@ -618,7 +618,7 @@ MemoryOS sends the user to your authorize endpoint with a callback URL and state
 ```http
 GET https://acme.com/oauth/authorize
   ?client_id=memoryos-oauth-client-id
-  &redirect_uri=https://consent.memoryos.io/oauth/callback
+  &redirect_uri=https://consent.memoryo.dev/oauth/callback
   &scope=openid%20profile
   &state=csrf_state_from_memoryos
   &response_type=code
@@ -627,7 +627,7 @@ GET https://acme.com/oauth/authorize
 Your app should show the normal login or approval screen. After the user approves the connection, redirect to the MemoryOS OAuth callback:
 
 ```http
-302 https://consent.memoryos.io/oauth/callback
+302 https://consent.memoryo.dev/oauth/callback
   ?code=temporary_authorization_code
   &state=csrf_state_from_memoryos
 ```
@@ -642,7 +642,7 @@ Content-Type: application/x-www-form-urlencoded
 
 grant_type=authorization_code
 &code=temporary_authorization_code
-&redirect_uri=https://consent.memoryos.io/oauth/callback
+&redirect_uri=https://consent.memoryo.dev/oauth/callback
 &client_id=memoryos-oauth-client-id
 &client_secret=your_client_secret
 ```

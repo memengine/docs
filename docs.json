@@ -9,7 +9,7 @@
   "favicon": "/favicon.svg",
   "api": {
     "mdx": {
-      "server": "https://api.memoryos.dev"
+      "server": "https://api.memoryo.dev"
     }
   },
   "footer": {
@@ -84,10 +84,6 @@
           {
             "label": "Contact Us",
             "href": "/contact"
-          },
-          {
-            "label": "System Status",
-            "href": "https://status.memoryos.io"
           }
         ]
       }
