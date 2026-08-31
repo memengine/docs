@@ -7,12 +7,14 @@ MemoryOS MCP lets an agent call MemoryOS as tools instead of importing the SDK d
 
 Use MCP when you want MemoryOS isolated from your core backend, or when your agent runtime already supports the Model Context Protocol.
 
+The normal tenant tools use your workspace API key and existing `external_user_id` values. They do not require Memory Passport or a consent screen. The consent and universal tools are optional and only apply to cross-application sharing.
+
 <img src="/images/api-key-settings-placeholder.svg" alt="Placeholder: create a MemoryOS API key from the workspace dashboard" />
 
 ## Install
 
 ```bash
-pip install memoryos-mcp
+pip install memoryo-mcp
 ```
 
 For local development from this repository:
@@ -28,13 +30,13 @@ Use a workspace API key from the MemoryOS dashboard.
 
 ```bash
 MEMORYOS_API_KEY=mem_live_xxx
-MEMORYOS_API_URL=https://api.memoryos.dev
+MEMORYOS_API_URL=https://api.memoryo.dev
 ```
 
 ## Run
 
 ```bash
-memoryos-mcp
+memoryo-mcp
 ```
 
 Claude Desktop example:
@@ -43,10 +45,10 @@ Claude Desktop example:
 {
   "mcpServers": {
     "memoryos": {
-      "command": "memoryos-mcp",
+      "command": "memoryo-mcp",
       "env": {
         "MEMORYOS_API_KEY": "mem_live_xxx",
-        "MEMORYOS_API_URL": "https://api.memoryos.io"
+        "MEMORYOS_API_URL": "https://api.memoryo.dev"
       }
     }
   }
@@ -101,6 +103,10 @@ General Engine -> general memory context
 EdTech Schema -> general context + tutoring profile
 Customer Support Schema -> general context + support profile
 ```
+
+For historical tenant retrieval, pass a timezone-aware ISO 8601 `as_of` value to `memoryos_get_context`, for example `2026-08-01T12:00:00Z`.
+
+For retry-safe universal writes, pass `idempotency_key` to `memoryos_universal_add_memory`. The key is sent in the universal request body, matching the API contract.
 
 ## Support agent boundary
 
