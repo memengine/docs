@@ -134,7 +134,8 @@
           {
             "group": "Memory Passport",
             "pages": [
-              "concepts/memory-passport"
+              "concepts/memory-passport",
+              "guides/cross-agent-sharing"
             ]
           },
           {

@@ -1,7 +1,7 @@
 ---
 title: "Cross-agent Memory Sharing"
 ---
-This guide covers **Memory Passport**, the user-controlled cross-agent memory flow in MemoryOS.
+This guide covers **Memory Passport**, the optional user-controlled cross-agent memory flow in MemoryOS.
 
 Use this flow when:
 
@@ -49,10 +49,10 @@ Register the AI agent before sending users to the consent page. This step is req
 
 ### Recommended: use the dashboard
 
-1. Open **Dashboard -> Memory Passport**
+1. Open **Dashboard -> Cross-app sharing**
 2. Click **Create Passport agent**
-3. Provide your agent name, website, logo, and description for verification.
-4. Choose default requested categories
+3. Enter the agent name. This is the only profile field required to start.
+4. Open advanced settings only if you want to add a website, logo, description, or default requested categories.
 5. Copy the public `agent_id`
 6. Copy and securely save your Agent API Key before continuing
 
@@ -109,7 +109,7 @@ curl https://api.memoryo.dev/v1/agents/global/your_agent_id
 
 ## Step 1: Explain shared memory in your app
 
-<Tip>TThe consent page gives your users control over their information. They can review requested permissions, grant or revoke access, and choose how conflicting context should be handled across applications</Tip>
+<Tip>The consent page gives your users control over their information. They can review requested permissions, grant or revoke access, and choose how conflicting context should be handled across applications.</Tip>
 
 Do not surprise users with a consent screen. Add a clear button such as:
 
@@ -266,7 +266,7 @@ Required environment variables:
 | Variable | Where it comes from |
 | --- | --- |
 | `MEMORYOS_API_KEY` | Dashboard -> API Keys |
-| `MEMORYOS_SUPPORT_AGENT_ID`, `MEMORYOS_BILLING_AGENT_ID`, etc. | Dashboard -> Memory Passport -> create agent |
+| `MEMORYOS_SUPPORT_AGENT_ID`, `MEMORYOS_BILLING_AGENT_ID`, etc. | Dashboard -> Cross-app sharing -> create agent |
 | `MEMORYOS_API_URL` | MemoryOS API base URL (https://api.memoryo.dev) |
 | `MEMORYOS_CONSENT_BASE_URL` | MemoryOS consent app URL (https://consent.memoryo.dev) |
 
@@ -548,7 +548,7 @@ After the user opens the connector link, MemoryOS handles sign-in, consent, cate
 
 ### Manual dashboard generator
 
-Tenant Dashboard -> Memory Passport includes a manual connector-link generator. Use it only to check one user flow during development. Production apps should generate the connector link server-side when the signed-in user clicks your button.
+Tenant Dashboard -> Passport Studio includes a manual connector-link generator. Use it only to check one user flow during development. Production apps should generate the connector link server-side when the signed-in user clicks your button.
 
 ## Step 2C: OAuth connectors
 

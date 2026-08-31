@@ -4,9 +4,13 @@ title: "Quickstart"
 
 Get your first stored and retrieved memory working from a backend in about ten minutes.
 
+<Note>
+This is the normal tenant-memory path. You do not need Memory Passport, a consent screen, a connector, or a global agent to complete it. Add those later only if users need to share approved memory across independent applications or agents.
+</Note>
+
 ## 1. Create an API key
 
-Sign in to the [MemoryOS dashboard](https://app.memoryo.dev/api-keys), create an API key, and copy it once. Keep it on your server—never expose it in browser code or commit it to Git.
+Sign in to the [MemoryOS dashboard](https://app.memoryo.dev/sdk), open **Get started**, then choose **Open API Keys** to create and copy a key once. Keep it on your server—never expose it in browser code or commit it to Git.
 
 Set it in the terminal where your backend runs:
 
@@ -138,3 +142,4 @@ Always call your model even when MemoryOS returns no context or reports passthro
 - [Authentication and identity](/authentication)
 - [OpenAI integration](/guides/openai) or [Anthropic integration](/guides/anthropic)
 - [Source-aware multi-service writes](/concepts/provenance) after the basic flow works
+- [Cross-agent memory sharing](/guides/cross-agent-sharing) only when users need consent-controlled sharing between independent apps or agents

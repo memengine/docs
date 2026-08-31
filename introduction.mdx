@@ -80,6 +80,8 @@ Conflicts do not all follow the same path: trusted evidence may resolve automati
 
 Memory Passport is for consent-based memory shared across independent agents or applications. The user approves an agent and chooses allowed categories and access level. Universal API calls then require both the agent's secret API key and the consenting user's UUI token. An organisation connection proves account ownership; it does not replace an agent permission grant.
 
+Memory Passport is optional. A normal tenant integration uses an API key plus your stable `external_user_id`; it does not redirect users to MemoryOS or require a consent button. Add Passport only when context must cross an application or agent boundary under the user's control.
+
 ## Production boundaries
 
 - Call MemoryOS from your backend; never expose API keys in browser or mobile code.
