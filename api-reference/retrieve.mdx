@@ -26,6 +26,7 @@ Content-Type: application/json
   "categories": ["preference", "goal"],
   "agent_id": "support-bot",
   "time_filter_days": 30,
+  "as_of": null,
   "format": "bullets",
   "context_max_tokens": 500
 }
@@ -41,6 +42,7 @@ Content-Type: application/json
 | `categories` | `MemoryCategory[]` | No | Optional category filters |
 | `agent_id` | `string \| null` | No | Optional agent filter |
 | `time_filter_days` | `integer \| null` | No | Return only memories created in the last N days |
+| `as_of` | `string \| null` | No | Historical validity boundary; ISO 8601 timestamp with timezone |
 | `format` | `"bullets" \| "json" \| "xml"` | No | Default `bullets` |
 | `context_max_tokens` | `integer` | No | Default `500`; max context budget for `system_prompt_addition` |
 

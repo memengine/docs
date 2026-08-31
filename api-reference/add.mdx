@@ -60,7 +60,7 @@ For solo builders, MVPs, small teams, and single-agent products, omit `source`. 
 ## Multi-service mode: add provenance
 
 <Warning>
-Use `source` when multiple services can write memories for the same user. This is for Billing, Support, CRM, Product, or other backend services that may disagree and need source-of-truth routing.
+Use `source` when multiple services can write memories for the same user. This is for Billing, Support, CRM, Product, or other backend services that may disagree and need source-authority policies.
 </Warning>
 
 ```json
@@ -93,7 +93,7 @@ Use `source` when multiple services can write memories for the same user. This i
 }
 ```
 
-For testing, you may start with one tenant API key and a `source.service` value. For production multi-service traffic, register service writers from the Tenant Dashboard and bind dedicated API keys so authority rules can be applied consistently.
+If you provide `source.service`, register that service writer in the Tenant Dashboard first. MemoryOS rejects unknown or inactive service keys. Dedicated API keys can then be bound to writers so authority rules and source credentials are enforced consistently.
 
 ## Response: queued
 
@@ -160,7 +160,7 @@ Example response:
 
 ```powershell
 $Api = $env:MEMORYOS_API_BASE_URL
-if (-not $Api) { $Api = "https://api.memoryos.dev" }
+if (-not $Api) { $Api = "https://api.memoryo.dev" }
 
 $TenantKey = $env:MEMORYOS_API_KEY
 if (-not $TenantKey) { throw "Set MEMORYOS_API_KEY before running this example." }
