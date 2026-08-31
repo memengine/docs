@@ -2,7 +2,9 @@
 title: "General Engine"
 ---
 
-The General Engine is the default. It works for most AI products — chatbots, coding agents, productivity copilots, SaaS personalization, internal knowledge tools — anything that needs persistent user memory without an industry-specific schema.
+The General Engine is the default path for production agents that need governed durable user context without an industry-specific schema. Typical uses include long-lived assistants, coding agents, productivity copilots, SaaS personalization, and internal agents where preferences, goals, procedures, relationships, or user facts can change over time.
+
+It is not intended to replace complete transcripts, static document retrieval, or an application database. Short-lived agents whose entire required context already fits in one prompt may not need durable memory yet.
 
 ## Memory categories
 
