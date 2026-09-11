@@ -156,18 +156,24 @@ GET /v1/agents/global/{agent_id}
 ```
 
 This endpoint does not return tenant ownership or agent API keys.
+`agent_id` must be the UUID returned by agent registration. Malformed IDs
+return `422`; a valid UUID with no active public agent returns `404`.
 
 Example response:
 
 ```json
 {
-  "id": "2beab5d0-741d-4ff8-9475-c29d9ea5a57e",
-  "name": "Learning Coach",
-  "description": "Personalizes explanations using approved learning memories.",
-  "logo_url": "https://example.com/logo.png",
-  "website_url": "https://example.com",
-  "is_verified": false,
-  "default_categories_requested": ["preference", "expertise"]
+  "data": {
+    "id": "2beab5d0-741d-4ff8-9475-c29d9ea5a57e",
+    "name": "Learning Coach",
+    "description": "Personalizes explanations using approved learning memories.",
+    "logo_url": "https://example.com/logo.png",
+    "website_url": "https://example.com",
+    "is_verified": false,
+    "default_categories_requested": ["preference", "expertise"]
+  },
+  "request_id": "c3d4fd63-77ff-48b6-9316-6bcbadf9476b",
+  "timestamp": "2026-09-11T17:32:37Z"
 }
 ```
 

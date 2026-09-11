@@ -104,8 +104,12 @@ MemoryOS returns two important values:
 Fetch the public profile to preview what the user will see:
 
 ```bash
-curl https://api.memoryo.dev/v1/agents/global/your_agent_id
+curl https://api.memoryo.dev/v1/agents/global/2beab5d0-741d-4ff8-9475-c29d9ea5a57e
 ```
+
+The path value must be the UUID returned when the agent was registered. A
+placeholder or malformed value is rejected with `422` instead of being treated
+as an agent lookup.
 
 ## Step 1: Explain shared memory in your app
 
