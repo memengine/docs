@@ -127,6 +127,12 @@ memory.add(
 )
 ```
 
+Submitting the completed turn gives extraction useful conversational context,
+but the assistant does not become an authority about the user. In normal mode,
+durable memory must be grounded in a user statement or explicit user
+confirmation. Use source-aware ingestion only for registered backend services
+with real provenance—not for ordinary model responses.
+
 Always call your model even when MemoryOS returns no context or reports passthrough mode.
 
 ## Common first-run problems

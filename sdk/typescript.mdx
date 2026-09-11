@@ -50,6 +50,11 @@ console.log(result.status);
 console.log(result.jobId);
 ```
 
+You may submit the completed user and assistant turns. In simple mode,
+assistant text is retained as conversation context but is not authoritative
+user evidence. MemoryOS stores a claim only when a user turn directly states or
+confirms it.
+
 ## For multi-service companies: source-aware mode
 
 <Warning>
@@ -81,6 +86,10 @@ const result = await client.add(
 ```
 
 Register `billing-service` in the Tenant Dashboard before sending it as `source.service`; unknown or inactive service keys are rejected. For production, bind a dedicated API key to the writer so its authority is explicit.
+
+Only use source-aware mode for authenticated backend observations. It can treat
+a registered service's declarative assistant-role message as authoritative; it
+must not be used to promote an ordinary chatbot answer into user memory.
 
 #### Parameters
 

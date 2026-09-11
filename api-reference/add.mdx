@@ -57,6 +57,14 @@ For solo builders, MVPs, small teams, and single-agent products, omit `source`. 
 | `role` | `"user" \| "assistant" \| "system"` | Yes |
 | `content` | `string` | Yes |
 
+<Note>
+In normal conversational mode, MemoryOS preserves every submitted role but only
+creates durable user memory when a user turn directly states or confirms the
+claim. A user question and an unsupported assistant answer are not sufficient
+evidence. This prevents an assistant from turning its own suggestion into a
+user preference or fact.
+</Note>
+
 ## Multi-service mode: add provenance
 
 <Warning>
@@ -94,6 +102,12 @@ Use `source` when multiple services can write memories for the same user. This i
 ```
 
 If you provide `source.service`, register that service writer in the Tenant Dashboard first. MemoryOS rejects unknown or inactive service keys. Dedicated API keys can then be bound to writers so authority rules and source credentials are enforced consistently.
+
+Authenticated source-aware events have a different authority boundary:
+declarative observations from the registered service may be extracted from an
+assistant-role message because the service identity, event, evidence, and
+writer policy provide the provenance. Do not add `source` merely to make an
+ordinary chatbot response authoritative.
 
 ## Response: queued
 
