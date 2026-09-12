@@ -116,8 +116,7 @@ client-assertion authority tier; the MCP client cannot choose a higher tier in
 tool arguments or metadata.
 
 Pass `conversation_id` when your agent has a stable conversation identifier.
-It lets MemoryOS scope evidence and later proposal references to that
-conversation.
+MemoryOS records it with the queued job for provenance and auditability.
 
 ```python
 memoryos_add_memory(
