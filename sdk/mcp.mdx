@@ -108,6 +108,37 @@ For historical tenant retrieval, pass a timezone-aware ISO 8601 `as_of` value to
 
 For retry-safe universal writes, pass `idempotency_key` to `memoryos_universal_add_memory`. The key is sent in the universal request body, matching the API contract.
 
+## Memory authority boundary
+
+`memoryos_add_memory` and `memoryos_remember` accept conversation content as an
+assertion from the MCP client. MemoryOS records that provenance and applies the
+client-assertion authority tier; the MCP client cannot choose a higher tier in
+tool arguments or metadata.
+
+Pass `conversation_id` when your agent has a stable conversation identifier.
+It lets MemoryOS scope evidence and later proposal references to that
+conversation.
+
+```python
+memoryos_add_memory(
+    external_user_id="cust_123",
+    conversation_id="support-thread-884",
+    messages=[
+        {"role": "user", "content": "I prefer a one-line diagnosis first."},
+        {"role": "assistant", "content": "I will lead with a one-line diagnosis."},
+    ],
+)
+```
+
+Standalone MCP text is not MemoryOS-attested user evidence. It cannot silently
+overwrite a higher-authority user-confirmed memory. If it contradicts trusted
+memory, MemoryOS keeps the trusted memory active and quarantines the assertion
+for review or clarification.
+
+Do not place tool output, fetched documents, or retrieved text into a message
+as if it were user input. Those sources may support an observation, but they do
+not prove user consent or confirmation.
+
 ## Support agent boundary
 
 For customer support, MCP gives the agent remembered context. Your support platform still provides live tools.
