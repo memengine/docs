@@ -49,7 +49,12 @@ client = Memory(api_key=os.environ["MEMORYOS_API_KEY"])
 
 ```python
 result = client.add(
-    messages=[{"role": "user", "content": "I prefer Python examples."}],
+    messages=[{
+        "role": "user",
+        "content": "I prefer Python examples.",
+        "external_turn_id": "support-884:turn-12",
+        "source_kind": "direct_user_input",
+    }],
     external_user_id="customer-123",
     agent_id="support-bot",
     metadata={"source": "chat"},
@@ -63,6 +68,13 @@ You may submit the completed user and assistant turns. In simple mode,
 assistant text is retained as conversation context but is not authoritative
 user evidence. MemoryOS stores a claim only when a user turn directly states or
 confirms it.
+
+
+For a durable evidence trail, provide an `external_turn_id` for each persisted
+turn. It is a stable identifier from your chat system, not a claim created by
+the model. Use `source_kind` when the role alone is insufficient to describe the
+origin, such as `tool_output` or `fetched_document`. Messages are limited to 64
+per request and 16,000 characters each.
 
 ## For multi-service companies: source-aware mode
 
@@ -103,7 +115,7 @@ must not be used to promote an ordinary chatbot answer into user memory.
 
 | Parameter | Type | Required | Notes |
 | --- | --- | --- | --- |
-| `messages` | `list[dict[str, str]] \| list[ConversationMessage]` | Yes | Roles must be `user`, `assistant`, or `system` |
+| `messages` | `list[dict[str, str]] \| list[ConversationMessage]` | Yes | 1-64 messages; roles are `user`, `assistant`, or `system`; each content value is at most 16,000 characters |
 | `external_user_id` | `str` | Yes | End-user identifier inside your tenant |
 | `agent_id` | `str \| None` | No | Optional agent identifier |
 | `metadata` | `dict[str, Any] \| None` | No | Optional metadata attached to the ingestion job |

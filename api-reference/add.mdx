@@ -46,16 +46,24 @@ For solo builders, MVPs, small teams, and single-agent products, omit `source`. 
 | --- | --- | --- | --- |
 | `external_user_id` | `string` | Yes | End-user identifier inside your tenant |
 | `agent_id` | `string \| null` | No | Optional agent identifier |
-| `messages` | `ConversationMessage[]` | Yes | At least one message |
+| `messages` | `ConversationMessage[]` | Yes | 1-64 messages; each content value is at most 16,000 characters |
 | `metadata` | `object` | No | Arbitrary JSON metadata |
 | `source` | `MemorySource \| null` | No | Provenance source block for multi-service governance |
 
 ### ConversationMessage
 
-| Field | Type | Required |
-| --- | --- | --- |
-| `role` | `"user" \| "assistant" \| "system"` | Yes |
-| `content` | `string` | Yes |
+| Field | Type | Required | Notes |
+| --- | --- | --- | --- |
+| `role` | `"user" \| "assistant" \| "system"` | Yes | Conversation role |
+| `content` | `string` | Yes | Non-empty, at most 16,000 characters |
+| `external_turn_id` | `string` | No | Stable caller turn identifier, at most 255 characters |
+| `source_kind` | `string` | No | `direct_user_input`, `assistant_output`, `tool_output`, `fetched_document`, `system_instruction`, or `client_assertion` |
+| `occurred_at` | RFC 3339 datetime | No | When this turn occurred |
+
+<Tip>
+For a durable evidence trail, give each persisted chat turn a stable `external_turn_id`.
+MemoryOS stores a server-verified reference and content hash with extracted memories.
+</Tip>
 
 <Note>
 In normal conversational mode, MemoryOS preserves every submitted role but only
