@@ -67,6 +67,43 @@ the model. Use `sourceKind` when the role alone is insufficient to describe the
 origin, such as `tool_output` or `fetched_document`. Messages are limited to 64
 per request and 16,000 characters each.
 
+### Explicit assistant proposals
+
+<Warning>
+Unreleased Phase 2.6b contract: requires the matching backend migration and SDK
+release. Do not assume the currently published package supports these fields.
+This registers proposals only; semantic acceptance binding is not implemented.
+</Warning>
+
+Use the seventh `add()` argument, `conversationId`, consistently for one chat.
+Only mark assistant turns deliberately presented as memory proposals.
+The marker requires `sourceKind: "assistant_output"`; it never grants user
+authority or proves consent. Registration is tenant-scoped, not universal.
+
+```ts
+const proposal = await client.add(
+  [{
+    role: "assistant",
+    content: "I can remember that you prefer a one-line diagnosis first.",
+    externalTurnId: "support-884:turn-13",
+    sourceKind: "assistant_output",
+    isMemoryProposal: true,
+  }],
+  "customer-123",
+  undefined, undefined, undefined,
+  "support-884:proposal-13",
+  "support-884",
+);
+if (proposal.proposalIds?.length) {
+  console.log("Registered proposal:", proposal.proposalIds[0]);
+} else {
+  console.log("No proposal registered:", proposal.status, proposal.blockedReason);
+}
+```
+
+Job status exposes `proposalIds` and `operationalMetrics.queue_wait_ms` when
+available. Proposal IDs are not stored memory IDs.
+
 ## For multi-service companies: source-aware mode
 
 <Warning>

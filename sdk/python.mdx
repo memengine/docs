@@ -73,8 +73,48 @@ confirms it.
 For a durable evidence trail, provide an `external_turn_id` for each persisted
 turn. It is a stable identifier from your chat system, not a claim created by
 the model. Use `source_kind` when the role alone is insufficient to describe the
-origin, such as `tool_output` or `fetched_document`. Messages are limited to 64
-per request and 16,000 characters each.
+origin, such as `tool_output` or `fetched_document`. Keep one `conversation_id`
+for every `add()` call in the same chat. Messages are limited to 64 per request
+and 16,000 characters each.
+
+### Explicit assistant proposals
+
+<Warning>
+Unreleased Phase 2.6b contract: requires the matching backend migration and SDK
+release. Do not assume the currently published package supports these fields.
+This registers proposals only; semantic acceptance binding is not implemented.
+</Warning>
+
+For an assistant statement that your application deliberately presents as a
+memory proposal, mark only that assistant turn with
+`is_memory_proposal=True`, `source_kind="assistant_output"`, and a stable
+`external_turn_id`. MemoryOS records an immutable proposal and returns its id
+in `result.proposal_ids` when ingestion is admitted; this marker never turns assistant text into user
+evidence and does not itself create or promote a memory.
+
+```python
+result = client.add(
+    external_user_id="customer-123",
+    conversation_id="support-884",
+    messages=[
+        {
+            "role": "assistant",
+            "content": "I can remember that you prefer a one-line diagnosis first.",
+            "external_turn_id": "support-884:turn-13",
+            "source_kind": "assistant_output",
+            "is_memory_proposal": True,
+        }
+    ],
+)
+if result.proposal_ids:
+    print("Registered proposal:", result.proposal_ids[0])
+else:
+    print("No proposal registered:", result.status, result.blocked_reason)
+```
+
+Job status exposes `proposal_ids` and `operational_metrics.queue_wait_ms` when
+available. A proposal ID is not a stored memory ID or proof of user consent.
+Registration is tenant-scoped; the universal client does not support this marker.
 
 ## For multi-service companies: source-aware mode
 
@@ -121,6 +161,7 @@ must not be used to promote an ordinary chatbot answer into user memory.
 | `metadata` | `dict[str, Any] \| None` | No | Optional metadata attached to the ingestion job |
 | `idempotency_key` | `str \| None` | No | Prevents duplicate jobs when your app retries |
 | `source` | `MemorySource \| dict \| None` | No | Provenance source block for multi-service governance |
+| `conversation_id` | `str \| None` | No | Stable chat identifier; use the same value for turns in one conversation |
 
 #### Return fields
 
@@ -132,6 +173,7 @@ must not be used to promote an ordinary chatbot answer into user memory.
 | `nothing_to_extract` | `bool` | Request passed the gate but had no durable memory |
 | `retry_after_seconds` | `int \| None` | Retry hint for rate-limit blocks |
 | `budget_remaining_pct` | `float \| None` | Remaining quota estimate |
+| `proposal_ids` | `list[str]` | Explicit assistant proposal records registered by this request |
 | `quota_mode` | `str` | Current quota mode |
 | `processing_eta_seconds` | `int \| None` | Queue ETA when ingestion is delayed |
 | `processing_status` | `str` | Background ingestion health |
