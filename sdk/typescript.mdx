@@ -70,24 +70,29 @@ per request and 16,000 characters each.
 ### Explicit assistant proposals
 
 <Warning>
-Unreleased Phase 2.6b contract: requires the matching backend migration and SDK
-release. Do not assume the currently published package supports these fields.
-This registers proposals only; semantic acceptance binding is not implemented.
+Preview Phase 3A contract: requires the structured-proposal backend migration and
+an SDK release containing `ProposedMemory`. Confirmation is feature-gated and
+remains off until the deployment passes its release evaluation.
 </Warning>
 
 Use the seventh `add()` argument, `conversationId`, consistently for one chat.
 Only mark assistant turns deliberately presented as memory proposals.
-The marker requires `sourceKind: "assistant_output"`; it never grants user
-authority or proves consent. Registration is tenant-scoped, not universal.
+The marker requires `sourceKind: "assistant_output"` and a `proposedMemory`
+whose exact claim appears in the user-visible assistant text. It never grants
+user authority or proves consent. Registration is tenant-scoped, not universal.
 
 ```ts
 const proposal = await client.add(
   [{
     role: "assistant",
-    content: "I can remember that you prefer a one-line diagnosis first.",
+    content: "I can remember this. Proposed memory: User prefers a one-line diagnosis before numbered troubleshooting steps.",
     externalTurnId: "support-884:turn-13",
     sourceKind: "assistant_output",
     isMemoryProposal: true,
+    proposedMemory: {
+      content: "User prefers a one-line diagnosis before numbered troubleshooting steps.",
+      category: "preference",
+    },
   }],
   "customer-123",
   undefined, undefined, undefined,
@@ -102,7 +107,11 @@ if (proposal.proposalIds?.length) {
 ```
 
 Job status exposes `proposalIds` and `operationalMetrics.queue_wait_ms` when
-available. Proposal IDs are not stored memory IDs.
+available. Proposal IDs are not stored memory IDs. When confirmation is
+enabled, submit the proposal turn and later direct user reply with the same
+`conversationId` and stable turn IDs. MemoryOS binds the reply to the immutable
+proposal and stores the registered claim only after deterministic evidence
+checks accept it; model confidence never grants authority.
 
 ## For multi-service companies: source-aware mode
 

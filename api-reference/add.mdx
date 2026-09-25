@@ -59,6 +59,15 @@ For solo builders, MVPs, small teams, and single-agent products, omit `source`. 
 | `external_turn_id` | `string` | No | Stable caller turn identifier, at most 255 characters |
 | `source_kind` | `string` | No | `direct_user_input`, `assistant_output`, `tool_output`, `fetched_document`, `system_instruction`, or `client_assertion` |
 | `occurred_at` | RFC 3339 datetime | No | When this turn occurred |
+| `is_memory_proposal` | `boolean` | No | Marks a deliberately user-visible assistant memory proposal; requires `role: "assistant"` and `source_kind: "assistant_output"` |
+| `proposed_memory` | `ProposedMemory \| null` | No | Exact durable claim and category proposed to the user; requires `is_memory_proposal: true` and the claim text must appear in `content` |
+
+### ProposedMemory
+
+| Field | Type | Required | Notes |
+| --- | --- | --- | --- |
+| `content` | `string` | Yes | Exact user-visible durable claim, 10-500 characters |
+| `category` | `string` | Yes | `preference`, `fact`, `goal`, `procedure`, `relationship`, or `expertise` |
 
 <Tip>
 For a durable evidence trail, give each persisted chat turn a stable `external_turn_id`.
@@ -72,6 +81,38 @@ claim. A user question and an unsupported assistant answer are not sufficient
 evidence. This prevents an assistant from turning its own suggestion into a
 user preference or fact.
 </Note>
+
+## Explicit assistant proposals
+
+<Warning>
+This contract requires a backend deployment containing the structured-proposal migration and an SDK
+version that exposes the matching fields. Proposal confirmation is feature-gated and remains off
+until the tenant environment passes its release evaluation.
+</Warning>
+
+The assistant must show the proposed durable claim to the user and submit that same claim as
+`proposed_memory`. Registering it does not create a memory and does not grant user authority.
+When confirmation is enabled, a later direct user turn can accept it only after MemoryOS verifies
+the immutable proposal turn, its content hash, the conversation scope, the referenced proposal,
+and the user's confirmation. Model confidence is diagnostic only and cannot grant authority.
+
+```json
+{
+  "role": "assistant",
+  "content": "I can remember this for later. Proposed memory: User prefers a one-line diagnosis before numbered troubleshooting steps.",
+  "external_turn_id": "support-884:turn-13",
+  "source_kind": "assistant_output",
+  "is_memory_proposal": true,
+  "proposed_memory": {
+    "content": "User prefers a one-line diagnosis before numbered troubleshooting steps.",
+    "category": "preference"
+  }
+}
+```
+
+Use the same `conversation_id` and stable turn IDs when you later submit the proposal turn with the
+user's direct reply. Tool output, fetched documents, system instructions, and assistant text cannot
+act as the confirming user turn.
 
 ## Multi-service mode: add provenance
 

@@ -80,17 +80,19 @@ and 16,000 characters each.
 ### Explicit assistant proposals
 
 <Warning>
-Unreleased Phase 2.6b contract: requires the matching backend migration and SDK
-release. Do not assume the currently published package supports these fields.
-This registers proposals only; semantic acceptance binding is not implemented.
+Preview Phase 3A contract: requires the structured-proposal backend migration and
+an SDK release containing `ProposedMemory`. Confirmation is feature-gated and
+remains off until the deployment passes its release evaluation.
 </Warning>
 
 For an assistant statement that your application deliberately presents as a
 memory proposal, mark only that assistant turn with
-`is_memory_proposal=True`, `source_kind="assistant_output"`, and a stable
-`external_turn_id`. MemoryOS records an immutable proposal and returns its id
-in `result.proposal_ids` when ingestion is admitted; this marker never turns assistant text into user
-evidence and does not itself create or promote a memory.
+`is_memory_proposal=True`, `source_kind="assistant_output"`, a stable
+`external_turn_id`, and `proposed_memory`. The structured claim must appear in
+the user-visible assistant text. MemoryOS records an immutable proposal and
+returns its id in `result.proposal_ids` when ingestion is admitted; this marker
+never turns assistant text into user evidence and does not itself create or
+promote a memory.
 
 ```python
 result = client.add(
@@ -99,10 +101,17 @@ result = client.add(
     messages=[
         {
             "role": "assistant",
-            "content": "I can remember that you prefer a one-line diagnosis first.",
+            "content": (
+                "I can remember this. Proposed memory: "
+                "User prefers a one-line diagnosis before numbered troubleshooting steps."
+            ),
             "external_turn_id": "support-884:turn-13",
             "source_kind": "assistant_output",
             "is_memory_proposal": True,
+            "proposed_memory": {
+                "content": "User prefers a one-line diagnosis before numbered troubleshooting steps.",
+                "category": "preference",
+            },
         }
     ],
 )
@@ -114,6 +123,10 @@ else:
 
 Job status exposes `proposal_ids` and `operational_metrics.queue_wait_ms` when
 available. A proposal ID is not a stored memory ID or proof of user consent.
+When confirmation is enabled, submit the proposal turn and the later direct
+user reply with the same `conversation_id` and stable turn IDs. MemoryOS binds
+the reply to the immutable proposal and stores the registered claim only after
+the evidence policy accepts it. Model confidence never grants authority.
 Registration is tenant-scoped; the universal client does not support this marker.
 
 ## For multi-service companies: source-aware mode
