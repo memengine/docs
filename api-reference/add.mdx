@@ -225,6 +225,23 @@ Example response:
 created by this write. Do not search recent memory history to guess which
 records came from the job.
 
+## Explicitly request a memory clarification
+
+If a direct user message says not to decide between two existing memories and
+asks to choose, MemoryOS can complete the extraction job with
+`memories_created: 0` and queue a clarification instead of storing the
+uncertain sentence as a new memory. On the next retrieve call,
+`clarification` contains the backend-approved question and answer options for
+the customer's existing chat.
+
+The extraction model can only select memory IDs that MemoryOS placed in its
+bounded prompt context. The backend then revalidates the cited user turn,
+verbatim evidence, tenant, user profile, active status, and category before it
+queues anything. Tool output, assistant text, invented IDs, and records owned
+by another user or tenant cannot create a clarification.
+
+See [Resolve a clarification in your existing chat](/api-reference/retrieve#resolve-a-clarification-in-your-existing-chat).
+
 ## Working PowerShell polling example
 
 ```powershell
