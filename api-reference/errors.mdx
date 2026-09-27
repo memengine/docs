@@ -66,6 +66,10 @@ Current public and semi-public API surfaces emit the following codes.
 
 ## Consent and universal memory note
 
+<Warning>
+Memory Passport and Universal Memory are frozen in private beta and disabled by default. Their entry points return `404 FEATURE_404` with `memory_passport_not_available` unless explicitly enabled.
+</Warning>
+
 Some Memory Passport flows are intentionally **not** error-driven:
 
 - `POST /v1/universal/memories/retrieve` returns an empty list with `permission_status: "no_grant"` when a user has not granted this agent access

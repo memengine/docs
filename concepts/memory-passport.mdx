@@ -1,14 +1,18 @@
 ---
 title: "Memory Passport"
-description: "How MemoryOS lets a user create one identity and control what each AI agent can access."
+description: "Private-beta design for user-controlled memory shared across independent agents."
 ---
+
+<Warning>
+Memory Passport is frozen as a private beta and disabled by default. These concepts are retained for approved design partners and future development; they are not part of the generally available product. Disabled deployments return `404 memory_passport_not_available` from Passport entry points.
+</Warning>
 
 Memory Passport is the user-controlled identity layer in MemoryOS. One person signs in with email and OTP, maintains a universal memory identity, and decides which agents can access which categories of their memory.
 
 It's a privacy layer as much as a memory layer. Agents don't automatically share user data — the user has to explicitly approve each one.
 
 <Note>
-Memory Passport is an optional cross-application feature, not part of the normal tenant-memory quickstart. If your application stores and retrieves context only inside its own workspace, use one tenant API key and a stable `external_user_id`; your users do not need a MemoryOS account or consent redirect.
+Memory Passport is not part of the normal tenant-memory quickstart. If your application stores and retrieves context inside its own workspace, use one tenant API key and a stable `external_user_id`; your users do not need a MemoryOS account or consent redirect.
 </Note>
 
 <img

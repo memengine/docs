@@ -7,7 +7,11 @@ MemoryOS MCP lets an agent call MemoryOS as tools instead of importing the SDK d
 
 Use MCP when you want MemoryOS isolated from your core backend, or when your agent runtime already supports the Model Context Protocol.
 
-The normal tenant tools use your workspace API key and existing `external_user_id` values. They do not require Memory Passport or a consent screen. The consent and universal tools are optional and only apply to cross-application sharing.
+The normal tenant tools use your workspace API key and existing `external_user_id` values. They do not require Memory Passport or a consent screen.
+
+<Warning>
+The consent and universal MCP tools belong to the frozen Memory Passport private beta. They are disabled by default and are not part of the supported MCP integration path.
+</Warning>
 
 <img src="/images/api-key-settings-placeholder.svg" alt="Placeholder: create a MemoryOS API key from the workspace dashboard" />
 
@@ -67,7 +71,7 @@ memoryos_delete_memory
 memoryos_get_job_status
 ```
 
-It also exposes domain and cross-agent tools:
+It also exposes domain tools. Cross-agent tools may remain present in an SDK build for private-beta compatibility, but their backend endpoints are disabled by default:
 
 ```text
 memoryos_get_domain_schema

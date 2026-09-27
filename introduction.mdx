@@ -47,10 +47,10 @@ MemoryOS decides what is durable enough to retain, keeps source and version hist
 | A tutor or learning product | Tenant memory with the EdTech schema | Your stable student ID | [EdTech tutor](/cookbooks/edtech-tutor) |
 | A customer-support product | Tenant memory with the Support schema | Your stable customer ID | [Support agent](/cookbooks/support-agent) |
 | Several services writing for the same users | Tenant memory with service writers and provenance | Same user ID across every service | [Provenance](/concepts/provenance) |
-| User-controlled memory shared between independent agents | Memory Passport | Agent key plus user UUI token after consent | [Memory Passport](/concepts/memory-passport) |
+| User-controlled memory shared between independent agents | Memory Passport private beta | Not available in standard tenant accounts | Contact MemoryOS for design-partner access |
 
 <Warning>
-Tenant memory and Memory Passport are different security boundaries. A tenant API key cannot read Universal Memory, and an agent key does not grant access without the user's active consent.
+Memory Passport is a frozen private beta and is disabled by default. Its APIs return `404 memory_passport_not_available` unless MemoryOS explicitly enables the feature for an approved design partner. Tenant memory remains the supported production path.
 </Warning>
 
 ## The tenant-memory loop
@@ -74,13 +74,13 @@ Domain schemas use the same `add()` and `get()` calls while adding structured do
 
 Use the same `external_user_id` whenever your services refer to the same person. Register a service writer for each production writer and attach a stable source event ID to writes. This gives MemoryOS enough provenance to deduplicate retries, compare authority, preserve lineage, and route genuine conflicts.
 
-Conflicts do not all follow the same path: trusted evidence may resolve automatically, tenant-owned conflicts may require dashboard review, and personal Memory Passport conflicts may be returned to the user as a clarification. Each conflict has one resolution path.
+Conflicts do not all follow the same path: trusted evidence may resolve automatically, tenant-owned conflicts may require dashboard review, and the frozen Memory Passport private beta has a separate user-clarification path when explicitly enabled. Each conflict has one resolution path.
 
 ## Memory Passport
 
-Memory Passport is for consent-based memory shared across independent agents or applications. The user approves an agent and chooses allowed categories and access level. Universal API calls then require both the agent's secret API key and the consenting user's UUI token. An organisation connection proves account ownership; it does not replace an agent permission grant.
+Memory Passport is an experimental design for consent-based memory shared across independent agents or applications. It is currently frozen as a private beta while the normal tenant-memory path remains the production focus.
 
-Memory Passport is optional. A normal tenant integration uses an API key plus your stable `external_user_id`; it does not redirect users to MemoryOS or require a consent button. Add Passport only when context must cross an application or agent boundary under the user's control.
+Do not build a production integration against Passport unless MemoryOS has explicitly enabled it for your tenant. A normal integration uses an API key plus your stable `external_user_id`; it does not redirect users to MemoryOS or require a consent button.
 
 ## Production boundaries
 
@@ -96,4 +96,3 @@ Memory Passport is optional. A normal tenant integration uses an API key plus yo
 - [Authentication](/authentication) - credentials and security boundaries
 - [Python SDK](/sdk/python) and [TypeScript SDK](/sdk/typescript)
 - [Domain schemas](/concepts/domain-schemas)
-- [Memory Passport](/concepts/memory-passport)

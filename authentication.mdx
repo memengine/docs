@@ -1,12 +1,12 @@
 ---
 title: "Authentication"
-description: "How tenant API keys, agent API keys, and UUI tokens work in MemoryOS."
+description: "How tenant API keys and end-user identity work in MemoryOS."
 ---
 
-MemoryOS has two auth models:
+The generally available MemoryOS API uses tenant API keys. A separate cross-agent model remains documented only for private-beta compatibility:
 
 - **Tenant API key** — for `/v1/memories/*` and all workspace APIs
-- **Cross-agent dual auth** — for `/v1/universal/*`, which requires both an agent key and a user UUI token
+- **Cross-agent dual auth (private beta)** — disabled by default for `/v1/universal/*`
 
 ## Tenant API key
 
@@ -25,6 +25,10 @@ X-API-Key: mem_...
 Keep your API key server-side. Never send it to the browser.
 
 ## Cross-agent auth
+
+<Warning>
+Cross-agent authentication is part of the frozen Memory Passport private beta. Registration and Universal Memory endpoints return `404 memory_passport_not_available` unless MemoryOS explicitly enables the feature.
+</Warning>
 
 ```http
 Authorization: ApiKey agent_sk_...
@@ -115,6 +119,5 @@ const client = new MemoryOS(process.env.MEMORYOS_API_KEY!);
 
 ## Related pages
 
-- [Memory Passport](/concepts/memory-passport)
-- [Cross-agent memory sharing](/guides/cross-agent-sharing)
+- [Memory Passport private-beta reference](/concepts/memory-passport)
 - [Python SDK reference](/sdk/python)

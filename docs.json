@@ -38,10 +38,6 @@
           {
             "label": "Domain Schemas",
             "href": "/concepts/domain-schemas"
-          },
-          {
-            "label": "Memory Passport",
-            "href": "/concepts/memory-passport"
           }
         ]
       },
@@ -132,13 +128,6 @@
             ]
           },
           {
-            "group": "Memory Passport",
-            "pages": [
-              "concepts/memory-passport",
-              "guides/cross-agent-sharing"
-            ]
-          },
-          {
             "group": "Reliability",
             "pages": [
               "concepts/degradation",
@@ -174,12 +163,6 @@
             "group": "Domain APIs",
             "pages": [
               "api-reference/edtech-profile"
-            ]
-          },
-          {
-            "group": "Universal APIs",
-            "pages": [
-              "api-reference/universal"
             ]
           },
           {

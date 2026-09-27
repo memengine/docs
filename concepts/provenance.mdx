@@ -161,7 +161,7 @@ Example:
 - Support Service reports: `User's current subscription plan is Starter.`
 - Billing Service reports: `User's current subscription plan is Growth.`
 
-If both have equal authority, the tenant dashboard shows the conflict for review. If it is a personal Memory Passport conflict, it appears in the user's Pending Questions tab.
+If both have equal authority, the tenant dashboard shows the conflict for review. The frozen Memory Passport private beta has a separate user-clarification path when explicitly enabled.
 
 The losing claim is not hard-deleted. It is kept in the revision ledger and marked inactive or archived.
 
@@ -216,7 +216,7 @@ Use this endpoint to inspect source events, payload hashes, linked extraction jo
 | Compliance audit trail | Yes |
 | Exactly-once ingestion with retries | Yes |
 | Conflict resolution between services | Yes |
-| Memory Passport shared context | Yes |
+| Memory Passport private-beta shared context | Yes, when explicitly enabled |
 
 ## Related pages
 

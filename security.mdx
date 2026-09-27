@@ -16,7 +16,7 @@ This page describes current security practices. It does not claim SOC 2, HIPAA, 
 - Backend-only secrets: tenant API keys must stay server-side.
 - Least privilege: dashboards and services should use the minimum access needed.
 - Auditability: important memory, source, conflict, grant, and correction actions are logged.
-- User control: Memory Passport users can review, revoke, correct, and delete supported memory records.
+- User control: in explicitly enabled Memory Passport private-beta deployments, users can review, revoke, correct, and delete supported memory records.
 - Provenance: source metadata helps explain where a memory came from and why it was trusted.
 
 ## Data Protection
@@ -29,7 +29,7 @@ Do not expose API keys in browser code, mobile apps, public repositories, screen
 
 ## Memory Governance
 
-MemoryOS includes controls for source provenance, service writer identity, conflict decisions, human review, user corrections, Memory Passport grants, revocation, weak-signal extraction buffers, and retrieval feedback.
+MemoryOS includes controls for source provenance, service writer identity, conflict decisions, human review, user corrections, weak-signal extraction buffers, and retrieval feedback. Memory Passport grants and revocation controls remain available only in explicitly enabled private-beta deployments.
 
 These controls reduce risk but do not remove the need for responsible application design.
 

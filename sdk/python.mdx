@@ -1,6 +1,6 @@
 ---
 title: "Python SDK"
-description: "Reference for the MemoryOS Python SDK, including tenant-scoped memory clients and the universal Memory Passport client."
+description: "Reference for the supported tenant-scoped MemoryOS Python clients."
 ---
 
 Install the Python SDK:
@@ -15,12 +15,16 @@ The client connects to `https://api.memoryo.dev` by default. Do not pass `base_u
 
 - Sync client: `Memory`
 - Async client: `AsyncMemory`
-- Universal cross-agent client: `UniversalMemory`
+- Private-beta cross-agent client: `UniversalMemory` (disabled by default)
 
 ```python
 from memoryos import AsyncMemory, Memory
 from memoryos.universal import UniversalMemory
 ```
+
+<Warning>
+`UniversalMemory` is retained for the frozen Memory Passport private beta. It will receive `404 memory_passport_not_available` unless MemoryOS explicitly enables the feature for your deployment. Use `Memory` or `AsyncMemory` for supported production integrations.
+</Warning>
 
 There is no separate SDK for domain schemas. If your tenant enables EdTech or Support, `add()` and `get()` remain the main integration path. Optional domain helper methods expose structured profile data for dashboards.
 
@@ -404,7 +408,7 @@ bundle = client.export(external_user_id="customer-123")
 
 ## UniversalMemory
 
-`UniversalMemory` is the cross-agent client for the Memory Passport flow. It uses:
+`UniversalMemory` is retained for explicitly enabled Memory Passport private-beta deployments. It uses:
 
 - an agent API key (`agent_sk_...`)
 - a user UUI token (`uui_...`) for the approved Memory Passport user

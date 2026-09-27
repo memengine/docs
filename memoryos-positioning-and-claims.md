@@ -1,5 +1,7 @@
 # MemoryOS Positioning and Claims
 
+> Product status: Memory Passport and Universal Memory are frozen in private beta and disabled by default. Public positioning should lead with the supported tenant-scoped governance path unless an approved design-partner context specifically requires the experimental cross-agent flow.
+
 Status: Approved messaging source of truth  
 Audience: Product, marketing, documentation, sales, demos, and launch reviewers  
 Scope: Current MemoryOS release; revise when product capabilities materially change

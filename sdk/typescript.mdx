@@ -1,6 +1,6 @@
 ---
 title: "TypeScript SDK"
-description: "Reference for the MemoryOS TypeScript SDK, including tenant-scoped memory and the universal Memory Passport client."
+description: "Reference for the supported tenant-scoped MemoryOS TypeScript client."
 ---
 
 Install the TypeScript SDK:
@@ -14,7 +14,7 @@ The client connects to `https://api.memoryo.dev` by default. Do not pass a base 
 ## Clients
 
 - Tenant-scoped client: `MemoryOS`
-- Universal cross-agent client: `UniversalMemoryOS`
+- Private-beta cross-agent client: `UniversalMemoryOS` (disabled by default)
 
 ```ts
 import { MemoryOS, UniversalMemoryOS } from "memoryo-sdk";
@@ -22,7 +22,11 @@ import { MemoryOS, UniversalMemoryOS } from "memoryo-sdk";
 const client = new MemoryOS(process.env.MEMORYOS_API_KEY!);
 ```
 
-Use `MemoryOS` for normal workspace memory inside your tenant. Use `UniversalMemoryOS` only after a user has granted your global agent access through Memory Passport.
+<Warning>
+`UniversalMemoryOS` is retained for the frozen Memory Passport private beta. It will receive `404 memory_passport_not_available` unless MemoryOS explicitly enables the feature for your deployment. Use `MemoryOS` for supported production integrations.
+</Warning>
+
+Use `MemoryOS` for normal workspace memory inside your tenant. Use `UniversalMemoryOS` only in an explicitly enabled private-beta deployment after a user grants your global agent access.
 
 ## Tenant-scoped memory
 
