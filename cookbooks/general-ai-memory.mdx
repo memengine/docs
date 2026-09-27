@@ -10,14 +10,14 @@ The General Engine stores facts, preferences, goals, procedures, relationships, 
 ## Flow
 
 ```text
-User message → mem.add() → mem.get() → LLM call with system_prompt_addition
+User message → retrieve governed context → customer LLM call → queue completed turn
 ```
 
 <CodeGroup>
 
 ```python Python
 import os
-from memoryos import Memory
+from memoryos import Memory, MemoryOSError
 from openai import OpenAI
 
 BASE_PROMPT = "You are a helpful product assistant."
@@ -26,17 +26,18 @@ def answer_user(external_user_id: str, user_message: str) -> str:
     memory = Memory(api_key=os.environ["MEMORYOS_API_KEY"])
     openai = OpenAI(api_key=os.environ["OPENAI_API_KEY"])
 
-    memory.add(
-        messages=[{"role": "user", "content": user_message}],
-        external_user_id=external_user_id,
-        metadata={"source": "chat"},
-    )
-
-    memories = memory.get(query=user_message, external_user_id=external_user_id, limit=5, context_max_tokens=500)
-
     system_prompt = BASE_PROMPT
-    if memories.has_context:
-        system_prompt = f"{BASE_PROMPT}\n\n{memories.system_prompt_addition}"
+    try:
+        memories = memory.get(
+            query=user_message,
+            external_user_id=external_user_id,
+            limit=5,
+            context_max_tokens=500,
+        )
+        if memories.has_context:
+            system_prompt = f"{BASE_PROMPT}\n\n{memories.system_prompt_addition}"
+    except MemoryOSError:
+        pass  # Log in server telemetry; continue the customer conversation.
 
     response = openai.responses.create(
         model="gpt-4.1-mini",
@@ -46,13 +47,25 @@ def answer_user(external_user_id: str, user_message: str) -> str:
         ],
     )
 
-    memory.close()
+    try:
+        memory.add(
+            messages=[
+                {"role": "user", "content": user_message},
+                {"role": "assistant", "content": response.output_text},
+            ],
+            external_user_id=external_user_id,
+            metadata={"source": "chat"},
+        )
+    except MemoryOSError:
+        pass  # The answer is already available; retry ingestion separately if desired.
+    finally:
+        memory.close()
     return response.output_text
 ```
 
 ```ts TypeScript
 import OpenAI from "openai";
-import { MemoryOS } from "memoryo-sdk";
+import { MemoryOS, MemoryOSError } from "memoryo-sdk";
 
 const BASE_PROMPT = "You are a helpful product assistant.";
 
@@ -60,13 +73,21 @@ export async function answerUser(externalUserId: string, userMessage: string): P
   const memory = new MemoryOS(process.env.MEMORYOS_API_KEY!);
   const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY! });
 
-  await memory.add([{ role: "user", content: userMessage }], externalUserId, undefined, { source: "chat" });
-
-  const memories = await memory.get({ query: userMessage, externalUserId, limit: 5, contextMaxTokens: 500 });
-
-  const systemPrompt = memories.hasContext
-    ? `${BASE_PROMPT}\n\n${memories.systemPromptAddition}`
-    : BASE_PROMPT;
+  let systemPrompt = BASE_PROMPT;
+  try {
+    const memories = await memory.get({
+      query: userMessage,
+      externalUserId,
+      limit: 5,
+      contextMaxTokens: 500,
+    });
+    if (memories.hasContext) {
+      systemPrompt = `${BASE_PROMPT}\n\n${memories.systemPromptAddition}`;
+    }
+  } catch (error) {
+    if (!(error instanceof MemoryOSError)) throw error;
+    // Log in server telemetry; continue the customer conversation.
+  }
 
   const response = await openai.responses.create({
     model: "gpt-4.1-mini",
@@ -75,6 +96,21 @@ export async function answerUser(externalUserId: string, userMessage: string): P
       { role: "user", content: userMessage },
     ],
   });
+
+  try {
+    await memory.add(
+      [
+        { role: "user", content: userMessage },
+        { role: "assistant", content: response.output_text },
+      ],
+      externalUserId,
+      undefined,
+      { source: "chat" },
+    );
+  } catch (error) {
+    if (!(error instanceof MemoryOSError)) throw error;
+    // The answer is already available; retry ingestion separately if desired.
+  }
 
   return response.output_text;
 }
@@ -99,7 +135,7 @@ For writes, check `status` before assuming a memory was stored:
 ```python
 result = memory.add(messages=messages, external_user_id=external_user_id)
 
-if result.was_stored:
+if result.was_queued:
     pass  # queued for extraction
 elif result.nothing_to_extract:
     pass  # valid conversation, nothing durable to store

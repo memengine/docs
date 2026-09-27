@@ -39,7 +39,7 @@ Current public and semi-public API surfaces emit the following codes.
 | `AUTH_001` | Unauthorized | Missing or invalid API key |
 | `AUTH_002` | Workspace not ready | Dashboard token is valid, but the selected workspace has not finished provisioning |
 | `AUTH_003` | Workspace required | Dashboard token is valid, but no workspace is active |
-| `AUTH_403` | Workspace auth required | Route expected workspace context but none was resolved |
+| `AUTH_403` | Request forbidden | Workspace context is missing, or the API key lacks the required `read`, `write`, `delete`, or `admin` permission |
 | `UAT_001` | Cross-agent auth failed | Missing or invalid `agent_sk_...` key or `uui_...` token |
 | `UAT_002` | Write not permitted | Agent grant is read-only and attempted a universal write |
 | `UUI_001` | Invalid UUI token | Missing, revoked, or unknown Memory Passport token |
@@ -49,6 +49,9 @@ Current public and semi-public API surfaces emit the following codes.
 | `REQ_422` | Validation error | Missing required fields, wrong types, or empty content |
 | `MEM_404` | Memory not found | Memory id does not exist or is out of scope |
 | `JOB_404` | Job not found | Extraction job id does not exist or is not visible to the tenant |
+| `CLR_400` | Clarification cannot use this path | Conflict is tenant-review scoped or the answer cannot be applied |
+| `CLR_404` | Clarification not found | Id, tenant, or external-user ownership did not match |
+| `CLR_409` | Clarification no longer answerable | Clarification expired or was already resolved |
 | `PRX_403` | Proxy user blocked | End user is blocked from new writes |
 | `PRX_404` | Proxy user not found | Tenant-scoped user does not exist |
 | `PRX_500` | Proxy user resolution failed | Proxy-user service unavailable or failed |

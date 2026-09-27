@@ -74,6 +74,7 @@ Content-Type: application/json
   "context_token_count": 18,
   "memories_from_hot_tier": 0,
   "clarification_question": null,
+  "clarification": null,
   "quota_mode": "FULL",
   "is_degraded": false,
   "is_passthrough": false,
@@ -95,11 +96,53 @@ Content-Type: application/json
 | `context_token_count` | `integer \| null` | Token count of the built context when available |
 | `memories_from_hot_tier` | `integer` | Number of returned memories served from Redis hot tier |
 | `clarification_question` | `string \| null` | Optional user-facing question for resolving a pending conflict |
+| `clarification` | `MemoryClarification \| null` | Structured id, question, expiry, and backend-approved answer options for the same clarification |
 | `quota_mode` | `"FULL" \| "PASSTHROUGH" \| "DEGRADED_RETRIEVE" \| "BLOCKED"` | Current quota behavior |
 | `is_degraded` | `boolean` | `true` when retrieval is degraded |
 | `is_passthrough` | `boolean` | `true` when memory context should be skipped |
 | `request_id` | `string` | Trace id |
 | `timestamp` | `datetime` | Response timestamp |
+
+## Resolve a clarification in your existing chat
+
+When `clarification` is present, show `clarification.question` in the same
+assistant conversation. Send the user's selected answer back to MemoryOS; do
+not build a separate MemoryOS clarification screen and do not let the model
+rewrite the option into an authority decision.
+
+```http
+POST /v1/memories/clarifications/{clarification_id}/answer
+Authorization: ApiKey mem_live_xxx
+Content-Type: application/json
+```
+
+```json
+{
+  "external_user_id": "customer-123",
+  "answer": "B",
+  "free_text": "The Scale plan is current."
+}
+```
+
+Allowed answers are `A`, `B`, `both`, and `neither`. MemoryOS verifies the
+authenticated tenant, resolves `external_user_id` inside that tenant, checks
+the clarification's owner, expiry and current status, locks the resolution
+records, and applies the governed conflict transition. A repeated or expired
+answer returns `409`; a clarification belonging to another user or tenant is
+returned as `404`.
+
+```json
+{
+  "data": {
+    "resolved": true,
+    "clarification_id": "f04669c2-99f9-49a3-83ab-ad37b05e67d5",
+    "conflict_id": "0c2d96aa-e5bb-4cbe-b750-23e8c06849ce",
+    "resolution": "B"
+  },
+  "request_id": "b0eb46a4-8794-44c8-b2a9-8f2dfbb4176c",
+  "timestamp": "2026-04-17T09:46:03Z"
+}
+```
 
 ### `MemorySearchResult`
 

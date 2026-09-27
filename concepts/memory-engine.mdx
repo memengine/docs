@@ -80,7 +80,7 @@ Resolution paths in full:
 | Keep both | Both still valid | Both kept with version history |
 | Cross-user recency | One claim is much newer | Older claim weighted down |
 | Cross-user confidence | One claim has much higher confidence | Lower-confidence claim weighted down |
-| User clarification | Personal conflict, only user can confirm | Question surfaced on next `get()` via `clarification_question` |
+| User clarification | Personal conflict, only user can confirm | Structured clarification surfaced on next `get()`; ask it in the customer's existing chat and return the selected answer to the clarification endpoint |
 | Tenant review | Workspace or institution truth | Tenant resolves in dashboard Conflicts page |
 
 ## Importance scoring

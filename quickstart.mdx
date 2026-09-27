@@ -135,6 +135,13 @@ with real provenance—not for ordinary model responses.
 
 Always call your model even when MemoryOS returns no context or reports passthrough mode.
 
+If retrieval returns `clarification`, ask `clarification.question` in this same
+chat. After the user chooses `A`, `B`, `both`, or `neither`, call
+`answer_clarification()` in Python or `answerClarification()` in TypeScript.
+MemoryOS verifies the tenant, user, expiry, and conflict transition on the
+backend; your model only presents the question and passes back the user's
+selection.
+
 ## Common first-run problems
 
 - **Unauthorized:** create a new key in the dashboard and confirm the environment variable is available to the backend process.

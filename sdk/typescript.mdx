@@ -168,7 +168,8 @@ must not be used to promote an ordinary chatbot answer into user memory.
 | `status` | `string` | `queued`, `passthrough`, `L1`, `L2`, `L3`, `L4`, or `blocked` |
 | `blockedReason` | `string \| null` | Reason when blocked |
 | `nothingToExtract` | `boolean` | Request passed the gate but had no durable memory |
-| `wasStored` | `boolean` | `true` when the request was queued for possible storage |
+| `wasQueued` | `boolean` | `true` when extraction was queued; this does not confirm storage |
+| `wasStored` | `boolean` | Deprecated compatibility alias for `wasQueued` |
 | `retryAfterSeconds` | `number \| null` | Retry hint for L1 blocks |
 | `budgetRemainingPct` | `number \| null` | Remaining tenant budget percentage |
 | `quotaMode` | `"FULL" \| "PASSTHROUGH" \| "DEGRADED_RETRIEVE" \| "BLOCKED"` | Quota mode from headers |
@@ -188,11 +189,13 @@ const job = await client.waitForJob(result.jobId!, {
 
 console.log(job.status);
 console.log(job.memoriesCreated);
+console.log(job.createdMemoryIds);
 console.log(job.pendingCandidatesBuffered);
 console.log(job.extractionMetadata);
 ```
 
 `pendingCandidatesBuffered > 0` means MemoryOS kept a weak signal for reinforcement instead of dropping it. Normal user-facing requests should queue `add()` without waiting.
+Use `createdMemoryIds` when you need the exact records created by this job.
 
 ### `get()`
 
@@ -250,9 +253,29 @@ const result = await client.get({
 | `isDegraded` | `boolean` | Retrieval is degraded when `true` |
 | `circuitStatus` | `"HEALTHY" \| "DEGRADED" \| "CRITICAL"` | Platform dependency status |
 | `clarificationQuestion` | `string \| null` | User clarification required by an unresolved personal conflict |
+| `clarification` | `MemoryClarification \| null` | Structured clarification id, options, conflict id, and expiry |
 | `hasContext` | `boolean` | `true` when `systemPromptAddition` is safe to use |
 
 Each `MemoryItem` also includes `sourceEventId` and `provenance` when available.
+
+### Resolve a clarification in the same chat
+
+```ts
+if (result.clarification) {
+  // Render result.clarification.question in your existing chat and map the
+  // user's selection to one of: A, B, both, neither.
+  const resolution = await client.answerClarification({
+    clarificationId: result.clarification.id,
+    externalUserId: "customer-123",
+    answer: "B",
+    freeText: "The Scale plan is current.",
+  });
+}
+```
+
+The backend verifies tenant and user ownership, expiry, conflict state, and the
+allowed transition. The model may present the question, but it must not invent
+the resolution or decide authority.
 
 ### `feedback()`
 

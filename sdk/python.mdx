@@ -168,7 +168,7 @@ must not be used to promote an ordinary chatbot answer into user memory.
 
 | Parameter | Type | Required | Notes |
 | --- | --- | --- | --- |
-| `messages` | `list[dict[str, str]] \| list[ConversationMessage]` | Yes | 1-64 messages; roles are `user`, `assistant`, or `system`; each content value is at most 16,000 characters |
+| `messages` | `list[ConversationMessage \| dict[str, Any]]` | Yes | 1-64 messages; roles are `user`, `assistant`, or `system`; each content value is at most 16,000 characters |
 | `external_user_id` | `str` | Yes | End-user identifier inside your tenant |
 | `agent_id` | `str \| None` | No | Optional agent identifier |
 | `metadata` | `dict[str, Any] \| None` | No | Optional metadata attached to the ingestion job |
@@ -187,6 +187,8 @@ must not be used to promote an ordinary chatbot answer into user memory.
 | `retry_after_seconds` | `int \| None` | Retry hint for rate-limit blocks |
 | `budget_remaining_pct` | `float \| None` | Remaining quota estimate |
 | `proposal_ids` | `list[str]` | Explicit assistant proposal records registered by this request |
+| `was_queued` | `bool` | `True` when extraction was queued; this does not confirm storage |
+| `was_stored` | `bool` | Deprecated compatibility alias for `was_queued` |
 | `quota_mode` | `str` | Current quota mode |
 | `processing_eta_seconds` | `int \| None` | Queue ETA when ingestion is delayed |
 | `processing_status` | `str` | Background ingestion health |
@@ -201,11 +203,13 @@ job = client.wait_for_job(result.job_id, timeout=120, poll_interval=1)
 
 print(job.status)
 print(job.memories_created)
+print(job.created_memory_ids)
 print(job.pending_candidates_buffered)
 print(job.extraction_metadata)
 ```
 
 `pending_candidates_buffered > 0` means MemoryOS kept a weak signal for reinforcement instead of dropping it. Normal user-facing requests should queue `add()` without waiting.
+Use `created_memory_ids` when you need the exact records created by this job.
 
 ### `get()`
 
@@ -250,6 +254,25 @@ prompt_addition = result.system_prompt_addition if result.has_context else ""
 | `is_degraded` | `bool` | `True` when retrieval is degraded |
 | `circuit_status` | `str` | Platform dependency status |
 | `clarification_question` | `str \| None` | User clarification required by an unresolved personal conflict |
+| `clarification` | `MemoryClarification \| None` | Structured clarification id, options, conflict id, and expiry |
+
+### Resolve a clarification in the same chat
+
+```python
+if result.clarification:
+    # Render result.clarification.question in your existing chat and map the
+    # user's selection to one of: A, B, both, neither.
+    resolution = client.answer_clarification(
+        result.clarification.id,
+        external_user_id="customer-123",
+        answer="B",
+        free_text="The Scale plan is current.",
+    )
+```
+
+The backend verifies tenant and user ownership, expiry, conflict state, and the
+allowed transition. The model may present the question, but it must not invent
+the resolution or decide authority.
 
 ### `feedback()`
 

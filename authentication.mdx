@@ -78,6 +78,13 @@ Human users manage their Memory Passport through the consent app using email + O
 | `delete` | Delete memories or run GDPR cleanup |
 | `admin` | Broad operational control |
 
+Permissions are enforced by the API on every tenant API-key request. `admin`
+includes all permissions. New keys default to `read` + `write`; create a
+separate key with `delete` or `admin` only for the backend process that needs
+those operations. The key's configured `rate_limit_per_minute` is also enforced
+per key. Do not rely on the label alone as documentation—the stored permission
+list is the authorization boundary.
+
 ## Security checklist
 
 - Load keys from environment variables

@@ -27,15 +27,26 @@ MemoryOS exposes its current operating mode on every response so your app keeps 
 ## Handling passthrough
 
 ```python
-result = client.get(
-    query=user_message,
-    external_user_id="customer-123",
-)
+from memoryos import MemoryOSError
 
-prompt_addition = "" if result.is_passthrough else result.system_prompt_addition
+try:
+    result = client.get(
+        query=user_message,
+        external_user_id="customer-123",
+    )
+    prompt_addition = result.system_prompt_addition if result.has_context else ""
+except MemoryOSError:
+    # Record the failure in your server telemetry, then continue without memory.
+    prompt_addition = ""
+
+# Always call your model with the user's message.
 ```
 
-The rule is simple: **always make the LLM call**. Only skip MemoryOS context when passthrough is active.
+The rule is simple: **always make the model call**. Skip MemoryOS context when
+passthrough is active, retrieval is empty, or the memory request fails. Do not
+swallow authentication and configuration failures during startup checks; the
+runtime fallback is for keeping an already-running customer conversation
+available.
 
 ## Webhooks
 

@@ -192,6 +192,7 @@ Example response:
     "job_id": "72a20629-a76d-4a18-ab36-1c2778ba21d0",
     "status": "completed",
     "memories_created": 0,
+    "created_memory_ids": [],
     "pending_candidates_buffered": 1,
     "pending_candidates_promoted": 0,
     "attempts": 2,
@@ -214,10 +215,15 @@ Example response:
 | Field | Meaning |
 | --- | --- |
 | `memories_created` | Permanent memories created |
+| `created_memory_ids` | Exact ids of permanent memories created by this job |
 | `pending_candidates_buffered` | Weak signals buffered instead of stored |
 | `pending_candidates_promoted` | Weak signals promoted to memory |
 | `attempts` | Number of processing attempts, including provider retries |
-| `extraction_metadata` | Two-pass compositional extraction details |
+| `extraction_metadata` | Extraction diagnostics; do not use these internals as an authorization decision |
+
+`created_memory_ids` is the reliable way to inspect or explain the records
+created by this write. Do not search recent memory history to guess which
+records came from the job.
 
 ## Working PowerShell polling example
 

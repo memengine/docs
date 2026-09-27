@@ -14,6 +14,18 @@ Enforced per `external_user_id`, not across your whole tenant.
 | Growth | 30 |
 | Enterprise | Unlimited |
 
+## Per-key request limit
+
+Each tenant API key also has its own `rate_limit_per_minute` setting. This is
+enforced across tenant memory, user, agent, API-key, and tenant routes and is
+independent of the per-user and plan limits. A `429` caused by this boundary
+returns `details.scope: "api_key"`; the shared tenant write ceiling returns
+`details.scope: "tenant"`.
+
+Use separate keys per backend service so one integration cannot consume every
+other service's key-level capacity. Redis failure leaves requests available;
+quota, identity, and database authorization checks still run normally.
+
 ## Plan limits
 
 | Plan | Monthly calls | Monthly tokens | Write calls | Retrieval |
