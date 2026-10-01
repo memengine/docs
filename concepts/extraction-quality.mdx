@@ -1,16 +1,17 @@
 ---
 title: "Extraction Quality Loop"
-description: "How MemoryOS decides whether a conversation becomes memory, a weak signal, or nothing at all."
+description: "How MemoryOS checks source evidence, currentness, and unresolved changes before context becomes active memory."
 ---
 
 MemoryOS does not store every sentence it receives. Each `add()` call goes through a quality loop so the memory store stays useful at scale.
 
-The loop has four outcomes:
+The loop can produce these outcomes:
 
 | Outcome | What happens | Typical example |
 | --- | --- | --- |
-| Stored memory | A durable fact, preference, goal, procedure, relationship, or expertise signal is saved | "I prefer Python examples." |
-| Weak signal | A borderline signal is buffered, not shown in normal retrieval yet | "Maybe I prefer shorter replies, not sure yet." |
+| Active memory | A durable claim passes the applicable evidence, authority, and currentness checks | "I prefer Python examples." |
+| Pending candidate | A borderline signal or unresolved source decision is buffered, not shown in normal retrieval | "I have not decided whether Python should replace C++." |
+| Clarification | A grounded alternative is kept inactive while the existing memory remains current; retrieval can return a question for the same chat | Two competing defaults that need the user's choice |
 | Nothing to extract | The conversation is valid but has no durable memory | greetings, acknowledgements, temporary debugging flow |
 | Blocked by quality gate | The request is stopped before extraction | rate limited, duplicate, low quality, over budget |
 
@@ -30,13 +31,36 @@ This is session state, not long-term memory. MemoryOS filters it even if an LLM 
 
 Borderline memories are held as candidates instead of being dropped or stored immediately.
 
-| Confidence band | Behavior |
+| Confidence band | Initial extraction routing |
 | --- | --- |
-| Strong | Store as memory |
+| Strong | Candidate for storage, still subject to evidence and governance checks |
 | Borderline | Buffer as weak signal |
 | Very weak | Drop |
 
-A weak signal can be promoted later when the same signal appears again or retrieval feedback confirms it was useful.
+Confidence alone does not authorize a claim to become current. Evidence that a
+phrase appeared in a user turn does not establish that the user committed to
+it; qualifiers in the full verified turn still matter.
+
+## Uncertain changes and conflicting decisions
+
+For example:
+
+```text
+My default language for every programming example is Python. This conflicts
+with my earlier C++ default, and I have not decided which should remain current.
+```
+
+When extraction marks a verified-source candidate as an uncertain change, a
+later classifier cannot activate it by calling it committed. MemoryOS preserves
+the current memory. A valid grounded clarification can expose an inactive
+alternative for authenticated selection in the customer's existing chat. If
+the target or grounded option is unavailable, the candidate stays pending;
+MemoryOS does not invent an option or silently replace the current value.
+
+These safeguards do not guarantee that every natural-language uncertainty is
+recognized. A buffered candidate also does not guarantee that retrieval will
+return a clarification. Check the actual `clarification` response before asking
+the user to choose.
 
 Example weak signal:
 
@@ -44,7 +68,7 @@ Example weak signal:
 Maybe I prefer shorter replies for difficult technical topics, but I am not completely sure yet.
 ```
 
-Expected job result:
+An example buffered job result:
 
 ```json
 {
@@ -173,11 +197,17 @@ Relevant fields:
 
 | Field | Meaning |
 | --- | --- |
-| `memories_created` | Permanent memories created by the job |
-| `pending_candidates_buffered` | Weak signals buffered for reinforcement |
+| `memories_created` | Stored records created by the job; a clarification option may still be inactive |
+| `created_memory_ids` | Exact stored record IDs from the job, not proof that each is active |
+| `pending_candidates_buffered` | Candidates withheld from active storage, including weak signals and unresolved source decisions |
 | `pending_candidates_promoted` | Weak signals promoted to memory |
 | `attempts` | Processing attempts, including provider retries |
-| `extraction_metadata` | Compositional extraction details |
+| `extraction_metadata` | Processing diagnostics, including extraction and source-decision counts; not an authorization decision |
+
+A completed job means processing finished, not that every candidate became
+active memory. Background ingestion need not block the customer's chat reply.
+If you need to verify a write, poll its job using a bounded interval and honor
+rate limits; then retrieve current context and any available clarification.
 
 PowerShell example:
 

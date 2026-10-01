@@ -214,9 +214,9 @@ Example response:
 
 | Field | Meaning |
 | --- | --- |
-| `memories_created` | Permanent memories created |
-| `created_memory_ids` | Exact ids of permanent memories created by this job |
-| `pending_candidates_buffered` | Weak signals buffered instead of stored |
+| `memories_created` | Stored records created; clarification alternatives may remain inactive |
+| `created_memory_ids` | Exact IDs of stored records created by this job, not proof that each is active |
+| `pending_candidates_buffered` | Candidates withheld from active storage, including weak signals and unresolved source decisions |
 | `pending_candidates_promoted` | Weak signals promoted to memory |
 | `attempts` | Number of processing attempts, including provider retries |
 | `extraction_metadata` | Extraction diagnostics; do not use these internals as an authorization decision |
@@ -224,6 +224,12 @@ Example response:
 `created_memory_ids` is the reliable way to inspect or explain the records
 created by this write. Do not search recent memory history to guess which
 records came from the job.
+
+A completed job is not a guarantee of active storage. For a verified-source
+candidate marked as an uncertain change, a contradictory classifier decision
+cannot make it current. The existing memory is preserved; without a valid
+grounded clarification option, the change stays pending. Use the retrieve
+response to check current context and whether `clarification` is available.
 
 ## Explicitly request a memory clarification
 
@@ -241,6 +247,14 @@ queues anything. Tool output, assistant text, invented IDs, and records owned
 by another user or tenant cannot create a clarification.
 
 See [Resolve a clarification in your existing chat](/api-reference/retrieve#resolve-a-clarification-in-your-existing-chat).
+
+Clarification can also arise from a new competing value, not only two records
+that already exist. In that path, MemoryOS may create an inactive alternative,
+so `memories_created` can be nonzero even before the user selects it. The
+backend validates the alternative against verified user-source text. Repeated
+mentions of its exact value do not invalidate the option: MemoryOS records a
+deterministic source occurrence and its digests. This establishes attribution,
+not commitment or authority. The general extraction quote checks remain strict.
 
 ## Working PowerShell polling example
 

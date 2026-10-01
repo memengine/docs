@@ -10,6 +10,8 @@ Memories in MemoryOS are living data. A signal can start as a weak candidate, be
 | State | Meaning | Returned by normal retrieval? |
 | --- | --- | --- |
 | Weak candidate | Borderline signal waiting for repeated evidence or feedback | No |
+| Pending source decision | Verified-source candidate whose commitment or relation could not safely be resolved | No |
+| Clarification option | Stored alternative awaiting authenticated user selection | No, until selected |
 | Active memory | Durable memory available for retrieval | Yes |
 | Hot memory | Frequently accessed memory cached for faster retrieval | Yes |
 | Archived memory | Kept for audit/export, removed from normal search | No |
@@ -21,11 +23,18 @@ Memories in MemoryOS are living data. A signal can start as a weak candidate, be
 
 | Result | Meaning |
 | --- | --- |
-| `memories_created > 0` | One or more durable memories were stored |
-| `pending_candidates_buffered > 0` | Weak signals were buffered instead of stored |
-| `nothing_to_extract = true` or zero created | No durable memory was found |
+| `memories_created > 0` | Stored records were created; clarification alternatives may remain inactive |
+| `pending_candidates_buffered > 0` | Candidates, including weak signals or unresolved source decisions, were withheld from active storage |
+| `nothing_to_extract = true` | Extraction found no durable candidate |
+| Zero created | No new record was stored; inspect pending counts and retrieval before assuming nothing was extracted |
 
 Weak candidates protect the system from storing uncertain one-off statements as permanent memory.
+
+An uncertain change does not supersede the current memory merely because a
+later classifier calls it committed. A valid grounded clarification can ask
+the user to choose in the existing chat; otherwise the change remains pending.
+Repeated observations or high confidence alone are not permission to bypass
+this governance decision.
 
 ## Reinforcement
 
