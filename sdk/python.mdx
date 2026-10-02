@@ -3,11 +3,13 @@ title: "Python SDK"
 description: "Reference for the supported tenant-scoped MemoryOS Python clients."
 ---
 
-Install the Python SDK:
-
-```bash
-pip install memoryo-sdk
-```
+<Warning>
+`memoryo-sdk` is not currently available on the main PyPI registry (checked
+2026-10-02). This page describes the Python SDK source contract, not a published
+installable release. Until the package is published, use the
+[authenticated HTTP API](/api-reference/add) for hosted integrations. A TestPyPI
+upload does not make `pip install memoryo-sdk` available on main PyPI.
+</Warning>
 
 The client connects to `https://api.memoryo.dev` by default. Do not pass `base_url` for the hosted service.
 
@@ -261,6 +263,14 @@ prompt_addition = result.system_prompt_addition if result.has_context else ""
 | `clarification` | `MemoryClarification \| None` | Structured clarification id, options, conflict id, and expiry |
 
 ### Resolve a clarification in the same chat
+
+<Note>
+The hosted API also returns non-activating `source_reviews` when recognized
+uncertainty has no usable alternative. Python support for `source_reviews` and
+`answer_source_review()` is not yet published. Until the SDK release includes
+them, use the [authenticated HTTP review contract](/api-reference/retrieve#review-an-uncertain-source-statement-in-your-existing-chat).
+This does not change the existing clarification methods below.
+</Note>
 
 ```python
 if result.clarification:

@@ -9,6 +9,13 @@ Install the TypeScript SDK:
 npm install memoryo-sdk
 ```
 
+<Note>
+The npm registry currently serves `0.1.0` (checked 2026-10-02); repository version
+`0.1.1` is not yet published. Methods added after that release are not guaranteed
+to exist in the installed package. Use their authenticated HTTP endpoints until
+an SDK release explicitly includes them.
+</Note>
+
 The client connects to `https://api.memoryo.dev` by default. Do not pass a base URL for the hosted service.
 
 ## Clients
@@ -263,6 +270,14 @@ const result = await client.get({
 Each `MemoryItem` also includes `sourceEventId` and `provenance` when available.
 
 ### Resolve a clarification in the same chat
+
+<Note>
+The hosted API also returns non-activating `source_reviews` when recognized
+uncertainty has no usable alternative. TypeScript support for `sourceReviews`
+and `answerSourceReview()` is not yet published. Until the SDK release includes
+them, use the [authenticated HTTP review contract](/api-reference/retrieve#review-an-uncertain-source-statement-in-your-existing-chat).
+This does not change the existing clarification methods below.
+</Note>
 
 ```ts
 if (result.clarification) {

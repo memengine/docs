@@ -75,6 +75,7 @@ Content-Type: application/json
   "memories_from_hot_tier": 0,
   "clarification_question": null,
   "clarification": null,
+  "source_reviews": [],
   "quota_mode": "FULL",
   "is_degraded": false,
   "is_passthrough": false,
@@ -97,6 +98,7 @@ Content-Type: application/json
 | `memories_from_hot_tier` | `integer` | Number of returned memories served from Redis hot tier |
 | `clarification_question` | `string \| null` | Optional user-facing question for resolving a pending conflict |
 | `clarification` | `MemoryClarification \| null` | Structured id, question, expiry, and backend-approved answer options for the same clarification |
+| `source_reviews` | `MemorySourceReview[]` | Up to three recent non-activating reviews; defaults to `[]` and is empty for historical `as_of` requests |
 | `quota_mode` | `"FULL" \| "PASSTHROUGH" \| "DEGRADED_RETRIEVE" \| "BLOCKED"` | Current quota behavior |
 | `is_degraded` | `boolean` | `true` when retrieval is degraded |
 | `is_passthrough` | `boolean` | `true` when memory context should be skipped |
@@ -143,6 +145,66 @@ returned as `404`.
   "timestamp": "2026-04-17T09:46:03Z"
 }
 ```
+
+## Review an uncertain source statement in your existing chat
+
+When MemoryOS recognizes uncertainty but cannot form a usable alternative,
+`source_reviews` may contain a `restate_source` review. This is separate from
+the existing two-memory `clarification`. A review is not an active memory and
+does not certify that the model interpreted the statement correctly.
+
+Each review contains `id`, an opaque `version`, `kind`, `question`, `actions`,
+and `expires_at`. A target-bound review also includes `target_memory_id` and
+`current_memory_content`: a stored-content preview capped at 1,000 characters,
+not a grant of user-confirmed authority. Unbound reviews have null target fields.
+
+Present the question and allowed actions in your customer's existing chat.
+Use the actual user's selection, not a model-generated choice:
+
+```http
+POST /v1/memories/source-reviews/{review_id}/answer
+Authorization: ApiKey mem_live_xxx
+Content-Type: application/json
+```
+
+```json
+{
+  "external_user_id": "customer-123",
+  "version": "<opaque version returned with the review>",
+  "action": "restate"
+}
+```
+
+- `keep_current`: available only for a still-valid target. Close the pending
+  interpretation without changing the stored memory or increasing its authority.
+- `dismiss`: close the pending interpretation without changing any memory.
+- `restate`: return `resolved: false` and `next_step: "add_memory"`; leave the
+  review pending. Ask for the user's actual current statement, then submit it
+  through normal `POST /v1/memories/add` ingestion. Do not submit a model
+  paraphrase as direct user evidence or report successful storage at this step.
+
+The response uses the standard `data`, `request_id`, `timestamp` envelope. Its
+`data` contains `review_id`, `resolved`, `action`, and `next_step` (`null` when
+closed). Normal API-key write permission is required. MemoryOS verifies ownership,
+the version, expiry and current target state under database locks. Unknown or
+foreign reviews return `404`; changed, expired or closed reviews return `409`;
+an action unavailable on that review returns `422`.
+
+<Warning>
+This API is deployed. The new Python `source_reviews` / `answer_source_review()`
+and TypeScript `sourceReviews` / `answerSourceReview()` support is not yet
+published in SDK releases. Use the authenticated HTTP contract until a release
+explicitly includes these methods; older SDKs may omit the new response field.
+</Warning>
+
+Reviews remain pending across reads and expire seven days after the server's
+last observation. This is a bounded recent view, not a paginated review inbox:
+stale rows are conditionally expired and older reviews may appear on subsequent
+reads. It does not guarantee every uncertain statement produces a review.
+Existing context remains the last admitted memory state; pending-property
+suppression and immediate read-your-writes while ingestion is queued are not
+provided by this fallback. Restatement ingestion is not atomically linked to
+closing the old review. No load-tested latency guarantee is implied.
 
 ### `MemorySearchResult`
 
