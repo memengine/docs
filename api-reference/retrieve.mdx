@@ -191,10 +191,11 @@ foreign reviews return `404`; changed, expired or closed reviews return `409`;
 an action unavailable on that review returns `422`.
 
 <Warning>
-This API is deployed. The new Python `source_reviews` / `answer_source_review()`
-and TypeScript `sourceReviews` / `answerSourceReview()` support is not yet
-published in SDK releases. Use the authenticated HTTP contract until a release
-explicitly includes these methods; older SDKs may omit the new response field.
+This API is deployed. Python `source_reviews` / `answer_source_review()` support
+is published in `memoryo-sdk>=0.1.1` on main PyPI. TypeScript `sourceReviews` /
+`answerSourceReview()` support is not yet published on npm; use the authenticated
+HTTP contract until a release explicitly includes these methods. Older SDKs
+may omit the new response field.
 </Warning>
 
 Reviews remain pending across reads and expire seven days after the server's

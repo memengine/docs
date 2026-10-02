@@ -3,13 +3,14 @@ title: "Python SDK"
 description: "Reference for the supported tenant-scoped MemoryOS Python clients."
 ---
 
-<Warning>
-`memoryo-sdk` is not currently available on the main PyPI registry (checked
-2026-10-02). This page describes the Python SDK source contract, not a published
-installable release. Until the package is published, use the
-[authenticated HTTP API](/api-reference/add) for hosted integrations. A TestPyPI
-upload does not make `pip install memoryo-sdk` available on main PyPI.
-</Warning>
+Install or upgrade the Python SDK from main PyPI:
+
+```bash
+pip install --upgrade "memoryo-sdk>=0.1.1"
+```
+
+Version `0.1.1` includes the source-review methods below. Installation and the
+sync/async method exports were verified against main PyPI on 2026-10-02.
 
 The client connects to `https://api.memoryo.dev` by default. Do not pass `base_url` for the hosted service.
 
@@ -261,16 +262,9 @@ prompt_addition = result.system_prompt_addition if result.has_context else ""
 | `circuit_status` | `str` | Platform dependency status |
 | `clarification_question` | `str \| None` | User clarification required by an unresolved personal conflict |
 | `clarification` | `MemoryClarification \| None` | Structured clarification id, options, conflict id, and expiry |
+| `source_reviews` | `list[MemorySourceReview]` | Non-activating source reviews; available since `0.1.1`, defaults to `[]` |
 
 ### Resolve a clarification in the same chat
-
-<Note>
-The hosted API also returns non-activating `source_reviews` when recognized
-uncertainty has no usable alternative. Python support for `source_reviews` and
-`answer_source_review()` is not yet published. Until the SDK release includes
-them, use the [authenticated HTTP review contract](/api-reference/retrieve#review-an-uncertain-source-statement-in-your-existing-chat).
-This does not change the existing clarification methods below.
-</Note>
 
 ```python
 if result.clarification:
@@ -287,6 +281,36 @@ if result.clarification:
 The backend verifies tenant and user ownership, expiry, conflict state, and the
 allowed transition. The model may present the question, but it must not invent
 the resolution or decide authority.
+
+### Respond to a source review (since `0.1.1`)
+
+When recognized uncertainty has no usable alternative, `result.source_reviews`
+may include a non-activating review. Present its `question` and `actions` in
+your existing chat, then submit the actual user's selection:
+
+```python
+if result.source_reviews:
+    review = result.source_reviews[0]
+    # user_action is the user's selection from review.actions in your chat.
+    resolution = client.answer_source_review(
+        review.id,
+        external_user_id="customer-123",
+        version=review.version,
+        action=user_action,
+    )
+```
+
+The same method is available with `await` on `AsyncMemory`. `keep_current`
+and `dismiss` close the pending interpretation without changing stored memory
+or increasing authority. `restate` returns `resolved=False` and
+`next_step="add_memory"` while leaving the review pending: obtain the user's
+actual new statement and submit it through normal `add()` ingestion. Do not
+report completed storage or submit a model paraphrase as direct user evidence.
+
+See the [HTTP review contract](/api-reference/retrieve#review-an-uncertain-source-statement-in-your-existing-chat)
+for ownership checks, version conflicts, expiry and bounded-view limitations.
+This fallback does not guarantee semantic accuracy or automatic suppression
+of all pending-property context.
 
 ### `feedback()`
 
