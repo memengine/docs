@@ -1,0 +1,56 @@
+---
+title: "Conflict handling"
+description: "How MemoryOS handles contradictions, conflicting facts, overwrites and superseding updates through governed transitions and review."
+---
+
+When two statements disagree, MemoryOS does not treat the latest sentence as permission to overwrite the current memory. The outcome depends on the evidence origin, configured authority, scope, temporal validity and the supported operation. A candidate can update current state, coexist, be rejected or remain pending for review.
+
+Natural-language extraction and relation matching can involve models. These controls do not guarantee that every contradiction is detected or that every paraphrase is mapped to the correct fact. Inspect the original job and subsequent current retrieval rather than assuming a successful submission resolved the conflict.
+
+## Contradictions, conflicting facts and scope
+
+First decide whether the statements refer to the same identity and applicability. Different project preferences can both be valid; they should not be forced into one conflicting value merely because their wording is similar. For deterministic project selection, the application supplies [explicit preference scope](/guides/scoped-preferences). Project names in prose and arbitrary metadata do not establish that contract or grant access.
+
+For registered service evidence, configure [writer authority and provenance](/concepts/provenance). A newer low-authority observation is not automatically entitled to replace stronger evidence. Model confidence does not grant authority.
+
+## Which resolution path applies?
+
+These are separate contracts, not interchangeable ways to force a pending value into storage. Use the response and eligible workflow for that candidate.
+
+| Situation | Supported path | What the application does |
+| --- | --- | --- |
+| A valid supported update passes evidence, authority, scope and current-state checks | Governed automatic transition | Inspect the original job, then verify the selected current record and lineage |
+| Backend returns an A/B `clarification` | [Clarification answer](/api-reference/clarifications) | Show the offered options and submit the actual user's selection |
+| Backend returns a versioned `source_reviews` card | [Source review](/api-reference/source-reviews) | Offer `keep_current`, `dismiss` or `restate` only as supplied on that card |
+| An eligible registered-service candidate needs an operator decision | [Service correction](/api-reference/service-corrections) | An authorized operator previews the explicit target, then applies or declines with the returned bindings |
+| The application knows the intended scoped preference replacement | [Explicit replacement](/guides/scoped-preferences#intentional-replacement) | Supply the same property/applicability and the current target ID/version |
+| Evidence is insufficient or no supported resolution is exposed | Pending/withheld or rejected outcome | Inspect the job/read status; do not invent a choice, target, authority or successful update |
+
+A duplicate, stale write or refused replacement is not evidence that a new current memory was created. Two valid statements can also coexist when they concern different scopes or compatible facts. Do not select a review endpoint solely because it has a convenient action name.
+
+## Overwrite versus supersede
+
+A supported correction can **supersede** an earlier record while preserving lineage/history under the applicable retention policy. "Overwrite" should not mean erasing provenance or treating every newer claim as true. Use [current retrieval](/api-reference/retrieve) for answers and [version history](/api-reference/history) for inspection; historical records can contain superseded facts.
+
+An explicit replacement is bound to a target and opaque version. If another update has already superseded that target, do not silently rebind the stale request to its successor. Fetch the current state and obtain the appropriate new intent/binding before a new operation. Retrying with the same key is not a mechanism for changing its payload or target.
+
+## What the review actions actually mean
+
+- **Keep current:** close an eligible pending interpretation without activating its pending text; it does not grant extra authority.
+- **Dismiss:** close the pending interpretation without storing it as current memory.
+- **Restate:** request a new user statement/save; `resolved: false` and `next_step: "add_memory"` are not a completed correction.
+- **Operator apply/decline:** a separate administrator workflow for eligible service-event candidates, using a preview and current-state bindings.
+
+Typed preference review can expose its own actions and endpoint; it is distinct from a source-review card. The existence of a pending candidate does not guarantee that every review path is available for it.
+
+## Can the agent answer while a conflict is pending?
+
+Check [visibility and fallback](/concepts/degradation) before a dependent model call. `memory_visibility`, `preference_scope_request` and unresolved `preference_decisions` require their respective handling. Stored previous content is not permission to bypass a hold with an old client copy.
+
+Safe review cards can remain visible separately while affected facts are withheld. Card previews and pending candidate text are decision UI, not accepted prompt facts. For legacy source events, withholding can be broader by category/scope; typed preference reads use their declared identity. Do not assume all paths provide field-level isolation.
+
+After a real decision or replacement, retrieve again to verify the actual current result. `queued`, a completed job, a review submission or pending vector publication alone does not establish restored recall. See [chat lifecycle](/guides/chat-lifecycle) for correction ordering and processing-state responses.
+
+## Trace a decision
+
+Keep the original job ID, returned memory/source IDs and available provenance. Use [job status](/api-reference/jobs) to distinguish created records, buffered candidates and processing errors. Keep current-read evidence separate from historical inspection, and use [errors](/api-reference/errors) to handle stale versions or refused operations without removing their safeguards.

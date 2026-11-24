@@ -117,6 +117,7 @@
             "group": "Core Memory",
             "pages": [
               "concepts/general-engine",
+              "concepts/conflict-handling",
               "concepts/memory-lifecycle",
               "concepts/provenance",
               "guides/scoped-preferences"
