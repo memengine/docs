@@ -1,0 +1,54 @@
+---
+title: "User data export and deletion"
+description: "Tenant-scoped export and deletion contracts for application-owned users."
+---
+
+These management routes operate on an `external_user_id` inside the authenticated tenant. Authorize the request in your own application first; do not expose a tenant credential or arbitrary owner selection to browser clients. URL-encode the owner ID when constructing paths.
+
+## Export memory data
+
+```http
+GET /v1/users/{external_user_id}/export
+Authorization: ApiKey <tenant admin key>
+```
+
+The tenant-key path requires **admin** permission. No request body is required.
+
+```bash
+curl "$MEMORYOS_API_URL/v1/users/$ENCODED_OWNER/export" \
+  -H "Authorization: ApiKey $MEMORYOS_ADMIN_API_KEY" \
+  -o memory-export.json
+```
+
+The JSON envelope contains `data`, `request_id` and `timestamp`. Its `data` contains:
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `tenant_id` | string | Tenant identifier |
+| `proxy_user_id` | string | Internal owner identifier |
+| `memories` | array | Stored memories, including archived records, with their `versions` arrays |
+
+Each memory includes `id`, `content`, `category`, `importance_score`, `confidence`, `is_archived`, `created_at`, `updated_at` and `versions`. Each version includes `id`, `memory_id`, `version_number`, `content`, `category`, `importance_score`, `confidence`, `change_type`, `change_reason`, `changed_by` and `created_at`.
+
+This is a memory/history export, not a promise that every internal table, raw conversation, external agent copy or backup is included. Keep exports private.
+
+Unknown owners return `404 PRX_404`. The per-owner export control allows one request per 24-hour rate window; an exceeded limit returns `429 EXP_429` with `details.retry_after_seconds`. Other key/tenant limits may also apply. Do not continuously retry exports.
+
+## Delete the owner's memory data
+
+```http
+DELETE /v1/users/{external_user_id}
+Authorization: ApiKey <tenant key with delete permission>
+```
+
+This is a destructive operation. Use a separate authorized cleanup workflow and confirm the intended owner. No request body is required.
+
+```bash
+# Destructive: run only for the intentionally selected owner.
+curl -X DELETE "$MEMORYOS_API_URL/v1/users/$ENCODED_OWNER" \
+  -H "Authorization: ApiKey $MEMORYOS_DELETE_API_KEY"
+```
+
+The response `data` contains `deleted` (boolean) and `memories_removed` (integer), plus the standard `request_id` and `timestamp`. Receipt/job deletion ends the corresponding replay protection; it is not a permanent duplicate-prevention promise. Deletion does not recall copies already stored by client applications.
+
+This page describes the API operation, not a legal-compliance certification or a verified backup-erasure guarantee. Check [authentication](/authentication), [history](/api-reference/history) and your own retention/export policies.

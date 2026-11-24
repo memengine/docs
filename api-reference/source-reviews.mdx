@@ -1,0 +1,79 @@
+---
+title: "Answer a source review"
+description: "Use the ID and opaque version from a user-facing source-review card."
+---
+
+When MemoryOS recognizes uncertainty but cannot form a usable alternative,
+`source_reviews` may contain a `restate_source` review. This is separate from
+the existing two-memory `clarification`. A review is not an active memory and
+does not certify that the model interpreted the statement correctly.
+
+Each review contains `id`, an opaque `version`, `kind`, `question`, `actions`,
+and `expires_at`. A target-bound review also includes `target_memory_id` and
+`current_memory_content`: a stored-content preview capped at 1,000 characters,
+not a grant of user-confirmed authority. Unbound reviews have null target fields.
+
+Present the question and allowed actions in your customer's existing chat.
+Use the actual user's selection, not a model-generated choice:
+
+```http
+POST /v1/memories/source-reviews/{review_id}/answer
+Authorization: ApiKey mem_live_xxx
+Content-Type: application/json
+```
+
+```json
+{
+  "external_user_id": "customer-123",
+  "version": "<opaque version returned with the review>",
+  "action": "restate"
+}
+```
+
+- `keep_current`: available only for a still-valid target. Close the pending
+  interpretation without changing the stored memory or increasing its authority.
+- `dismiss`: close the pending interpretation without changing any memory.
+- `restate`: return `resolved: false` and `next_step: "add_memory"`; leave the
+  review pending. Ask for the user's actual current statement, then submit it
+  through normal `POST /v1/memories/add` ingestion. Do not submit a model
+  paraphrase as direct user evidence or report successful storage at this step.
+
+The response uses the standard `data`, `request_id`, `timestamp` envelope. Its
+`data` contains `review_id`, `resolved`, `action`, and `next_step` (`null` when
+closed). Normal API-key write permission is required. MemoryOS verifies ownership,
+the version, expiry and current target state under database locks. Unknown or
+foreign reviews return `404`; changed, expired or closed reviews return `409`;
+an action unavailable on that review returns `422`.
+
+<Note>
+Both SDKs include the source-review contract since `0.1.1`:
+Python `source_reviews` / `answer_source_review()` on main PyPI, and TypeScript
+`sourceReviews` / `answerSourceReview()` on npm. Upgrade older SDKs, which may
+omit the new response field.
+</Note>
+
+Reviews remain pending across reads and expire seven days after the server's
+last observation. This is a bounded recent view, not a paginated review inbox:
+stale rows are conditionally expired and older reviews may appear on subsequent
+reads. It does not guarantee every uncertain statement produces a review.
+Affected current context can be withheld with `memory_visibility` while safe review cards remain available separately. Typed preference holds use the declared identity; legacy source-event holds can be broader by category/scope. Do not insert review previews into model context or use an old client copy to bypass a hold. A queued write does not guarantee immediate new-value visibility. Restatement is not itself an applied replacement; a typed correction needs the intended current target/version binding. No load-tested latency guarantee is implied.
+
+## Request fields
+
+| Field | Required | Contract |
+| --- | --- | --- |
+| `external_user_id` | Yes | Stable owner in the authenticated tenant |
+| `version` | Yes | Opaque 64-character lowercase hexadecimal token from the displayed card |
+| `action` | Yes | An offered `keep_current`, `restate` or `dismiss` action |
+
+```bash
+curl -X POST \
+  "$MEMORYOS_API_URL/v1/memories/source-reviews/$REVIEW_ID/answer" \
+  -H "Authorization: ApiKey $MEMORYOS_API_KEY" \
+  -H "Content-Type: application/json" \
+  --data-binary @source-review-answer.json
+```
+
+The file contains the JSON request shown above, populated from the actual card and user's choice. `REV_404` means unknown/out of scope. `REV_409` can mean stale/closed or a busy target: inspect the `error` string. For `source_review_target_busy_retry`, retry the unchanged decision after backoff if still intended; for `source_review_stale_or_closed`, retrieve a fresh card rather than inventing a version. `REV_422` means that action is unavailable on this review.
+
+For public MCP, use the self-scoped [source-review tool](/sdk/mcp#versioned-source-review-decisions). Do not send a native API key or arbitrary owner ID to a public gateway.

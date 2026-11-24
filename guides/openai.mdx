@@ -25,7 +25,11 @@ def answer_with_memory(owner, question):
     ) as memory:
         result = memory.get(query=question, external_user_id=owner)
         if result.memory_visibility is not None:
-            return {"status": "held", "source_reviews": result.source_reviews}
+            return {
+                "status": result.memory_visibility.state,
+                "text": "Memory is processing or unavailable; try again shortly.",
+                "source_reviews": result.source_reviews,
+            }
         if result.preference_scope_request is not None or result.preference_decisions:
             return {"status": "selection_required", "source_reviews": result.source_reviews}
         if result.is_passthrough or not result.items:
@@ -49,3 +53,7 @@ For project-specific reads, add the explicit [preference context](/guides/scoped
 Choose a model available to your account through the environment variable above; no default model availability is assumed. Provider method usage follows the [official Python SDK](https://github.com/openai/openai-python). These documentation examples were not executed against a live model as part of this documentation update. A model answer still requires your own grounding checks; attaching context does not prove semantic correctness.
 
 For TypeScript, apply the same pre-inference gate from the [TypeScript SDK reference](/sdk/typescript) before constructing your provider request.
+
+## Capture after a normal reply
+
+For ordinary conversation capture, persist the completed turn and submit it through your existing reliable background-work mechanism. Do not put `wait_for_job(timeout=120)` in every interactive response. An immediate follow-up can return processing visibility; show the fallback above and retrieve later. Corrections and explicit choices require the operation-before-dependent-answer ordering described in [chat lifecycle](/guides/chat-lifecycle).

@@ -41,7 +41,11 @@ npm install memoryo-sdk@0.1.3
 
 Set `MEMORYOS_API_KEY`, `MEMORYOS_API_URL` and `MEMORYOS_TEST_OWNER` in your server environment. Set `MEMORYOS_API_URL=https://api.memoryo.dev` for hosted use, or use your self-hosted API root without a trailing `/v1`; use the backend API address, not a dashboard or MCP gateway URL. Keep credentials out of browser code and source control.
 
-## 3. Submit once and inspect the original job
+## 3. Verify one save outside the chat loop
+
+<Note>
+This section is a setup-verification script. `wait_for_job(timeout=120)` can block this script for up to two minutes; it is not a recommended wait inside each live chat response. The timeout is a client-side bound, not a processing-time guarantee. For interactive use, follow [the chat lifecycle](/guides/chat-lifecycle).
+</Note>
 
 Use one fresh synthetic owner and keep its ID stable when reopening the application. The sample statement is evidence for extraction, not a forced storage result.
 
@@ -59,11 +63,14 @@ with Memory(
 ) as memory:
     admitted = memory.add(
         external_user_id=owner,
-        messages=[{"role": "user", "content": "I prefer concise explanations."}],
+        messages=[{
+            "role": "user",
+            "content": "I prefer concise explanations.",
+        }],
         idempotency_key=str(uuid4()),
     )
     if admitted.status != "queued" or not admitted.job_id:
-        raise RuntimeError("Write was not queued; inspect status and blocked_reason.")
+        raise RuntimeError("Write not queued; inspect status and blocked_reason.")
     job = memory.wait_for_job(admitted.job_id, timeout=120)
     print(job.status, job.memories_created, job.pending_candidates_buffered)
     if job.status != "completed":
@@ -80,10 +87,16 @@ function required(name: string): string {
   return value;
 }
 const owner = required("MEMORYOS_TEST_OWNER");
-const memory = new MemoryOS(required("MEMORYOS_API_KEY"), required("MEMORYOS_API_URL"));
+const memory = new MemoryOS(
+  required("MEMORYOS_API_KEY"),
+  required("MEMORYOS_API_URL"),
+);
 const admitted = await memory.add({
   externalUserId: owner,
-  messages: [{ role: "user", content: "I prefer concise explanations." }],
+  messages: [{
+    role: "user",
+    content: "I prefer concise explanations.",
+  }],
   idempotencyKey: randomUUID(),
 });
 if (admitted.status !== "queued" || !admitted.jobId) {
@@ -91,7 +104,9 @@ if (admitted.status !== "queued" || !admitted.jobId) {
 }
 const job = await memory.waitForJob(admitted.jobId, { timeoutMs: 120_000 });
 console.log(job.status, job.memoriesCreated, job.pendingCandidatesBuffered);
-if (job.status !== "completed") throw new Error("Processing failed; retain the original job ID.");
+if (job.status !== "completed") {
+  throw new Error("Processing failed; retain the original job ID.");
+}
 ```
 
 </CodeGroup>
@@ -109,7 +124,10 @@ with Memory(
     api_key=os.environ["MEMORYOS_API_KEY"],
     base_url=os.environ["MEMORYOS_API_URL"],
 ) as memory:
-    result = memory.get(query="How should you explain things to me?", external_user_id=owner)
+    result = memory.get(
+        query="How should you explain things to me?",
+        external_user_id=owner,
+    )
     if result.memory_visibility is not None:
         print("Memory context is processing or unavailable; do not answer from it.")
     elif result.preference_scope_request is not None or result.preference_decisions:
@@ -122,7 +140,10 @@ with Memory(
 ```
 
 ```ts TypeScript
-const result = await memory.get({ query: "How should you explain things to me?", externalUserId: owner });
+const result = await memory.get({
+  query: "How should you explain things to me?",
+  externalUserId: owner,
+});
 if (result.memoryVisibility) {
   console.log("Memory context is processing or unavailable; do not answer from it.");
 } else if (result.preferenceScopeRequest || result.preferenceDecisions?.length) {
@@ -130,7 +151,10 @@ if (result.memoryVisibility) {
 } else if (result.isPassthrough) {
   console.log("Memory is bypassed; decide whether this request can proceed without it.");
 } else {
-  console.log(result.items.map(record => ({ id: record.id, content: record.content })));
+  console.log(result.items.map(record => ({
+    id: record.id,
+    content: record.content,
+  })));
   console.log(result.systemPromptAddition);
 }
 ```
@@ -140,3 +164,25 @@ if (result.memoryVisibility) {
 A completed job can still be followed by processing visibility while publication catches up. Do not report successful recall until a subsequent authorized read actually returns the expected current record. These examples make no chat-model calls.
 
 For corrections, inspect [source review](/api-reference/retrieve#review-an-uncertain-source-statement-in-your-existing-chat) or the [explicit preference contract](/guides/scoped-preferences), rather than assuming a second sentence automatically replaces the first.
+
+## 5. Connect the read to your chatbot
+
+This compact Python adapter accepts your existing reply function; it does not choose a model or create another agent framework. `owner` must come from your server-side authenticated user mapping. Reuse the client configured above.
+
+```python
+def contextual_reply(memory, owner, question, generate_reply):
+    result = memory.get(query=question, external_user_id=owner)
+    cards = result.source_reviews  # Separate chat controls, never prompt facts.
+    if result.memory_visibility is not None:
+        return {"status": result.memory_visibility.state, "reviews": cards}
+    if result.preference_scope_request or result.preference_decisions:
+        return {"status": "selection_required", "reviews": cards}
+    if result.is_passthrough or not result.items:
+        return {"status": "no_context", "reviews": cards}
+    reply = generate_reply(question, result.system_prompt_addition)
+    return {"status": "answered", "reply": reply, "reviews": cards}
+```
+
+`generate_reply(question, context)` is your application's existing model call. It must treat context as data and apply your answer policy. This adapter conservatively stops a memory-dependent answer without context; unrelated questions can use your own no-memory path. Retrieval errors should become a clear unavailable response, not reuse of old context.
+
+The [OpenAI](/guides/openai) and [Anthropic](/guides/anthropic) guides show provider calls. [Chat lifecycle](/guides/chat-lifecycle) explains when to capture completed turns and how to handle an immediate follow-up while processing continues.

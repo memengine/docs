@@ -109,7 +109,8 @@
               "introduction",
               "quickstart",
               "authentication",
-              "guides/integration-setup"
+              "guides/integration-setup",
+              "guides/chat-lifecycle"
             ]
           },
           {
@@ -158,13 +159,20 @@
             "group": "Memory APIs",
             "pages": [
               "api-reference/add",
+              "api-reference/jobs",
               "api-reference/retrieve",
-              "api-reference/service-corrections"
+              "api-reference/history",
+              "api-reference/clarifications",
+              "api-reference/source-reviews",
+              "api-reference/retrieval-feedback",
+              "api-reference/service-corrections",
+              "api-reference/user-data"
             ]
           },
           {
             "group": "Domain APIs",
             "pages": [
+              "api-reference/domain-schema",
               "api-reference/edtech-profile"
             ]
           },

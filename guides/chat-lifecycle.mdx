@@ -1,0 +1,52 @@
+---
+title: "Chat lifecycle"
+description: "Keep verification polling separate from interactive replies and handle processing without guessing current state."
+---
+
+## Choose the right pattern
+
+| Situation | Pattern |
+| --- | --- |
+| Setup script, demo verification or debugging | Submit once, retain the job ID, poll within a bounded timeout, then verify a current read |
+| Ordinary completed conversation capture | Persist the turn in your app, then submit ingestion using your existing reliable background-work mechanism; track the original job separately |
+| Current-turn correction or explicit choice | Apply the appropriate authorized operation before the next dependent answer; do not answer from the obsolete value and save the correction afterward |
+
+`AsyncMemory.add()` avoids blocking Python's event loop while waiting for admission. It does not mean extraction has finished, and an untracked `asyncio.create_task()` is not reliable background delivery if the request/process exits. Use your application's existing durable job mechanism or await admission after persisting the turn. Save the idempotency key and authorized payload so retries reuse the same operation.
+
+## Ordinary capture example
+
+Run this function from your application's existing background worker after persisting a completed conversation turn. The caller supplies a stable owner, conversation, turn ID and request key from its own saved record.
+
+```python
+def capture_completed_turn(memory, owner, conversation_id, turn_id,
+                           request_key, user_text, assistant_text):
+    return memory.add(
+        external_user_id=owner,
+        conversation_id=conversation_id,
+        idempotency_key=request_key,
+        messages=[
+            {"role": "user", "content": user_text,
+             "external_turn_id": turn_id, "source_kind": "direct_user_input"},
+            {"role": "assistant", "content": assistant_text,
+             "source_kind": "assistant_output"},
+        ],
+    )
+```
+
+Store the admission result and original job ID with that saved turn. A timeout or lost response is not permission to use a new key. Do not report successful storage before inspecting processing/current state. Assistant output remains conversation context, not direct user confirmation.
+
+## A follow-up arrives during processing
+
+Retrieve again and inspect the returned signals. If `memory_visibility.state` is `processing`, return a message such as:
+
+> Your memory update is still processing. Please try again shortly.
+
+For `unavailable`, show an unavailable message and any safe review controls. Do not block the HTTP request for a two-minute polling loop, call the model with withheld facts, or substitute an earlier cached client copy. Offer another read later or an explicit retry action; a completed job can still be followed by publication/processing visibility.
+
+If the response is empty or passthrough **without a hold**, your application can answer unrelated questions without memory. It should not invent an answer to a question that specifically asks for the user's current stored state.
+
+## Corrections are a different ordering problem
+
+A user saying an old preference has changed must not receive a response based on that old preference simply because ordinary capture runs after replies. Use the supported [explicit replacement](/guides/scoped-preferences), [source review](/api-reference/source-reviews) or other applicable decision path first, then retrieve the resulting current state or hold. The application must select that operation; this page does not promise automatic interpretation of the user's wording.
+
+Use [job status](/api-reference/jobs) for verification and diagnostics. A polling timeout is a client-side bound, not a backend processing SLA.

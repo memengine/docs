@@ -1,0 +1,45 @@
+---
+title: "Tenant domain schema"
+description: "Read or select the tenant's General, EdTech or Support configuration."
+---
+
+## Endpoints and permission
+
+- `GET /v1/tenant/domain-schema`: inspect the tenant configuration.
+- `PATCH /v1/tenant/domain-schema`: select a domain schema.
+
+Both tenant routes require an API key with **admin** permission. Do not give every chatbot client an admin key to configure a tenant.
+
+```bash
+curl "$MEMORYOS_API_URL/v1/tenant/domain-schema" \
+  -H "Authorization: ApiKey $MEMORYOS_ADMIN_API_KEY"
+```
+
+## Update request
+
+`domain_schema` accepts `"edtech"`, `"support"` or `null` for the General Engine. A schema change affects the tenant, not one user or conversation.
+
+```bash
+curl -X PATCH "$MEMORYOS_API_URL/v1/tenant/domain-schema" \
+  -H "Authorization: ApiKey $MEMORYOS_ADMIN_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"domain_schema":"edtech"}'
+```
+
+To return to General, send `{"domain_schema":null}`. This clears Support-specific configuration; inspect the result before sending domain-dependent traffic. Selecting a schema is not a data migration or a guarantee that old conversations have been reprocessed.
+
+## Response fields
+
+The standard response envelope contains `data`, `request_id` and `timestamp`.
+
+| Field in `data` | Type | Meaning |
+| --- | --- | --- |
+| `domain_schema` | string or null | `edtech`, `support`, or General (`null`) |
+| `available_domains` | array | Each item contains nullable `value`, `label`, `description` and `status` (`available` or `coming_soon`) |
+| `support_type_configured` | string or null | Configured Support vertical, when applicable |
+| `support_type_mode` | string | Current Support mode |
+| `support_types_allowed` | string array | Allowed Support verticals |
+
+Malformed values return validation errors; unsupported configuration can return `400 TEN_400`. A missing tenant returns `404 TEN_404`; insufficient permission returns `403 AUTH_403`. Do not retry configuration changes automatically after a permission or validation failure.
+
+Use [domain concepts](/concepts/domain-schemas), [the EdTech guide](/guides/edtech-domain) or [Support configuration](/concepts/support-domain) for the corresponding overlay. Your business records remain in your own system.

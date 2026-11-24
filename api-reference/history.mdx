@@ -1,0 +1,41 @@
+---
+title: "GET /v1/memories/{memory_id}/history"
+description: "Inspect authorized version history without substituting it for current answer context."
+---
+
+Use a tenant API key with `read` permission. The memory must belong to that tenant. The path ID is an existing memory ID, not a job, claim or review ID. This management endpoint does not accept a request body.
+
+```bash
+curl "$MEMORYOS_API_URL/v1/memories/$MEMORY_ID/history" \
+  -H "Authorization: ApiKey $MEMORYOS_API_KEY"
+```
+
+## Response
+
+```json
+{
+  "data": [{
+    "version_number": 1,
+    "content": "I prefer concise explanations.",
+    "change_type": "created",
+    "change_reason": null,
+    "created_at": "2026-11-24T09:00:00Z"
+  }],
+  "request_id": "example-request-id",
+  "timestamp": "2026-11-24T09:01:00Z"
+}
+```
+
+| Field in each `data` item | Type | Meaning |
+| --- | --- | --- |
+| `version_number` | integer | Stored version sequence |
+| `content` | string | Content recorded for that version |
+| `change_type` | string | Recorded transition, such as creation, edit, conflict update or archival |
+| `change_reason` | string or null | Recorded explanation |
+| `created_at` | datetime | Version timestamp |
+
+Unknown/out-of-tenant memories return `404 MEM_404`. The tenant API key is an application credential; your application must still authorize which user's history its own clients may inspect. Public MCP uses its separate self-scoped history tool.
+
+History can contain superseded content. Use [current retrieval](/api-reference/retrieve) for answers and honor its visibility signals. Version history is different from a winning-revision identifier or an opaque preference replacement token; do not substitute one for another. Explicit deletion/retention can remove associated history.
+
+The [lifecycle manager](/concepts/memory-lifecycle) is background infrastructure, not a public lifecycle-run endpoint. This reference documents the existing history API only.

@@ -16,6 +16,10 @@ MemoryOS is a backend for persistent assistant context. Applications submit conv
 | Connect an MCP client | [MCP](/sdk/mcp) |
 | Coordinate Billing, CRM or Support writers | [Provenance and authority](/concepts/provenance) |
 
+## Start with a small integration
+
+Configure one SDK client, retrieve for a stable user, check whether context is available, then pass the returned context to your existing reply function. Start with the [compact chatbot adapter](/quickstart#5-connect-the-read-to-your-chatbot); add scope, review controls and service writers as your workflow needs them. The adapter still honors holds before inference.
+
 ## The application loop
 
 1. Authenticate the user in your application and resolve a stable owner ID on your server.

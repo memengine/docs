@@ -113,107 +113,36 @@ Content-Type: application/json
 | `request_id` | `string` | Trace id |
 | `timestamp` | `datetime` | Response timestamp |
 
+## Which fields stop an answer?
+
+For an answer that depends on MemoryOS state, inspect the first group before constructing the model request. The second group supports UI/telemetry; it does not independently authorize or forbid inference.
+
+| Answer decision | Application behavior |
+| --- | --- |
+| `memory_visibility` is present | Stop the dependent answer; show processing/unavailable status |
+| `preference_scope_request` is present | Obtain explicit applicability from the application/user |
+| `preference_decisions` is nonempty | Resolve the current choice before asserting its value |
+| Passthrough or no records, without a hold | Use a no-memory path only if this question can be answered without memory |
+
+| UI or diagnostic field | How to use it |
+| --- | --- |
+| `source_reviews`, `preference_reviews` | Show separate versioned decision cards; never inject pending previews as facts |
+| `clarification`, `clarification_question` | Show the offered choices in chat; do not guess the disputed value |
+| `is_degraded`, `quota_mode`, `cached`, request IDs | Inspect operating mode and diagnostics; these do not override a hold |
+
+A card can accompany a visibility hold. Its presence alone is not a blanket stop for unrelated questions, and its absence is not proof that a held fact is safe. Check the decision signals first. See [the chat lifecycle](/guides/chat-lifecycle) for processing-state UX.
+
 ## Check visibility before model inference
 
 Apply [the visibility gate](/concepts/degradation) before consuming `data` or `system_prompt_addition`. A successful HTTP response, a completed job or a nonempty prompt is not permission to answer from unavailable state. Typed reads also require handling `preference_scope_request` and `preference_decisions`.
 
 ## Resolve a clarification in your existing chat
 
-When `clarification` is present, show `clarification.question` in the same
-assistant conversation. Send the user's selected answer back to MemoryOS; do
-not build a separate MemoryOS clarification screen and do not let the model
-rewrite the option into an authority decision.
-
-```http
-POST /v1/memories/clarifications/{clarification_id}/answer
-Authorization: ApiKey mem_live_xxx
-Content-Type: application/json
-```
-
-```json
-{
-  "external_user_id": "customer-123",
-  "answer": "B",
-  "free_text": "The Scale plan is current."
-}
-```
-
-Allowed answers are `A`, `B`, `both`, and `neither`. MemoryOS verifies the
-authenticated tenant, resolves `external_user_id` inside that tenant, checks
-the clarification's owner, expiry and current status, locks the resolution
-records, and applies the governed conflict transition. A repeated or expired
-answer returns `409`; a clarification belonging to another user or tenant is
-returned as `404`.
-
-```json
-{
-  "data": {
-    "resolved": true,
-    "clarification_id": "f04669c2-99f9-49a3-83ab-ad37b05e67d5",
-    "conflict_id": "0c2d96aa-e5bb-4cbe-b750-23e8c06849ce",
-    "resolution": "B"
-  },
-  "request_id": "b0eb46a4-8794-44c8-b2a9-8f2dfbb4176c",
-  "timestamp": "2026-04-17T09:46:03Z"
-}
-```
+Show the backend-provided choices in your existing chat and submit the actual user selection. See [the clarification answer endpoint](/api-reference/clarifications) for the complete request, response and refusal contract.
 
 ## Review an uncertain source statement in your existing chat
 
-When MemoryOS recognizes uncertainty but cannot form a usable alternative,
-`source_reviews` may contain a `restate_source` review. This is separate from
-the existing two-memory `clarification`. A review is not an active memory and
-does not certify that the model interpreted the statement correctly.
-
-Each review contains `id`, an opaque `version`, `kind`, `question`, `actions`,
-and `expires_at`. A target-bound review also includes `target_memory_id` and
-`current_memory_content`: a stored-content preview capped at 1,000 characters,
-not a grant of user-confirmed authority. Unbound reviews have null target fields.
-
-Present the question and allowed actions in your customer's existing chat.
-Use the actual user's selection, not a model-generated choice:
-
-```http
-POST /v1/memories/source-reviews/{review_id}/answer
-Authorization: ApiKey mem_live_xxx
-Content-Type: application/json
-```
-
-```json
-{
-  "external_user_id": "customer-123",
-  "version": "<opaque version returned with the review>",
-  "action": "restate"
-}
-```
-
-- `keep_current`: available only for a still-valid target. Close the pending
-  interpretation without changing the stored memory or increasing its authority.
-- `dismiss`: close the pending interpretation without changing any memory.
-- `restate`: return `resolved: false` and `next_step: "add_memory"`; leave the
-  review pending. Ask for the user's actual current statement, then submit it
-  through normal `POST /v1/memories/add` ingestion. Do not submit a model
-  paraphrase as direct user evidence or report successful storage at this step.
-
-The response uses the standard `data`, `request_id`, `timestamp` envelope. Its
-`data` contains `review_id`, `resolved`, `action`, and `next_step` (`null` when
-closed). Normal API-key write permission is required. MemoryOS verifies ownership,
-the version, expiry and current target state under database locks. Unknown or
-foreign reviews return `404`; changed, expired or closed reviews return `409`;
-an action unavailable on that review returns `422`.
-
-<Note>
-Both SDKs include the source-review contract since `0.1.1`:
-Python `source_reviews` / `answer_source_review()` on main PyPI, and TypeScript
-`sourceReviews` / `answerSourceReview()` on npm. Upgrade older SDKs, which may
-omit the new response field.
-</Note>
-
-Reviews remain pending across reads and expire seven days after the server's
-last observation. This is a bounded recent view, not a paginated review inbox:
-stale rows are conditionally expired and older reviews may appear on subsequent
-reads. It does not guarantee every uncertain statement produces a review.
-Affected current context can be withheld with `memory_visibility` while safe review cards remain available separately. Typed preference holds use the declared identity; legacy source-event holds can be broader by category/scope. Do not insert review previews into model context or use an old client copy to bypass a hold. A queued write does not guarantee immediate new-value visibility. Restatement is not itself an applied replacement; a typed correction needs the intended current target/version binding. No load-tested latency guarantee is implied.
+Present `source_reviews` as separate decision cards, including during a hold. Use the actual user choice and the card's opaque version. See [the source-review answer endpoint](/api-reference/source-reviews) for `keep_current`, `restate`, `dismiss` and stale/busy handling. Pending previews are not active model context.
 
 ### `MemorySearchResult`
 
@@ -231,66 +160,7 @@ Affected current context can be withheld with `memory_visibility` while safe rev
 
 ## Send retrieval feedback
 
-Feedback is optional but recommended. It closes the quality loop after your agent uses retrieved memory.
-
-Use it when:
-
-- the retrieved context helped the agent answer correctly
-- the agent ignored a memory because it was not useful
-- the user corrected the agent
-- the agent had to ask for clarification because context was missing
-
-```http
-POST /v1/memories/retrieval-feedback
-Authorization: ApiKey mem_live_xxx
-Content-Type: application/json
-```
-
-### Successful use
-
-```json
-{
-  "retrieval_id": "68716fef-731c-4496-bff0-78ccc8ce8bb3",
-  "outcome": "used_successfully",
-  "used_memory_ids": ["2b8f5f87-bbd4-4f84-9f5f-0cba5033f058"],
-  "agent_confidence": 0.86,
-  "metadata": {
-      "conversation_id": "chat_8841"
-  }
-}
-```
-
-### User correction
-
-```json
-{
-  "retrieval_id": "68716fef-731c-4496-bff0-78ccc8ce8bb3",
-  "outcome": "user_corrected",
-  "used_memory_ids": ["2b8f5f87-bbd4-4f84-9f5f-0cba5033f058"],
-  "correction": "Actually I prefer Hindi explanations for billing questions, not English.",
-  "agent_confidence": 0.2,
-  "metadata": {
-      "conversation_id": "chat_8841"
-  }
-}
-```
-
-Example response:
-
-```json
-{
-  "data": {
-    "feedback_id": "0e6aa7b1-6678-4c76-b675-12f63fbf54c2",
-    "retrieval_id": "68716fef-731c-4496-bff0-78ccc8ce8bb3",
-    "outcome": "user_corrected",
-    "correction_job_id": "d2bb7542-aea1-4090-a70a-0ff2dfd86175"
-  },
-  "request_id": "c772f4e2-1e8f-4852-aa92-9c6548d26a1e",
-  "timestamp": "2026-06-30T10:00:00Z"
-}
-```
-
-`correction_job_id` means MemoryOS queued an async retrospective extraction pass. It does not block the user response.
+Use [retrieval feedback](/api-reference/retrieval-feedback) to report use, relevance or an actual user correction. Feedback is asynchronous; a correction receipt is not proof that current memory changed.
 
 ## `format` examples
 

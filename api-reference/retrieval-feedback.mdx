@@ -1,0 +1,85 @@
+---
+title: "POST /v1/memories/retrieval-feedback"
+description: "Report how authorized retrieved context was used and inspect any asynchronous correction job."
+---
+
+Feedback is optional but recommended. It closes the quality loop after your agent uses retrieved memory.
+
+Use it when:
+
+- the retrieved context helped the agent answer correctly
+- the agent ignored a memory because it was not useful
+- the user corrected the agent
+- the agent had to ask for clarification because context was missing
+
+```http
+POST /v1/memories/retrieval-feedback
+Authorization: ApiKey mem_live_xxx
+Content-Type: application/json
+```
+
+### Successful use
+
+```json
+{
+  "retrieval_id": "68716fef-731c-4496-bff0-78ccc8ce8bb3",
+  "outcome": "used_successfully",
+  "used_memory_ids": ["2b8f5f87-bbd4-4f84-9f5f-0cba5033f058"],
+  "agent_confidence": 0.86,
+  "metadata": {
+      "conversation_id": "chat_8841"
+  }
+}
+```
+
+### User correction
+
+```json
+{
+  "retrieval_id": "68716fef-731c-4496-bff0-78ccc8ce8bb3",
+  "outcome": "user_corrected",
+  "used_memory_ids": ["2b8f5f87-bbd4-4f84-9f5f-0cba5033f058"],
+  "correction": "Actually I prefer Hindi explanations for billing questions, not English.",
+  "agent_confidence": 0.2,
+  "metadata": {
+      "conversation_id": "chat_8841"
+  }
+}
+```
+
+Example response:
+
+```json
+{
+  "data": {
+    "feedback_id": "0e6aa7b1-6678-4c76-b675-12f63fbf54c2",
+    "retrieval_id": "68716fef-731c-4496-bff0-78ccc8ce8bb3",
+    "outcome": "user_corrected",
+    "correction_job_id": "d2bb7542-aea1-4090-a70a-0ff2dfd86175"
+  },
+  "request_id": "c772f4e2-1e8f-4852-aa92-9c6548d26a1e",
+  "timestamp": "2026-06-30T10:00:00Z"
+}
+```
+
+`correction_job_id` means MemoryOS queued an async retrospective extraction pass. It does not block the user response.
+
+## Request fields
+
+| Field | Required | Contract |
+| --- | --- | --- |
+| `retrieval_id` | Yes | UUID returned by the authorized retrieval |
+| `outcome` | Yes | `used_successfully`, `used_partially`, `ignored`, `not_useful`, `user_corrected` or `clarification_needed` |
+| `used_memory_ids` | No | Up to 50 memory UUIDs; defaults to an empty array |
+| `correction` | Conditional | Required for `user_corrected`; nonempty, at most 4,000 characters |
+| `agent_confidence` | No | Number from 0 to 1; diagnostic, not authority |
+| `metadata` | No | Application metadata object; defaults to an empty object |
+
+```bash
+curl -X POST "$MEMORYOS_API_URL/v1/memories/retrieval-feedback" \
+  -H "Authorization: ApiKey $MEMORYOS_API_KEY" \
+  -H "Content-Type: application/json" \
+  --data-binary @retrieval-feedback.json
+```
+
+The JSON file uses one of the examples above. Write permission is required. Unknown/foreign retrieval IDs return `404 RET_404`; malformed input or missing correction returns `422 REQ_422`. A returned `correction_job_id` proves queued correction processing, not that the correction is applied or safe to answer from. Inspect the [original correction job](/api-reference/jobs) and current retrieval.

@@ -1,0 +1,84 @@
+---
+title: "GET /v1/memories/jobs/{job_id}"
+description: "Inspect the original ingestion job without resubmitting the write."
+---
+
+```http
+GET /v1/memories/jobs/{job_id}
+Authorization: ApiKey mem_live_xxx
+```
+
+Example response:
+
+```json
+{
+  "data": {
+    "job_id": "72a20629-a76d-4a18-ab36-1c2778ba21d0",
+    "status": "completed",
+    "memories_created": 0,
+    "created_memory_ids": [],
+    "pending_candidates_buffered": 1,
+    "pending_candidates_promoted": 0,
+    "attempts": 2,
+    "queue_name": "free-extraction",
+    "error": null,
+    "error_summary": null,
+    "extraction_metadata": {
+      "compositional_pass_attempted": false,
+      "compositional_pass_used": false,
+      "compositional_entities": 0,
+      "compositional_relationships": 0,
+      "compositional_error": null
+    }
+  }
+}
+```
+
+### Job status fields
+
+| Field | Meaning |
+| --- | --- |
+| `memories_created` | Stored records created; clarification alternatives may remain inactive |
+| `created_memory_ids` | Exact IDs of stored records created by this job, not proof that each is active |
+| `pending_candidates_buffered` | Candidates withheld from active storage, including weak signals and unresolved source decisions |
+| `pending_candidates_promoted` | Weak signals promoted to memory |
+| `attempts` | Number of processing attempts, including provider retries |
+| `extraction_metadata` | Extraction diagnostics; do not use these internals as an authorization decision |
+
+`created_memory_ids` is the reliable way to inspect or explain the records
+created by this write. Do not search recent memory history to guess which
+records came from the job.
+
+A completed job is not a guarantee of active storage. For a verified-source
+candidate marked as an uncertain change, a contradictory classifier decision
+cannot make it current. The existing memory is preserved; without a valid
+grounded clarification option, the change stays pending. Use the retrieve
+response to check current context and whether `clarification` is available.
+
+## Request
+
+The path `job_id` is the UUID returned by admission. No request body is required. Use a tenant API key with read permission. The API validates tenant ownership and current owner access; a foreign/unknown job returns `404 JOB_404`.
+
+```bash
+curl "$MEMORYOS_API_URL/v1/memories/jobs/$JOB_ID" \
+  -H "Authorization: ApiKey $MEMORYOS_API_KEY"
+```
+
+## Additional response fields
+
+The standard envelope is `data`, `request_id`, `timestamp`. Optional timestamps are nullable.
+
+| Field in `data` | Type | Meaning |
+| --- | --- | --- |
+| `job_id`, `status` | string | Original receipt ID and processing state |
+| `created_at`, `processing_started_at` | datetime or null | Creation and processing observations |
+| `queued_at`, `started_at`, `completed_at`, `dead_lettered_at` | datetime or null | Available processing timestamps |
+| `queue_name` | string or null | Assigned queue |
+| `error`, `error_summary` | string or null | Observed processing error |
+| `extraction_metadata` | object | Diagnostics; not an authorization or semantic-success contract |
+| `proposal_ids` | string array | Registered proposal IDs, distinct from created memories |
+| `operational_metrics` | object of integers | Available operational counters/timings |
+
+`failed` can be an intermediate retry-waiting state in the existing worker lifecycle. The SDK wait helper treats `completed`, `dead`, `dead_letter`, `dead_lettered` and `cancelled` as terminal; only successful current-state verification establishes the intended result. Keep the original ID after a timeout rather than submitting another write.
+
+For interactive applications, see [chat lifecycle](/guides/chat-lifecycle). A polling timeout is not a backend SLA.

@@ -1,0 +1,63 @@
+---
+title: "Answer a clarification"
+description: "Submit the authenticated user's choice for a backend-provided A/B clarification."
+---
+
+When `clarification` is present, show `clarification.question` in the same
+assistant conversation. Send the user's selected answer back to MemoryOS; do
+not build a separate MemoryOS clarification screen and do not let the model
+rewrite the option into an authority decision.
+
+```http
+POST /v1/memories/clarifications/{clarification_id}/answer
+Authorization: ApiKey mem_live_xxx
+Content-Type: application/json
+```
+
+```json
+{
+  "external_user_id": "customer-123",
+  "answer": "B",
+  "free_text": "The Scale plan is current."
+}
+```
+
+Allowed answers are `A`, `B`, `both`, and `neither`. MemoryOS verifies the
+authenticated tenant, resolves `external_user_id` inside that tenant, checks
+the clarification's owner, expiry and current status, locks the resolution
+records, and applies the governed conflict transition. A repeated or expired
+answer returns `409`; a clarification belonging to another user or tenant is
+returned as `404`.
+
+```json
+{
+  "data": {
+    "resolved": true,
+    "clarification_id": "f04669c2-99f9-49a3-83ab-ad37b05e67d5",
+    "conflict_id": "0c2d96aa-e5bb-4cbe-b750-23e8c06849ce",
+    "resolution": "B"
+  },
+  "request_id": "b0eb46a4-8794-44c8-b2a9-8f2dfbb4176c",
+  "timestamp": "2026-04-17T09:46:03Z"
+}
+```
+
+## Request fields
+
+| Field | Required | Contract |
+| --- | --- | --- |
+| `external_user_id` | Yes | Stable owner inside the authenticated tenant |
+| `answer` | Yes | `A`, `B`, `both` or `neither`; use an offered option |
+| `free_text` | No | Optional explanation, at most 2,000 characters |
+
+```bash
+curl -X POST \
+  "$MEMORYOS_API_URL/v1/memories/clarifications/$CLARIFICATION_ID/answer" \
+  -H "Authorization: ApiKey $MEMORYOS_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"external_user_id":"example-user-123","answer":"B"}'
+```
+
+This uses normal write permission. The `data` response contains `resolved`, `clarification_id`, nullable `conflict_id` and `resolution`. `CLR_400` means this clarification cannot use this path; `CLR_404` means unknown/out of scope; `CLR_409` means expired or no longer answerable. Do not automatically select a different option after refusal. Retrieve again after the user's decision.
+
+A clarification is different from [source review](/api-reference/source-reviews) and [operator service correction](/api-reference/service-corrections).

@@ -8,12 +8,12 @@ a.nav-anchor.text-gray-600 {
   color: #3B82F6 !important;
 }
 
-/* Dark mode — override dark:text-gray-400 */
+/* Dark mode â€” override dark:text-gray-400 */
 .dark a.nav-anchor {
   color: #60A5FA !important;
 }
 
-/* Icon wrapper div — override the gray ring and background */
+/* Icon wrapper div â€” override the gray ring and background */
 a.nav-anchor > div {
   color: #3B82F6 !important;
   border-color: rgba(59, 130, 246, 0.4) !important;
@@ -35,4 +35,31 @@ a.nav-anchor svg {
 .dark a.nav-anchor svg {
   color: #60A5FA !important;
   fill: #60A5FA !important;
+}
+
+
+/* Keep horizontal scrolling discoverable in Mintlify code/table viewports. */
+#content-area [data-component-part="scroll-area-viewport"],
+#content-area .overflow-x-auto {
+  scrollbar-width: thin !important;
+  scrollbar-color: #64748b transparent;
+}
+
+#content-area [data-component-part="scroll-area-viewport"]::-webkit-scrollbar,
+#content-area .overflow-x-auto::-webkit-scrollbar {
+  display: block !important;
+  height: 8px;
+  width: 8px;
+}
+
+#content-area [data-component-part="scroll-area-viewport"]::-webkit-scrollbar-thumb,
+#content-area .overflow-x-auto::-webkit-scrollbar-thumb {
+  background: #64748b;
+  border-radius: 4px;
+}
+
+/* Long field names should wrap in reference cells, not spill over neighbors. */
+#content-area td,
+#content-area th {
+  overflow-wrap: anywhere;
 }

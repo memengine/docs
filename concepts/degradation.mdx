@@ -5,6 +5,25 @@ description: "Distinguish withheld context from empty memory, passthrough and or
 
 Check the retrieval response before constructing a model request. HTTP 200 means the request was served; it does not mean current context is available.
 
+## Which fields stop an answer?
+
+For an answer that depends on MemoryOS state, inspect the first group before constructing the model request. The second group supports UI/telemetry; it does not independently authorize or forbid inference.
+
+| Answer decision | Application behavior |
+| --- | --- |
+| `memory_visibility` is present | Stop the dependent answer; show processing/unavailable status |
+| `preference_scope_request` is present | Obtain explicit applicability from the application/user |
+| `preference_decisions` is nonempty | Resolve the current choice before asserting its value |
+| Passthrough or no records, without a hold | Use a no-memory path only if this question can be answered without memory |
+
+| UI or diagnostic field | How to use it |
+| --- | --- |
+| `source_reviews`, `preference_reviews` | Show separate versioned decision cards; never inject pending previews as facts |
+| `clarification`, `clarification_question` | Show the offered choices in chat; do not guess the disputed value |
+| `is_degraded`, `quota_mode`, `cached`, request IDs | Inspect operating mode and diagnostics; these do not override a hold |
+
+A card can accompany a visibility hold. Its presence alone is not a blanket stop for unrelated questions, and its absence is not proof that a held fact is safe. Check the decision signals first. See [the chat lifecycle](/guides/chat-lifecycle) for processing-state UX.
+
 ## Decision order
 
 | Signal | Meaning | Application behavior |

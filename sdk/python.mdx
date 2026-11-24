@@ -7,7 +7,7 @@ description: "Tenant-scoped synchronous and asynchronous clients, job polling, v
 pip install memoryo-sdk==0.1.2
 ```
 
-The distribution is `memoryo-sdk`; the import is `memoryos`. PyPI version `0.1.2` was checked on 24 November 2026. Package availability does not establish backend availability or feature enablement.
+The product is **MemoryOS**. Its published package is `memoryo-sdk`; the Python import is `memoryos`. The package name differs because `memoryos` was unavailable on the registry. PyPI version `0.1.2` was checked on 24 November 2026. Package availability does not establish backend availability or feature enablement.
 
 ## Connect from your server
 
@@ -24,6 +24,8 @@ memory = Memory(
 `base_url` is the backend root, without `/v1`. Its SDK default is `https://api.memoryo.dev`; set it to your instance URL for self-hosting. An API key never belongs in browser code. Your server supplies a stable `external_user_id` after authenticating the user.
 
 ## Save and poll
+
+The following is a **verification sequence**, not a per-response chat wait. Polling can wait up to the specified timeout. Use [chat lifecycle](/guides/chat-lifecycle) for ordinary background capture, correction ordering and processing-state UX.
 
 ```python
 admitted = memory.add(

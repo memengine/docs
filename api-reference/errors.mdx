@@ -24,7 +24,8 @@ MemoryOS returns structured JSON errors:
 | `400` | Invalid cursor or malformed tenant-specific request |
 | `401` | Authentication failed |
 | `403` | Tenant context exists but is not permitted for the request |
-| `404` | Resource not found |
+| `404` | Resource not found or a disabled feature entry point |
+| `409` | Request binding, current version, review state or feature configuration conflicts |
 | `422` | Request validation failed |
 | `429` | Rate limited |
 | `500` | Internal server error |
@@ -32,7 +33,7 @@ MemoryOS returns structured JSON errors:
 
 ## Error codes
 
-Current public and semi-public API surfaces emit the following codes.
+The following reference covers common integration errors and the feature/review/rate-limit codes used by these guides. Endpoint-specific errors are documented with their contracts.
 
 | Code | Meaning | Typical cause |
 | --- | --- | --- |
@@ -47,6 +48,19 @@ Current public and semi-public API surfaces emit the following codes.
 | `GNT_404` | Permission grant not found | Revoke request referenced a grant outside this user scope |
 | `AGN_404` | Global agent not found | Consent or public agent lookup used an invalid agent id |
 | `REQ_422` | Validation error | Missing required fields, wrong types, or empty content |
+| `PREF_409` | Explicit preference operation unavailable/conflicting | Inspect `error`: feature disabled (`explicit_preferences_unavailable`) or a required versioned replacement was not supplied |
+| `FEATURE_404` | Feature entry point unavailable | For example, disabled Memory Passport; not a missing user-memory result |
+| `REV_404` | Source review not found | Unknown ID, owner mismatch or review outside scope |
+| `REV_409` | Source review conflict | Stale/closed review or busy target; inspect the `error` string before deciding whether to retry |
+| `REV_422` | Source-review action unavailable | Requested action is not offered on the current card |
+| `RET_404` | Retrieval not found | Feedback targets an unknown or foreign retrieval ID |
+| `PROV_403` | Writer credential mismatch | Credential does not match the registered service writer |
+| `PROV_404` | Service writer not found | Missing writer registration |
+| `PROV_409` | Provenance conflict | Existing event has a different binding or writer registration conflicts |
+| `PROV_422` | Invalid provenance | Invalid/inactive writer or source payload |
+| `RATE_429` | Key or tenant request rate exceeded | `details.scope` is `api_key` or `tenant`; honor `Retry-After` |
+| `EXP_429` | Owner export throttled | `export_rate_limited`; honor `details.retry_after_seconds` |
+| `UUI_TOKEN_429` | Passport token regeneration throttled | Honor `details.next_available_seconds`; this is not the normal tenant SDK path |
 | `MEM_404` | Memory not found | Memory id does not exist or is out of scope |
 | `JOB_404` | Job not found | Extraction job id does not exist or is not visible to the tenant |
 | `CLR_400` | Clarification cannot use this path | Conflict is tenant-review scoped or the answer cannot be applied |
@@ -63,6 +77,34 @@ Current public and semi-public API surfaces emit the following codes.
 | `HTTP_ERROR` | Generic HTTP exception | Framework-level HTTP exception |
 
 > Current releases do **not** emit `VAL_*` codes. Validation failures are returned as `REQ_422`.
+
+## Retry and recovery
+
+| Response | What to do |
+| --- | --- |
+| `401` / `403` | Correct authentication, permissions or owner/writer access; do not loop retries |
+| `422` | Correct the request using the endpoint schema |
+| `409` | Inspect `error` and current state; do not remove bindings or silently rebind to a new target |
+| `RATE_429` | Wait at least the returned `Retry-After` seconds, then back off; retain the original write key/payload |
+| `EXP_429` / `UUI_TOKEN_429` | Use the endpoint's interval field; do not treat every 429 as a short one-minute limit |
+| Timeout / `503` after a write | Admission may be uncertain; inspect/retry with the same authorized request and key, not a new operation |
+
+Example **key/tenant** rate-limit response:
+
+```json
+{
+  "error": "rate_limited",
+  "code": "RATE_429",
+  "request_id": "example-request-id",
+  "details": {"scope": "api_key", "retry_after_seconds": 20}
+}
+```
+
+This response also carries `Retry-After: 20`. The interval is an example, not a fixed retry delay. A per-user ingestion quality-gate outcome (such as `L1`) can instead be a nonfatal HTTP 200 body; inspect `status` and `blocked_reason`, not only HTTP status.
+
+For `REV_409`, `source_review_target_busy_retry` allows a bounded retry of the unchanged intended choice after backoff. `source_review_stale_or_closed` requires fresh retrieval/inspection; do not regenerate a version token. `PREF_409` caused by disabled explicit preferences requires backend configuration, not repeated requests.
+
+See [rate limits](/concepts/rate-limits), [source review](/api-reference/source-reviews), [job status](/api-reference/jobs) and [user export](/api-reference/user-data).
 
 ## Consent and universal memory note
 

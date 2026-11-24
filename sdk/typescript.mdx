@@ -7,6 +7,8 @@ description: "Connect the published SDK, inspect processing, gate model context 
 npm install memoryo-sdk@0.1.3
 ```
 
+The product is **MemoryOS**. The npm package is `memoryo-sdk`, and its client class is `MemoryOS`. The package name differs because `memoryos` was unavailable on the registry.
+
 npm version `0.1.3` was checked on 24 November 2026. Node.js applications can use the ESM import below. Installing a package does not start the backend or enable gated features.
 
 ## Connect from your server
@@ -25,6 +27,8 @@ const memory = new MemoryOS(required("MEMORYOS_API_KEY"), required("MEMORYOS_API
 The constructor's **second positional argument** is the API base URL string, not an options object. It takes the backend root without `/v1`. The default is `https://api.memoryo.dev`; set it to your instance URL for self-hosting. Keep the key server-side and derive the stable `externalUserId` from authenticated application identity.
 
 ## Save and inspect the original job
+
+The following is a **verification sequence**, not a per-response chat wait. Polling can wait up to the specified timeout. Use [chat lifecycle](/guides/chat-lifecycle) for ordinary background capture, correction ordering and processing-state UX.
 
 ```ts
 const admitted = await memory.add({

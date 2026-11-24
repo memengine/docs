@@ -180,57 +180,7 @@ ordinary chatbot response authoritative.
 
 ## Check extraction job status
 
-```http
-GET /v1/memories/jobs/{job_id}
-Authorization: ApiKey mem_live_xxx
-```
-
-Example response:
-
-```json
-{
-  "data": {
-    "job_id": "72a20629-a76d-4a18-ab36-1c2778ba21d0",
-    "status": "completed",
-    "memories_created": 0,
-    "created_memory_ids": [],
-    "pending_candidates_buffered": 1,
-    "pending_candidates_promoted": 0,
-    "attempts": 2,
-    "queue_name": "free-extraction",
-    "error": null,
-    "error_summary": null,
-    "extraction_metadata": {
-      "compositional_pass_attempted": false,
-      "compositional_pass_used": false,
-      "compositional_entities": 0,
-      "compositional_relationships": 0,
-      "compositional_error": null
-    }
-  }
-}
-```
-
-### Job status fields
-
-| Field | Meaning |
-| --- | --- |
-| `memories_created` | Stored records created; clarification alternatives may remain inactive |
-| `created_memory_ids` | Exact IDs of stored records created by this job, not proof that each is active |
-| `pending_candidates_buffered` | Candidates withheld from active storage, including weak signals and unresolved source decisions |
-| `pending_candidates_promoted` | Weak signals promoted to memory |
-| `attempts` | Number of processing attempts, including provider retries |
-| `extraction_metadata` | Extraction diagnostics; do not use these internals as an authorization decision |
-
-`created_memory_ids` is the reliable way to inspect or explain the records
-created by this write. Do not search recent memory history to guess which
-records came from the job.
-
-A completed job is not a guarantee of active storage. For a verified-source
-candidate marked as an uncertain change, a contradictory classifier decision
-cannot make it current. The existing memory is preserved; without a valid
-grounded clarification option, the change stays pending. Use the retrieve
-response to check current context and whether `clarification` is available.
+Use [GET /v1/memories/jobs/{job_id}](/api-reference/jobs) for authentication, response fields, examples and terminal-state handling. Poll the original job only when verifying or diagnosing processing; follow [chat lifecycle](/guides/chat-lifecycle) for interactive use.
 
 ## Explicitly request a memory clarification
 

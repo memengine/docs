@@ -20,7 +20,7 @@ Each tenant API key also has its own `rate_limit_per_minute` setting. This is
 enforced across tenant memory, user, agent, API-key, and tenant routes and is
 independent of the per-user and plan limits. A `429` caused by this boundary
 returns `details.scope: "api_key"`; the shared tenant write ceiling returns
-`details.scope: "tenant"`.
+`details.scope: "tenant"`. Both use `code: "RATE_429"`, a `Retry-After` header and `details.retry_after_seconds`.
 
 Use separate keys per backend service so one integration cannot consume every
 other service's key-level capacity. Redis failure leaves requests available;
@@ -39,4 +39,10 @@ Monthly calls and tokens reset at the start of each billing month. Write calls a
 
 ## When you hit a limit
 
-Behavior depends on your tenant's overage policy — see [Degradation modes](/concepts/degradation) for the exact quota mode handling and response headers.
+Behavior depends on your tenant's overage policy - see [Degradation modes](/concepts/degradation) for the exact quota mode handling and response headers.
+
+## Retry by the actual boundary
+
+Honor `Retry-After` for key/tenant `RATE_429` responses. User-export `EXP_429` uses `details.retry_after_seconds`; Passport token-regeneration `UUI_TOKEN_429` uses `details.next_available_seconds`. These are different controls and need not share a one-minute interval. A per-user ingestion `L1` quality-gate outcome may be an HTTP 200 body. See the [error reference](/api-reference/errors#retry-and-recovery).
+
+Wide tables and code examples can be scrolled horizontally on narrow screens.
