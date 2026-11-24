@@ -18,7 +18,7 @@ Do not add `source` merely to make a chatbot's answer authoritative. Do not rela
 
 ## Register writers before sending events
 
-An authorized tenant operator registers each writer, for example through `POST /v1/tenant/service-writers`. Writer definitions include `service_key`, display name, category authority rules and optional bound key. Use separate least-privilege credentials for independent services. Normal applicants should ask the owner to provision this catalog rather than receive an admin key.
+An authorized tenant operator registers each writer, for example through `POST /v1/tenant/service-writers`. Writer definitions include `service_key`, display name, category authority rules and optional bound key. Use separate least-privilege credentials for independent services. Keep writer provisioning in the tenant administration workflow, separate from ordinary application keys.
 
 A service event passed to `add()` has this shape:
 

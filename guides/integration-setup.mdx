@@ -1,0 +1,51 @@
+---
+title: "Integration setup"
+description: "Configure your workspace, API credentials and application identity before integrating MemoryOS."
+---
+
+## 1. Create your workspace and API key
+
+Sign in to the [dashboard](https://app.memoryo.dev), select your workspace and create a server-side API key. Use `read` and `write` for ordinary application integration. Keep administrator and deletion credentials separate.
+
+An API key authenticates your workspace. Your application remains responsible for authenticating its own users and selecting their stable `external_user_id` on the server. Keep that mapping consistent across sessions and services.
+
+## 2. Configure your backend connection
+
+```bash
+MEMORYOS_API_KEY=<your workspace API key>
+MEMORYOS_API_URL=https://api.memoryo.dev
+MEMORYOS_TEST_OWNER=example-user-123
+```
+
+The hosted API root is `https://api.memoryo.dev`. For a self-hosted instance, replace it with your instance's API root, without `/v1`. The repository's [local beta profile](https://github.com/memengine/memory-api/blob/main/beta/README.md) uses `http://127.0.0.1:18000`.
+
+`MEMORYOS_TEST_OWNER` is the example application's stable user ID, not a secret or separate MemoryOS credential. In your application, use the ID resolved by your authenticated server-side user mapping. Keep API keys out of browser code and source control.
+
+## 3. Install a client
+
+- [Python SDK](/sdk/python): `pip install memoryo-sdk==0.1.2`
+- [TypeScript SDK](/sdk/typescript): `npm install memoryo-sdk@0.1.3`
+- [MCP](/sdk/mcp): connect through an authenticated gateway or run a private sidecar.
+
+The [quickstart](/quickstart) walks through saving evidence, polling the original job and retrieving current context. Its no-key simulation is also available for exploring the workflow before connecting an application.
+
+## 4. Choose the contracts your application needs
+
+| Capability | Integration requirement |
+| --- | --- |
+| Persistent context | Submit authorized evidence and reuse a stable owner ID across sessions |
+| Scoped preferences | Enable the explicit preference contract and supply property, value and applicability |
+| Source provenance | Register service writers and attach stable event IDs and actual evidence references |
+| Visibility handling | Check processing/unavailable status before dependent model calls or actions |
+| Source review | Show versioned cards in your chat and send the user's selected action |
+| Service correction | Use a separate authorized operator workflow for eligible service-event candidates |
+
+[Explicit scope](/guides/scoped-preferences) selects preference applicability; it does not grant project access. [Source authority](/concepts/provenance) comes from registered writer policy, not arbitrary metadata. Source review, A/B clarification, typed preference review and operator correction are different contracts.
+
+## 5. Verify your integration
+
+Submit a statement once, retain its job ID and inspect the processing result. Retrieve for the same owner, then verify the returned current records and provenance. Reopen the conversation and confirm that the owner mapping persists.
+
+For corrections, follow the supported review/replacement path and retrieve again. A queued write is not an applied correction. Apply [visibility guards](/concepts/degradation) before using context; keep decision cards separate from active facts.
+
+When reporting a problem, include SDK/runtime versions, redacted request/job IDs, reproduction steps and observed results. Exclude credentials and personal/customer data. Distinguish simulation, backend responses and model-generated answers.

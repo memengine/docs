@@ -22,7 +22,7 @@ function required(name: string): string {
 const memory = new MemoryOS(required("MEMORYOS_API_KEY"), required("MEMORYOS_API_URL"));
 ```
 
-The constructor's **second positional argument** is the API base URL string, not an options object. It takes the backend root without `/v1`. The default is `https://api.memoryo.dev`; applicants must use their supplied endpoint while hosted access is pending. Keep the key server-side and derive the stable `externalUserId` from authenticated application identity.
+The constructor's **second positional argument** is the API base URL string, not an options object. It takes the backend root without `/v1`. The default is `https://api.memoryo.dev`; set it to your instance URL for self-hosting. Keep the key server-side and derive the stable `externalUserId` from authenticated application identity.
 
 ## Save and inspect the original job
 
@@ -111,4 +111,4 @@ Pass `source` to `add()` only after the owner configures the writer, credential 
 - `feedback()`: retrieval outcome reporting; corrections may create another asynchronous job.
 - Delete/export and domain helpers: require their endpoint-specific permissions/configuration.
 
-`UniversalMemoryOS` belongs to disabled-by-default Memory Passport. Assistant-proposal confirmation and automatic interpretation are experimental. Use only features confirmed for your assigned backend, rather than enabling flags to make an assessment pass.
+`UniversalMemoryOS` belongs to disabled-by-default Memory Passport. Assistant-proposal confirmation and automatic interpretation are experimental. Check the feature configuration of your backend before using optional contracts.

@@ -21,7 +21,7 @@ memory = Memory(
 )
 ```
 
-`base_url` is the backend root, without `/v1`. Its SDK default is `https://api.memoryo.dev`; applicants must use their supplied endpoint while hosted access is pending. An API key never belongs in browser code. Your server supplies a stable `external_user_id` after authenticating the user.
+`base_url` is the backend root, without `/v1`. Its SDK default is `https://api.memoryo.dev`; set it to your instance URL for self-hosting. An API key never belongs in browser code. Your server supplies a stable `external_user_id` after authenticating the user.
 
 ## Save and poll
 
@@ -120,4 +120,4 @@ The async client exposes corresponding awaited write, job, retrieval and review 
 - `feedback()`: optional retrieval outcome reporting; a correction can queue another job.
 - Delete/export and domain helpers: require their endpoint-specific permissions and enabled configuration.
 
-`UniversalMemory` belongs to disabled-by-default Memory Passport. Assistant-proposal confirmation and automatic interpretation are experimental; their presence in source or types is not an enabled applicant feature. Use only capabilities confirmed for your assigned runtime.
+`UniversalMemory` belongs to disabled-by-default Memory Passport. Assistant-proposal confirmation and automatic interpretation are experimental; their presence in source or types does not enable them. Check the feature configuration of your backend.

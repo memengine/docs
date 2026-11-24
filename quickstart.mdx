@@ -1,6 +1,6 @@
 ---
 title: "Quickstart"
-description: "Try a no-key simulation, then connect to an assigned or isolated local MemoryOS backend."
+description: "Try a no-key simulation or connect your application to the hosted or self-hosted API."
 ---
 
 ## 1. Choose simulation or a real backend
@@ -19,7 +19,7 @@ This uses local fixtures and requires no SDK, API key, model or running backend.
 
 ### Real integration
 
-Applicants: follow [Applicant setup](/guides/applicant-setup) and wait for your assigned endpoint and credentials. Hosted backend access is pending launch.
+Create a workspace and API key in the [dashboard](https://app.memoryo.dev), then follow [Integration setup](/guides/integration-setup). Use `https://api.memoryo.dev` for the hosted API or your own instance URL for self-hosting.
 
 For self-hosted exploration, follow the repository's [local beta instructions](https://github.com/memengine/memory-api/blob/main/beta/README.md). That profile uses isolated Docker resources and exposes its API at `http://127.0.0.1:18000`. Dependency/image downloads need internet. Ingestion and some retrieval paths can use paid extraction/embedding providers; a chat-model stub alone does not make the backend free.
 
@@ -39,7 +39,7 @@ npm install memoryo-sdk@0.1.3
 
 </CodeGroup>
 
-Set `MEMORYOS_API_KEY`, `MEMORYOS_API_URL` and `MEMORYOS_TEST_OWNER` in your server environment. Use the supplied URL without a trailing `/v1`; use the backend API address, not a dashboard or MCP gateway URL. Keep credentials out of browser code and source control.
+Set `MEMORYOS_API_KEY`, `MEMORYOS_API_URL` and `MEMORYOS_TEST_OWNER` in your server environment. Set `MEMORYOS_API_URL=https://api.memoryo.dev` for hosted use, or use your self-hosted API root without a trailing `/v1`; use the backend API address, not a dashboard or MCP gateway URL. Keep credentials out of browser code and source control.
 
 ## 3. Submit once and inspect the original job
 

@@ -3,13 +3,13 @@ title: "Explicit scoped preferences"
 description: "Declare the property, value and scope explicitly rather than inferring project isolation from prose."
 ---
 
-Use this contract when your application knows which preference and applicability the user selected. It is optional: the backend must enable `EXPLICIT_PREFERENCE_CLAIMS_ENABLED`. If unavailable, it returns `409 PREF_409` with `explicit_preferences_unavailable`; do not enable flags yourself during an applicant assessment.
+Use this contract when your application knows which preference and applicability the user selected. It is optional: the backend must enable `EXPLICIT_PREFERENCE_CLAIMS_ENABLED`. If unavailable, it returns `409 PREF_409` with `explicit_preferences_unavailable`. Configure this feature on your backend before using the contract.
 
 The application owns the property catalog, user intent and project-access check. MemoryOS validates and governs the supplied declaration. It does not prove that the user meant it or that your model interpreted the conversation correctly.
 
 ## Declare a save
 
-The following is a **synthetic contract example**, using an application-defined property `response.layout`. Confirm the property catalog and enabled path with the environment owner before using it. Send this body to `POST /v1/memories/add` with a tenant key and a stable idempotency key.
+The following is a **synthetic contract example**, using an application-defined property `response.layout`. Use your application's property catalog and enable the explicit preference path before using it. Send this body to `POST /v1/memories/add` with a tenant key and a stable idempotency key.
 
 ```json
 {

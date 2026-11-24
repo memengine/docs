@@ -261,7 +261,7 @@ not commitment or authority. The general extraction quote checks remain strict.
 
 ```powershell
 $Api = $env:MEMORYOS_API_URL
-if (-not $Api) { throw "Set MEMORYOS_API_URL to the assigned backend root." }
+if (-not $Api) { throw "Set MEMORYOS_API_URL to your backend API root." }
 
 $TenantKey = $env:MEMORYOS_API_KEY
 if (-not $TenantKey) { throw "Set MEMORYOS_API_KEY before running this example." }

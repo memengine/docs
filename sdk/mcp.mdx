@@ -14,16 +14,16 @@ MemoryOS MCP exposes backend operations as tools. The MCP gateway and the native
 
 Public MCP authentication is separate from Memory Passport. Universal-memory features remain disabled by default; do not enable them for ordinary tenant use.
 
-## Applicant connection
+## Connect your MCP client
 
-Use the **MCP URL and sign-in instructions supplied by the assessment owner**. Hosted gateway access is not implied by this page. Verify the installed `tools/list` schema before using optional scope/review fields. If a required tool is absent, report the integration blocker rather than sending raw requests or falling back to another identity.
+Connect your MCP client to your MemoryOS gateway URL and complete its sign-in flow. Verify the installed `tools/list` schema before using optional scope/review fields. If a required tool is absent, report the integration blocker rather than sending raw requests or falling back to another identity.
 
 ## Public self-scoped flow
 
-1. Sign in to the assigned synthetic account and workspace.
+1. Sign in to the account and workspace.
 2. Use `memoryos_remember` for authorized conversation evidence. Reuse a stable key only for an identical retry.
 3. Poll the returned original job with `memoryos_my_job_status`.
-4. Read with `memoryos_my_context`, supplying explicit typed scope where assigned.
+4. Read with `memoryos_my_context`, supplying explicit typed scope when needed.
 5. Honor visibility and unresolved-choice signals before model inference.
 6. Present source-review cards separately, then submit the user's offered action with `memoryos_answer_source_review`.
 
@@ -71,9 +71,9 @@ Configure only in that private process:
 
 ```bash
 MEMORYOS_API_KEY=<synthetic workspace key>
-MEMORYOS_API_URL=<assigned native API root>
+MEMORYOS_API_URL=<your native API root>
 ```
 
-Then run `memoryo-mcp` using the installed command. Native `MEMORYOS_API_URL` is not the gateway's `/mcp` address. Private generic tools include `memoryos_add_memory`, `memoryos_get_context` and `memoryos_get_job_status`; check the actual schema and use only assigned permissions.
+Then run `memoryo-mcp` using the installed command. Native `MEMORYOS_API_URL` is not the gateway's `/mcp` address. Private generic tools include `memoryos_add_memory`, `memoryos_get_context` and `memoryos_get_job_status`; check the actual schema and grant only the required permissions.
 
 Do not expose a tenant-key sidecar through public ingress. Public deployments require their own validated OAuth/Clerk configuration and self-scoped surface, not an API key in client browser settings. This page does not deploy/configure a public gateway.

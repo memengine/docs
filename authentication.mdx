@@ -22,7 +22,7 @@ Content-Type: application/json
 
 Use the exact `ApiKey` scheme for tenant API routes. A raw key, `Bearer mem_...` or `X-API-Key` is not an alternative. Never put a tenant key in browser/mobile code, a public repository, screenshots or a submission.
 
-Applicants receive synthetic access from the assessment owner once the assigned backend is available. A dashboard login is separate from an API key; installing the SDK creates neither.
+Create API keys in your workspace dashboard. Dashboard sign-in and server-side API authentication are separate access paths.
 
 ## Stable user identity
 
@@ -45,7 +45,7 @@ For public MCP, do not provide an `external_user_id` or use a project selector t
 | `delete` | Destructive memory/cleanup operations |
 | `admin` | Tenant administration and eligible service-correction operations |
 
-Use least privilege. Normal applicants and application clients need only the permissions assigned for their work; operator review does not justify distributing an administrator key. Registered service writers may also bind a particular credential and authority policy. A service name or metadata field alone cannot grant authority.
+Use least privilege. Application clients need only the permissions required for their work; operator review does not justify distributing an administrator key. Registered service writers may also bind a particular credential and authority policy. A service name or metadata field alone cannot grant authority.
 
 ## Configure an SDK
 
@@ -67,6 +67,6 @@ TypeScript takes the base URL as the second positional string argument: `new Mem
 - **403:** check permissions, blocked owner and writer binding with the owner; do not bypass them.
 - **Workspace not ready:** verify the intended signed-in workspace and backend access. A fresh organization token may be needed after a workspace change.
 - **Connection refused/unreachable:** report an access blocker. Do not create another key to repair a stopped API.
-- **Feature unavailable:** confirm the assigned backend supports/enables that contract; an SDK field alone does not enable it.
+- **Feature unavailable:** check that your backend version and configuration enable that contract; an SDK field alone does not enable it.
 
-Memory Passport and `/v1/universal/*` remain a separate disabled-by-default private-beta contract. See its [reference](/concepts/memory-passport) only if explicitly assigned; ordinary tenant integration requires no global-agent registration or universal consent.
+Memory Passport and `/v1/universal/*` remain a separate disabled-by-default private-beta contract. See its [reference](/concepts/memory-passport) only when integrating an explicitly enabled Passport deployment; ordinary tenant integration requires no global-agent registration or universal consent.

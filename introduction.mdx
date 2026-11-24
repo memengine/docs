@@ -5,16 +5,12 @@ description: "Governed memory for assistant applications: ingestion, scoped cont
 
 MemoryOS is a backend for persistent assistant context. Applications submit conversations or registered service events, then retrieve governed context before answering. MemoryOS records provenance, handles competing candidates and exposes review and visibility signals.
 
-<Note>
-These guides describe the developer beta. Hosted backend access is pending launch. Applicants should use only the API URL, workspace and synthetic credentials supplied by the assessment owner, or the documented local beta. Installing an SDK does not provide a running backend.
-</Note>
-
 ## Choose a starting point
 
 | Goal | Start here |
 | --- | --- |
 | Explore without credentials, a backend or provider charges | [No-key simulation and quickstart](/quickstart) |
-| Complete an applicant integration | [Applicant setup](/guides/applicant-setup) |
+| Configure your workspace and application | [Integration setup](/guides/integration-setup) |
 | Integrate a server-side application | [Python](/sdk/python) or [TypeScript](/sdk/typescript) |
 | Keep explicit preferences separate across projects | [Explicit scoped preferences](/guides/scoped-preferences) |
 | Connect an MCP client | [MCP](/sdk/mcp) |
@@ -44,6 +40,6 @@ Retrieved memory is data, not authorization or instructions that override your a
 
 Normal tenant integration uses an API key and a stable `external_user_id`. Public authenticated MCP instead derives identity from the signed-in user and workspace. These are separate from Memory Passport, which remains disabled by default.
 
-Explicit preference declarations require backend enablement and the agreed property catalog. Registered service events require configured service writers and authority rules. Review and operator correction are different workflows; a normal applicant key should not receive administrative permissions.
+Explicit preference declarations require backend enablement and the agreed property catalog. Registered service events require configured service writers and authority rules. Review and operator correction are different workflows; ordinary application keys should not receive administrative permissions.
 
 The beta includes source attribution, current-state retrieval, lineage and versioned review contracts. It is not a general document RAG replacement or a promise of automatic truth selection, arbitrary natural-language project isolation, or production readiness.
