@@ -1,98 +1,49 @@
 ---
 title: "MemoryOS overview"
-description: "Add governed state and context to production AI agents without replacing your existing data systems."
+description: "Governed memory for assistant applications: ingestion, scoped context, provenance and review."
 ---
 
-MemoryOS is the governed state and context layer for production AI agents. Your backend sends relevant conversations, corrections, and application events to MemoryOS, then retrieves current, authorized context before the next model call.
+MemoryOS is a backend for persistent assistant context. Applications submit conversations or registered service events, then retrieve governed context before answering. MemoryOS records provenance, handles competing candidates and exposes review and visibility signals.
 
-Databases store business records. Transcript stores preserve conversations. Vector search finds similar records. MemoryOS governs learned state: what became durable, what changed, which claim is current, where it came from, and which agent may reuse it.
+<Note>
+These guides describe the developer beta. Hosted backend access is pending launch. Applicants should use only the API URL, workspace and synthetic credentials supplied by the assessment owner, or the documented local beta. Installing an SDK does not provide a running backend.
+</Note>
 
-## Where MemoryOS fits
+## Choose a starting point
 
-MemoryOS works alongside your existing infrastructure:
-
-| System | Responsibility |
+| Goal | Start here |
 | --- | --- |
-| Your application database, CRM, and tools | Business records, transactions, permissions, and real actions |
-| Your transcript or event store | Complete conversations and raw event history |
-| Your document or vector retrieval | Static knowledge and semantically similar records |
-| MemoryOS | Governed durable context learned from relevant interactions and events |
+| Explore without credentials, a backend or provider charges | [No-key simulation and quickstart](/quickstart) |
+| Complete an applicant integration | [Applicant setup](/guides/applicant-setup) |
+| Integrate a server-side application | [Python](/sdk/python) or [TypeScript](/sdk/typescript) |
+| Keep explicit preferences separate across projects | [Explicit scoped preferences](/guides/scoped-preferences) |
+| Connect an MCP client | [MCP](/sdk/mcp) |
+| Coordinate Billing, CRM or Support writers | [Provenance and authority](/concepts/provenance) |
 
-MemoryOS is not a complete episodic archive, general document RAG system, agent framework, or replacement for your system of record.
+## The application loop
 
-## The governed-context lifecycle
+1. Authenticate the user in your application and resolve a stable owner ID on your server.
+2. Submit authorized evidence with `add()`. Save its original job ID; queued means admitted, not applied.
+3. Inspect that job when verifying storage. A completed job can create records, retain pending candidates or create no memory.
+4. Retrieve for the same owner and the intended scope.
+5. Check visibility and scope/choice decisions **before** using records or calling a model for an answer that depends on them.
+6. Show review cards separately in the existing chat. Submit only the user's actual choice.
 
-```text
-ingest -> extract -> reconcile -> govern -> retrieve
-```
+See [Visibility and fallback](/concepts/degradation) for the handling of unavailable context. An empty result and a governance hold are different states.
 
-1. **Ingest** relevant conversations, corrections, and application events.
-2. **Extract** candidate durable state and supporting evidence.
-3. **Reconcile** candidates with existing claims, revisions, and conflicts.
-4. **Govern** validity, provenance, authority, lifecycle, and access policy.
-5. **Retrieve** current, authorized, prompt-ready context.
+## What your application still owns
 
-```text
-conversation completed  ->  MemoryOS add  ->  asynchronous extraction
-new user message        ->  MemoryOS get  ->  prompt-ready context  ->  your model
-```
+- Authentication, project access and mapping identities consistently across clients and sessions.
+- Choosing explicit property, value and applicability when using the typed preference contract.
+- Business records and actions: billing, refunds, permissions and transactions remain in your systems.
+- Deciding whether an answer can proceed without memory, and grounding the model's final answer.
 
-MemoryOS decides what is durable enough to retain, keeps source and version history, and returns only the context relevant to the current request. Your application remains responsible for the conversation, model call, authoritative business data, and real actions.
+Retrieved memory is data, not authorization or instructions that override your application's policies. Natural-language extraction and semantic matching use models; they do not guarantee that every paraphrase or project name is interpreted correctly. Typed scope is an application declaration, not a permission grant.
 
-## Choose an integration
+## Available paths and boundaries
 
-| What you are building | Integration | Identity | Start here |
-| --- | --- | --- | --- |
-| An assistant, copilot, or SaaS AI feature | Tenant memory | Your stable `external_user_id` | [Quickstart](/quickstart) |
-| A tutor or learning product | Tenant memory with the EdTech schema | Your stable student ID | [EdTech tutor](/cookbooks/edtech-tutor) |
-| A customer-support product | Tenant memory with the Support schema | Your stable customer ID | [Support agent](/cookbooks/support-agent) |
-| Several services writing for the same users | Tenant memory with service writers and provenance | Same user ID across every service | [Provenance](/concepts/provenance) |
-| User-controlled memory shared between independent agents | Memory Passport private beta | Not available in standard tenant accounts | Contact MemoryOS for design-partner access |
+Normal tenant integration uses an API key and a stable `external_user_id`. Public authenticated MCP instead derives identity from the signed-in user and workspace. These are separate from Memory Passport, which remains disabled by default.
 
-<Warning>
-Memory Passport is a frozen private beta and is disabled by default. Its APIs return `404 memory_passport_not_available` unless MemoryOS explicitly enables the feature for an approved design partner. Tenant memory remains the supported production path.
-</Warning>
+Explicit preference declarations require backend enablement and the agreed property catalog. Registered service events require configured service writers and authority rules. Review and operator correction are different workflows; a normal applicant key should not receive administrative permissions.
 
-## The tenant-memory loop
-
-For most products, integration is two server-side calls:
-
-1. Call `get()` before your model call.
-2. Add `system_prompt_addition` when `has_context` is true.
-3. Always call your model, including when MemoryOS returns no context or passthrough mode.
-4. Call `add()` after the conversation turn or session you want MemoryOS to examine.
-
-`add()` accepts a conversation, not a prewritten memory. Extraction runs asynchronously, so a `queued` response confirms acceptance rather than immediate storage.
-
-## What MemoryOS stores
-
-The General Engine can extract durable information such as preferences, goals, recurring procedures, relationships, stable facts, and demonstrated expertise. Uncertain signals may remain pending until later evidence reinforces them. Temporary instructions and conversational filler should not become long-term memory.
-
-Domain schemas use the same `add()` and `get()` calls while adding structured domain context. EdTech can maintain learning profiles; Support can maintain customer-support context. Keep grades, payments, ticket state, permissions, and other authoritative business records in your own systems.
-
-## Multiple services and agents
-
-Use the same `external_user_id` whenever your services refer to the same person. Register a service writer for each production writer and attach a stable source event ID to writes. This gives MemoryOS enough provenance to deduplicate retries, compare authority, preserve lineage, and route genuine conflicts.
-
-Conflicts do not all follow the same path: trusted evidence may resolve automatically, tenant-owned conflicts may require dashboard review, and the frozen Memory Passport private beta has a separate user-clarification path when explicitly enabled. Each conflict has one resolution path.
-
-## Memory Passport
-
-Memory Passport is an experimental design for consent-based memory shared across independent agents or applications. It is currently frozen as a private beta while the normal tenant-memory path remains the production focus.
-
-Do not build a production integration against Passport unless MemoryOS has explicitly enabled it for your tenant. A normal integration uses an API key plus your stable `external_user_id`; it does not redirect users to MemoryOS or require a consent button.
-
-## Production boundaries
-
-- Call MemoryOS from your backend; never expose API keys in browser or mobile code.
-- Use stable pseudonymous user IDs rather than email addresses.
-- Treat retrieved memory as context, not authorization or transactional truth.
-- Use source metadata for retries and multi-service writes.
-- Continue serving users when memory is empty, delayed, degraded, or unavailable.
-
-## Start building
-
-- [Quickstart](/quickstart) - first tenant-memory integration
-- [Authentication](/authentication) - credentials and security boundaries
-- [Python SDK](/sdk/python) and [TypeScript SDK](/sdk/typescript)
-- [Domain schemas](/concepts/domain-schemas)
+The beta includes source attribution, current-state retrieval, lineage and versioned review contracts. It is not a general document RAG replacement or a promise of automatic truth selection, arbitrary natural-language project isolation, or production readiness.

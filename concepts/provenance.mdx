@@ -1,226 +1,63 @@
 ---
-title: "Memory Provenance"
-description: "Track where memories came from, which service wrote them, and how conflicts are resolved."
+title: "Provenance and authority"
+description: "Registered service writers, evidence origins and traceable governed state."
 ---
 
-Provenance answers three questions about a memory:
+Provenance records where a candidate came from. Authority policy decides what that source is allowed to change. Neither proves that an extracted sentence is true or that an arbitrary paraphrase was matched to the right business field.
 
-- **Who wrote it?** Which service, API key, Passport agent, or organisation connection observed the claim.
-- **Where did it come from?** Which source event, payload hash, and evidence references produced it.
-- **Why is this version active?** Which authority, recency, confidence, or human decision selected it over another claim.
+## Conversation evidence and service events
 
-This is the governance layer behind MemoryOS. It matters most when multiple services or agents write memories about the same user.
-
-## Core objects
-
-### Service Writer
-
-A Service Writer is a named identity for one backend service. Register one writer for each service that observes user facts.
-
-Examples:
-
-- `support-service`
-- `billing-service`
-- `crm-sync`
-- `learning-platform`
-
-| Field | Meaning |
-| --- | --- |
-| `service_key` | Stable slug, for example `billing-service` |
-| `display_name` | Human-readable label in dashboards |
-| `authority_rules` | Priority scores per memory category |
-| `api_key_id` | Optional bound API key for credential verification |
-
-### Source event
-
-A source event is created for an `add()` call that includes a `source` block. It records:
-
-- your system event ID
-- when your system observed the event
-- which service wrote it
-- SHA-256 payload hash
-- optional evidence references
-- optional scope metadata
-
-Every memory created by that job points back to the source event.
-
-### Claim revision ledger
-
-MemoryOS keeps claim revisions so conflict resolution does not erase history. When a newer or more trusted claim supersedes an older one, the older claim is archived instead of deleted.
-
-The active memory is what retrieval sees. The ledger keeps the full lineage for audit, dashboard inspection, and future graph work.
-
-## Register a Service Writer
-
-```http
-POST /v1/tenant/service-writers
-Authorization: ApiKey mem_live_xxx
-Content-Type: application/json
-```
-
-```json
-{
-  "service_key": "billing-service",
-  "display_name": "Billing Service",
-  "authority_rules": {
-    "default_priority": 50,
-    "categories": {
-      "fact": 80,
-      "preference": 40,
-      "goal": 50
-    }
-  }
-}
-```
-
-Use separate API keys per service in production. Bind each writer to its key from the Tenant Dashboard when you are ready for production traffic.
-
-## Send source metadata on `add()`
-
-```http
-POST /v1/memories/add
-Authorization: ApiKey mem_live_xxx
-Content-Type: application/json
-```
-
-```json
-{
-  "external_user_id": "customer_123",
-  "messages": [
-    {
-      "role": "user",
-      "content": "What plan am I currently using?"
-    },
-    {
-      "role": "assistant",
-      "content": "Your current subscription plan is Growth."
-    }
-  ],
-  "source": {
-    "service": "billing-service",
-    "event_id": "billing-plan-2026-06-30-001",
-    "observed_at": "2026-06-30T10:00:00Z",
-    "scope": {
-      "workspace_id": "ws_123"
-    },
-    "evidence": [
-      {
-        "source_type": "subscription_record",
-        "reference": "billing/subscriptions/ws_123"
-      }
-    ]
-  }
-}
-```
-
-| Field | Required | Notes |
+| Path | Input | Authority boundary |
 | --- | --- | --- |
-| `service` | Yes | Registered `service_key` |
-| `event_id` | Yes | Stable event ID from your system |
-| `observed_at` | No | Defaults to request time if omitted |
-| `scope` | No | JSON metadata such as workspace, region, channel, or ticket |
-| `evidence` | No | References to records in your system; do not include secrets |
+| Conversation | Actual user/assistant turns, stable conversation/turn IDs | Assistant text is not direct user confirmation |
+| MCP client assertion | Client-supplied conversation/declarations | Client cannot grant itself higher authority |
+| Registered service | Authenticated writer, stable event ID, observed time, declared scope/evidence | Tenant-configured writer policy and credential binding |
+| Explicit preference | Application-selected property, value and applicability | Versioned identity/target validation; application owns intent and scope selection |
 
-## Idempotency and payload safety
+Do not add `source` merely to make a chatbot's answer authoritative. Do not relabel tool or document text as user input. Retrieved memory is not permission to perform an external action.
 
-Retrying the same `source.event_id` with the same payload returns the original job path and does not duplicate extraction.
+## Register writers before sending events
 
-Retrying the same `source.event_id` with different messages returns a provenance conflict error. This prevents accidental mutation of historical source events.
+An authorized tenant operator registers each writer, for example through `POST /v1/tenant/service-writers`. Writer definitions include `service_key`, display name, category authority rules and optional bound key. Use separate least-privilege credentials for independent services. Normal applicants should ask the owner to provision this catalog rather than receive an admin key.
 
-Raw extraction payloads can be redacted after the configured retention window. The payload hash stays so the source event remains verifiable.
-
-## Conflict resolution
-
-When two writers produce conflicting memories for the same user, MemoryOS compares claims using this order:
-
-1. Writer authority for the memory category
-2. Source `observed_at` recency
-3. Extraction confidence
-4. Human review when equally trusted sources disagree
-
-Example authority rules:
+A service event passed to `add()` has this shape:
 
 ```json
 {
-  "default_priority": 50,
-  "categories": {
-    "fact": 90,
-    "preference": 40
-  }
+  "service": "billing-service",
+  "event_id": "synthetic-subscription-event-1",
+  "observed_at": "2026-11-24T09:00:00Z",
+  "scope": {"account_id": "synthetic-account-1"},
+  "evidence": [{"source_type": "subscription_record", "reference": "synthetic/subscriptions/1"}]
 }
 ```
 
-A billing service can be trusted more for subscription facts, while a chat service may be trusted more for user preferences.
+`observed_at` is required by the native request schema; SDK source helpers can supply a timestamp. Send your actual observed time when available, not a fabricated newer time to win a conflict. Evidence references identify your own records; do not include secrets.
 
-## Equal-authority conflicts
+Service `scope` participates in the source-governance path. It is not an ACL and does not automatically establish the typed project-preference read contract. See [explicit scope](/guides/scoped-preferences).
 
-If equally trusted services disagree, MemoryOS does not silently choose one. It creates a review item.
+## Selection and review
 
-Example:
+The backend uses evidence eligibility, source policy, authority, temporal checks and candidate/current-state validation. Model relation/extraction output does not itself grant authority. Confidence or arrival order is not permission to overwrite a stronger source, and a retained candidate is not active memory.
 
-- Support Service reports: `User's current subscription plan is Starter.`
-- Billing Service reports: `User's current subscription plan is Growth.`
+Some supported transitions apply automatically; uncertain or conflicting candidates can remain pending. Inspect the original job, actual current records, provenance and visibility signal. Do not assume all equal-priority conflicts expose the same UI or that every disagreement creates a usable review.
 
-If both have equal authority, the tenant dashboard shows the conflict for review. The frozen Memory Passport private beta has a separate user-clarification path when explicitly enabled.
+There are separate decision paths:
 
-The losing claim is not hard-deleted. It is kept in the revision ledger and marked inactive or archived.
+- [Source review](/api-reference/retrieve#review-an-uncertain-source-statement-in-your-existing-chat): a user-facing versioned card; no direct activation of pending text.
+- A/B clarification: backend-approved choices in the existing chat.
+- [Service correction](/api-reference/service-corrections): an administrator's explicit candidate/target preview and apply/decline decision for eligible service events.
 
-## Provenance in retrieve responses
+Use the path returned/supported for that candidate. Giving a caller an admin key is not a workaround for a missing user-facing action.
 
-`retrieve` and `list` include provenance when available:
+## Traceability
 
-```json
-{
-  "content": "User's current subscription plan is Growth.",
-  "category": "fact",
-  "source_event_id": "3c3994d0-1c1d-4e1a-9fd1-0f87f82d13da",
-  "provenance": {
-    "service": "billing-service",
-    "event_id": "billing-plan-2026-06-30-001",
-    "observed_at": "2026-06-30T10:00:00Z",
-    "received_at": "2026-06-30T10:00:02Z",
-    "payload_hash": "7ba8601d36046350e1311f08b7a66646338ee75e3b443ebaba35de9607b6e169",
-    "scope": {
-      "workspace_id": "ws_123"
-    }
-  }
-}
-```
+Current records can include `source_event_id` and `provenance`, including writer/service, event, observed time, scope and evidence metadata. Preserve returned memory/source IDs. Legacy records may have incomplete provenance; absence is not proof of a trusted source.
 
-Legacy memories may have partial provenance. The Operator Console shows provenance coverage and unattributed lineage so the MemoryOS team can backfill safely.
+`GET /v1/tenant/source-events` supports authorized source inspection. Native memory detail/history and exports support management/audit use. These historical records must not be substituted for withheld current answer context.
 
-## Inspect source events
+## Replay and retention
 
-```http
-GET /v1/tenant/source-events?external_user_id=customer_123&source_service=billing-service&limit=50
-Authorization: ApiKey mem_live_xxx
-```
+Retry source events with the original stable event and authorized payload; changing its binding can conflict. Use an idempotency key for the eligible admission path and inspect the original job. See [the durable receipt boundary](/api-reference/add#retry-and-replay-boundary).
 
-Use this endpoint to inspect source events, payload hashes, linked extraction jobs, evidence references, and scope metadata.
-
-## Error codes
-
-| Code | Meaning |
-| --- | --- |
-| `PROV_403` | API key does not match the writer's bound key |
-| `PROV_404` | Service writer not found |
-| `PROV_409` | Source event exists with a different payload, or writer key already exists |
-| `PROV_422` | Invalid service writer or source payload |
-
-## Who needs provenance?
-
-| Scenario | Need provenance? |
-| --- | --- |
-| One simple app writing memories | Optional |
-| Multiple services writing for the same user | Yes |
-| Compliance audit trail | Yes |
-| Exactly-once ingestion with retries | Yes |
-| Conflict resolution between services | Yes |
-| Memory Passport private-beta shared context | Yes, when explicitly enabled |
-
-## Related pages
-
-- [Extraction Quality Loop](/concepts/extraction-quality)
-- [Memory Lifecycle and Versioning](/concepts/memory-lifecycle)
-- [POST /v1/memories/add](/api-reference/add)
-- [POST /v1/memories/retrieve](/api-reference/retrieve)
+Raw payload retention, receipt retention, memory history and explicit user/tenant deletion are separate policies. Hash retention proves byte binding, not semantic correctness, permanent retention or permanent duplicate prevention. Admission replay alone is not proof of one worker mutation.

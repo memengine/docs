@@ -3,6 +3,11 @@ title: "EdTech domain guide"
 description: "Understand how the EdTech schema works for tutoring, learning apps, exam prep, and student memory."
 ---
 
+<Note>
+This domain guide requires the corresponding enabled tenant schema. Start with the [assigned access and quickstart](/guides/applicant-setup). Hosted access is pending launch. The examples are integration patterns, not evidence that your deployment has this overlay enabled. Apply [visibility and choice guards](/concepts/degradation) before model calls or memory-dependent actions, and poll original jobs when verifying a new write.
+</Note>
+
+
 This guide explains how an education company uses MemoryOS with the EdTech domain schema.
 
 You still use the normal SDK.
@@ -16,7 +21,7 @@ import os
 
 from memoryos import Memory
 
-mem = Memory(api_key=os.environ["MEMORYOS_API_KEY"])
+mem = Memory(api_key=os.environ["MEMORYOS_API_KEY"], base_url=os.environ["MEMORYOS_API_URL"])
 ```
 
 The difference is tenant configuration. Once your tenant has the EdTech schema enabled, MemoryOS automatically adds structured student memory, tutoring context, and EdTech-aware conflict routing.
@@ -74,7 +79,7 @@ import os
 
 from memoryos import Memory
 
-mem = Memory(api_key=os.environ["MEMORYOS_API_KEY"])
+mem = Memory(api_key=os.environ["MEMORYOS_API_KEY"], base_url=os.environ["MEMORYOS_API_URL"])
 
 result = mem.add(
     external_user_id="student_123",
@@ -122,9 +127,11 @@ result = mem.get(
     limit=8,
     context_max_tokens=600,
 )
+if result.memory_visibility is not None or result.preference_scope_request is not None or result.preference_decisions:
+    raise RuntimeError("Withhold dependent answer; show status or request the explicit selection.")
 
 system_prompt = "You are a patient math tutor."
-if result.has_context:
+if not result.is_passthrough and result.has_context:
     system_prompt += "\n\n" + result.system_prompt_addition
 ```
 
@@ -172,7 +179,7 @@ For normal AI responses, `get()` is enough.
 ```ts
 import { MemoryOS } from "memoryo-sdk";
 
-const mem = new MemoryOS(process.env.MEMORYOS_API_KEY!);
+const mem = new MemoryOS(process.env.MEMORYOS_API_KEY!, process.env.MEMORYOS_API_URL!);
 
 await mem.add(
   [
@@ -190,8 +197,11 @@ const result = await mem.get({
   limit: 8,
   contextMaxTokens: 600,
 });
+if (result.memoryVisibility || result.preferenceScopeRequest || result.preferenceDecisions?.length) {
+  throw new Error("Withhold dependent answer; show status or request the explicit selection.");
+}
 
-const systemPrompt = result.hasContext
+const systemPrompt = !result.isPassthrough && result.hasContext
   ? `You are a patient math tutor.\n\n${result.systemPromptAddition}`
   : "You are a patient math tutor.";
 

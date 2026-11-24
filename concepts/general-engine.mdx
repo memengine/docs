@@ -1,80 +1,28 @@
 ---
 title: "General Engine"
+description: "Conversation-derived context, current retrieval and optional explicit preference operations."
 ---
 
-The General Engine is the default path for production agents that need governed durable user context without an industry-specific schema. Typical uses include long-lived assistants, coding agents, productivity copilots, SaaS personalization, and internal agents where preferences, goals, procedures, relationships, or user facts can change over time.
+The General Engine is the default memory path for applications without a domain overlay. It accepts evidence, processes it asynchronously and retrieves current context for a stable owner. It can represent preferences, facts, goals, procedures, relationships and expertise.
 
-It is not intended to replace complete transcripts, static document retrieval, or an application database. Short-lived agents whose entire required context already fits in one prompt may not need durable memory yet.
+It does not replace transcripts, document retrieval, business records or application authorization. Whether a candidate is durable or semantically related can involve model interpretation; a successful request is not a guarantee of the intended meaning.
 
-## Memory categories
+## Write lifecycle
 
-| Category | Example |
-| --- | --- |
-| `preference` | User prefers concise answers with Python examples. |
-| `fact` | User works in a B2B SaaS support team. |
-| `goal` | User is preparing to launch an AI product. |
-| `procedure` | User wants weekly summaries every Friday. |
-| `relationship` | User reports to the Head of Product. |
-| `expertise` | User is comfortable with FastAPI and PostgreSQL. |
+`add()` admits work and returns a job ID. The worker later extracts/reconciles candidates and persists outcomes. Publication can follow the database commit. A completed job may create records, create no record or buffer candidates. Inspect actual current reads before reporting a successful memory journey.
 
-## Write
+Use the [quickstart](/quickstart) for a submit-once/poll/read example and [lifecycle](/concepts/memory-lifecycle) for state meanings.
 
-`add()` authenticates the tenant, resolves `external_user_id`, runs the quality gate, queues extraction, resolves conflicts, stores memories, and indexes vectors — then returns a job result. Extraction is async.
+## Governed reads
 
-```python
-result = mem.add(
-    messages=[
-        {
-            "role": "user",
-            "content": "Remember that I prefer concise technical explanations with Python examples.",
-        }
-    ],
-    external_user_id="user_123",
-)
-```
+Call `get()` before constructing an answer dependent on memory. Check visibility, scope/choice signals and passthrough first. Only then use `system_prompt_addition` as contextual data. Empty memory is not the same as a hold. See [visibility handling](/concepts/degradation).
 
-Possible outcomes:
+Use a query describing the actual task. A returned text match does not certify that it supports every question or project; your application must validate answer relevance.
 
-| Status | What to do |
-| --- | --- |
-| `queued` | Continue normally |
-| `passthrough` | Skip memory context, still call the LLM |
-| `L1` | Per-user rate limit — retry later |
-| `L2` | Low-quality input — don't retry the same message |
-| `L3` | Near-duplicate — avoid repeated writes |
-| `L4` | Budget block — wait for reset or upgrade |
+## Select an optional contract
 
-<Tip>Blocking add() should not affect LLM calls.</Tip>
+- [Explicit scoped preferences](/guides/scoped-preferences): application supplies property/value/scope and exact replacement binding.
+- [Registered service provenance](/concepts/provenance): owner-configured writers provide service evidence and authority policy.
+- Domain overlays: EdTech/Support require their own enabled configuration and remain separate from the generic memory contract.
 
-## Retrieve
-
-Call `get()` before the model call. MemoryOS ranks memories by semantic relevance, importance, recency, and hot-tier signals, then returns `system_prompt_addition` ready to prepend.
-
-```python
-memories = mem.get(
-    query="answer this user's integration question",
-    external_user_id="user_123",
-    limit=5,
-    context_max_tokens=500,
-)
-
-system_prompt = "You are a helpful assistant."
-if memories.has_context:
-    system_prompt = f"{system_prompt}\n\n{memories.system_prompt_addition}"
-```
-
-Use a query that describes the current task. `"answer this user's question"` retrieves better than `"preferences"` or `"memory"`.
-
-## When to switch to a domain schema
-
-The General Engine is the right default. Move to a domain schema when your product needs structured domain memory:
-
-- **EdTech** — student profiles, weak topics, exams, forgetting stages
-- **Support** — customer issue history, support type, sentiment, escalation risk
-
-## Related pages
-
-- [Cookbook: general AI memory](/cookbooks/general-ai-memory)
-- [Domain schemas](/concepts/domain-schemas)
-- [POST /v1/memories/add](/api-reference/add)
-- [POST /v1/memories/retrieve](/api-reference/retrieve)
+Start with the [Python](/sdk/python) or [TypeScript](/sdk/typescript) SDK. Hosted access and optional features must be confirmed for your assigned environment. No production-readiness claim follows from the existence of these interfaces.

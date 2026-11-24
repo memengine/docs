@@ -3,6 +3,11 @@ title: "Cookbook: Support Agent Memory"
 description: "Combine governed customer context from MemoryOS with authoritative data and actions from your live support tools."
 ---
 
+<Note>
+This domain guide requires the corresponding enabled tenant schema. Start with the [assigned access and quickstart](/guides/applicant-setup). Hosted access is pending launch. The examples are integration patterns, not evidence that your deployment has this overlay enabled. Apply [visibility and choice guards](/concepts/degradation) before model calls or memory-dependent actions, and poll original jobs when verifying a new write.
+</Note>
+
+
 Use this cookbook when you are building:
 
 - a customer support chatbot
@@ -177,7 +182,7 @@ Copy this into your backend and replace the two integration functions with your 
 import os
 from memoryos import Memory
 
-mem = Memory(api_key=os.environ["MEMORYOS_API_KEY"])
+mem = Memory(api_key=os.environ["MEMORYOS_API_KEY"], base_url=os.environ["MEMORYOS_API_URL"])
 
 BASE_SUPPORT_PROMPT = """
 You are a careful customer support assistant.
@@ -202,10 +207,12 @@ def answer_support_message(customer_id, ticket_id, user_message, conversation_hi
     memories = mem.get(
         query=user_message,
         external_user_id=customer_id,
-        agent_id="support-bot",
+
         limit=8,
         context_max_tokens=700,
     )
+    if memories.memory_visibility is not None or memories.preference_scope_request is not None or memories.preference_decisions:
+        raise RuntimeError("Withhold dependent answer; show status or request the explicit selection.")
 
     # Replace these with your real backend tools.
     # Examples: get_order(), get_invoice(), get_ticket_status(), get_customer_account().
@@ -216,7 +223,7 @@ def answer_support_message(customer_id, ticket_id, user_message, conversation_hi
     )
 
     system_prompt = BASE_SUPPORT_PROMPT
-    if memories.has_context:
+    if not memories.is_passthrough and memories.has_context:
         system_prompt += "\n\nRemembered customer context from MemoryOS:\n"
         system_prompt += memories.system_prompt_addition
 
@@ -233,7 +240,7 @@ def answer_support_message(customer_id, ticket_id, user_message, conversation_hi
 
     mem.add(
         external_user_id=customer_id,
-        agent_id="support-bot",
+
         messages=[
             *conversation_history,
             {"role": "user", "content": user_message},
@@ -280,7 +287,7 @@ Python backend example:
 import os
 from memoryos import Memory
 
-mem = Memory(api_key=os.environ["MEMORYOS_API_KEY"])
+mem = Memory(api_key=os.environ["MEMORYOS_API_KEY"], base_url=os.environ["MEMORYOS_API_URL"])
 
 
 def on_support_conversation_finished(conversation):
@@ -290,7 +297,7 @@ def on_support_conversation_finished(conversation):
 
     mem.add(
         external_user_id=customer_id,
-        agent_id="support-bot",
+
         messages=messages,
         metadata={
             "source": "support_chat",
@@ -319,7 +326,7 @@ TypeScript backend example:
 ```ts
 import { MemoryOS } from "memoryo-sdk";
 
-const mem = new MemoryOS(process.env.MEMORYOS_API_KEY!);
+const mem = new MemoryOS(process.env.MEMORYOS_API_KEY!, process.env.MEMORYOS_API_URL!);
 
 async function onSupportConversationFinished(conversation: {
   customerId: string;
@@ -348,13 +355,15 @@ Call `get()` at the start of a support response, before your model answers.
 memories = mem.get(
     query="customer is asking for an update on their billing issue",
     external_user_id=customer_id,
-    agent_id="support-bot",
+
     limit=8,
     context_max_tokens=700,
 )
+if memories.memory_visibility is not None or memories.preference_scope_request is not None or memories.preference_decisions:
+    raise RuntimeError("Withhold dependent answer; show status or request the explicit selection.")
 
 system_prompt = "You are a careful customer support assistant."
-if memories.has_context:
+if not memories.is_passthrough and memories.has_context:
     system_prompt += "\n\n" + memories.system_prompt_addition
 ```
 
@@ -387,6 +396,8 @@ ticket = get_ticket_status(ticket_id)
 Then give both MemoryOS context and tool results to your model:
 
 ```python
+if memories.memory_visibility is not None or memories.preference_scope_request is not None or memories.preference_decisions or memories.is_passthrough:
+    raise RuntimeError("Memory-dependent input is unavailable.")
 model_input = f"""
 {BASE_SUPPORT_PROMPT}
 

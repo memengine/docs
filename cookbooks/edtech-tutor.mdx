@@ -3,6 +3,11 @@ title: "Cookbook: EdTech tutor"
 description: "Build tutoring, exam-prep, and learning apps with the EdTech domain schema."
 ---
 
+<Note>
+This domain guide requires the corresponding enabled tenant schema. Start with the [assigned access and quickstart](/guides/applicant-setup). Hosted access is pending launch. The examples are integration patterns, not evidence that your deployment has this overlay enabled. Apply [visibility and choice guards](/concepts/degradation) before model calls or memory-dependent actions, and poll original jobs when verifying a new write.
+</Note>
+
+
 Use this cookbook when your product teaches, tutors, coaches students, or personalizes learning paths.
 
 The EdTech schema keeps the same SDK calls as the general engine, but adds structured student memory such as grade level, curriculum, weak topics, learning style, exam context, and forgetting-stage review signals.
@@ -37,7 +42,7 @@ import os
 
 from memoryos import Memory
 
-mem = Memory(api_key=os.environ["MEMORYOS_API_KEY"])
+mem = Memory(api_key=os.environ["MEMORYOS_API_KEY"], base_url=os.environ["MEMORYOS_API_URL"])
 
 result = mem.add(
     external_user_id="student_123",
@@ -70,9 +75,11 @@ memories = mem.get(
     limit=8,
     context_max_tokens=700,
 )
+if memories.memory_visibility is not None or memories.preference_scope_request is not None or memories.preference_decisions:
+    raise RuntimeError("Withhold dependent answer; show status or request the explicit selection.")
 
 system_prompt = "You are a patient math tutor."
-if memories.has_context:
+if not memories.is_passthrough and memories.has_context:
     system_prompt = f"{system_prompt}\n\n{memories.system_prompt_addition}"
 ```
 

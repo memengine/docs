@@ -24,7 +24,6 @@ Content-Type: application/json
   "query": "How should I respond to this user?",
   "limit": 5,
   "categories": ["preference", "goal"],
-  "agent_id": "support-bot",
   "time_filter_days": 30,
   "as_of": null,
   "format": "bullets",
@@ -42,6 +41,7 @@ Content-Type: application/json
 | `categories` | `MemoryCategory[]` | No | Optional category filters |
 | `agent_id` | `string \| null` | No | Optional agent filter |
 | `time_filter_days` | `integer \| null` | No | Return only memories created in the last N days |
+| `preference_context` | `PreferenceReadContext \| null` | No | Explicit applicability and property keys; backend enablement required; cannot combine with `as_of` |
 | `as_of` | `string \| null` | No | Historical validity boundary; ISO 8601 timestamp with timezone |
 | `format` | `"bullets" \| "json" \| "xml"` | No | Default `bullets` |
 | `context_max_tokens` | `integer` | No | Default `500`; max context budget for `system_prompt_addition` |
@@ -76,6 +76,10 @@ Content-Type: application/json
   "clarification_question": null,
   "clarification": null,
   "source_reviews": [],
+  "preference_reviews": [],
+  "preference_decisions": [],
+  "preference_scope_request": null,
+  "memory_visibility": null,
   "quota_mode": "FULL",
   "is_degraded": false,
   "is_passthrough": false,
@@ -99,11 +103,19 @@ Content-Type: application/json
 | `clarification_question` | `string \| null` | Optional user-facing question for resolving a pending conflict |
 | `clarification` | `MemoryClarification \| null` | Structured id, question, expiry, and backend-approved answer options for the same clarification |
 | `source_reviews` | `MemorySourceReview[]` | Up to three recent non-activating reviews; defaults to `[]` and is empty for historical `as_of` requests |
+| `memory_visibility` | `object \| null` | `processing` or `unavailable`; stop dependent answers even if records/prompt text are present |
+| `preference_scope_request` | `object \| null` | Application scope selection required |
+| `preference_decisions` | `array` | Unresolved current-choice decisions; do not invent a current value |
+| `preference_reviews` | `array` | Separate typed-preference review cards; not the source-review answer contract |
 | `quota_mode` | `"FULL" \| "PASSTHROUGH" \| "DEGRADED_RETRIEVE" \| "BLOCKED"` | Current quota behavior |
 | `is_degraded` | `boolean` | `true` when retrieval is degraded |
 | `is_passthrough` | `boolean` | `true` when memory context should be skipped |
 | `request_id` | `string` | Trace id |
 | `timestamp` | `datetime` | Response timestamp |
+
+## Check visibility before model inference
+
+Apply [the visibility gate](/concepts/degradation) before consuming `data` or `system_prompt_addition`. A successful HTTP response, a completed job or a nonempty prompt is not permission to answer from unavailable state. Typed reads also require handling `preference_scope_request` and `preference_decisions`.
 
 ## Resolve a clarification in your existing chat
 
@@ -191,7 +203,7 @@ foreign reviews return `404`; changed, expired or closed reviews return `409`;
 an action unavailable on that review returns `422`.
 
 <Note>
-This API is deployed. Both SDKs include the review contract since `0.1.1`:
+This describes the backend contract; hosted availability must be confirmed for your assigned environment. Both SDKs include the source-review contract since `0.1.1`:
 Python `source_reviews` / `answer_source_review()` on main PyPI, and TypeScript
 `sourceReviews` / `answerSourceReview()` on npm. Upgrade older SDKs, which may
 omit the new response field.
@@ -201,10 +213,7 @@ Reviews remain pending across reads and expire seven days after the server's
 last observation. This is a bounded recent view, not a paginated review inbox:
 stale rows are conditionally expired and older reviews may appear on subsequent
 reads. It does not guarantee every uncertain statement produces a review.
-Existing context remains the last admitted memory state; pending-property
-suppression and immediate read-your-writes while ingestion is queued are not
-provided by this fallback. Restatement ingestion is not atomically linked to
-closing the old review. No load-tested latency guarantee is implied.
+Affected current context can be withheld with `memory_visibility` while safe review cards remain available separately. Typed preference holds use the declared identity; legacy source-event holds can be broader by category/scope. Do not insert review previews into model context or use an old client copy to bypass a hold. A queued write does not guarantee immediate new-value visibility. Restatement is not itself an applied replacement; a typed correction needs the intended current target/version binding. No load-tested latency guarantee is implied.
 
 ### `MemorySearchResult`
 
@@ -246,8 +255,7 @@ Content-Type: application/json
   "used_memory_ids": ["2b8f5f87-bbd4-4f84-9f5f-0cba5033f058"],
   "agent_confidence": 0.86,
   "metadata": {
-    "agent_id": "support-bot",
-    "conversation_id": "chat_8841"
+      "conversation_id": "chat_8841"
   }
 }
 ```
@@ -262,8 +270,7 @@ Content-Type: application/json
   "correction": "Actually I prefer Hindi explanations for billing questions, not English.",
   "agent_confidence": 0.2,
   "metadata": {
-    "agent_id": "support-bot",
-    "conversation_id": "chat_8841"
+      "conversation_id": "chat_8841"
   }
 }
 ```

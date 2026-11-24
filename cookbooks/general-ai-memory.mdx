@@ -1,171 +1,29 @@
 ---
 title: "Cookbook: general AI memory"
-description: "Add tenant-scoped long-term memory to a chatbot, copilot, or assistant using the General Engine."
+description: "Build the application loop around stable identity, observed processing and guarded context."
 ---
 
-Use this for: AI assistants, productivity tools, coding agents, SaaS personalization, onboarding and support chat that doesn't need the Support schema.
+Use the [quickstart](/quickstart) for runnable SDK examples and the [applicant guide](/guides/applicant-setup) for assigned access. This workflow uses tenant memory; it does not require Memory Passport or global-agent registration.
 
-The General Engine stores facts, preferences, goals, procedures, relationships, and expertise per `external_user_id` inside your tenant.
+## Application flow
 
-## Flow
+1. Authenticate the user and resolve a stable owner on your server.
+2. Retrieve for that owner and selected applicability.
+3. Apply the [visibility/scope/choice gate](/concepts/degradation).
+4. If context is available, construct the model request using returned context as data. Keep reviews in separate chat controls.
+5. Preserve actual conversation evidence. Submit meaningful turns once, with stable conversation/turn IDs and a saved idempotency key.
+6. Track the original job and later reads when verifying persistence. Reopening the chat keeps the same owner mapping.
 
-```text
-User message → retrieve governed context → customer LLM call → queue completed turn
-```
+For a user correction, use the supported review or [explicit replacement](/guides/scoped-preferences) path. Do not make a memory-dependent answer from old context while the correction is held or processing. A retrieval error leaves state unknown; it is not proof that old memory remains current.
 
-<CodeGroup>
+## Model examples
 
-```python Python
-import os
-from memoryos import Memory, MemoryOSError
-from openai import OpenAI
+- [OpenAI](/guides/openai): guarded Python inference using existing backend state.
+- [Anthropic](/guides/anthropic): the same gate before provider inference.
+- [TypeScript SDK](/sdk/typescript): equivalent field names and read gate.
 
-BASE_PROMPT = "You are a helpful product assistant."
+Those examples use an explicitly configured model. They are not a guarantee that the model obeys the memory, resolves arbitrary contradictions or gives grounded answers. Quote fidelity, backend state correctness and semantic answer correctness are different checks.
 
-def answer_user(external_user_id: str, user_message: str) -> str:
-    memory = Memory(api_key=os.environ["MEMORYOS_API_KEY"])
-    openai = OpenAI(api_key=os.environ["OPENAI_API_KEY"])
+## Decide whether memory helps
 
-    system_prompt = BASE_PROMPT
-    try:
-        memories = memory.get(
-            query=user_message,
-            external_user_id=external_user_id,
-            limit=5,
-            context_max_tokens=500,
-        )
-        if memories.has_context:
-            system_prompt = f"{BASE_PROMPT}\n\n{memories.system_prompt_addition}"
-    except MemoryOSError:
-        pass  # Log in server telemetry; continue the customer conversation.
-
-    response = openai.responses.create(
-        model="gpt-4.1-mini",
-        input=[
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": user_message},
-        ],
-    )
-
-    try:
-        memory.add(
-            messages=[
-                {"role": "user", "content": user_message},
-                {"role": "assistant", "content": response.output_text},
-            ],
-            external_user_id=external_user_id,
-            metadata={"source": "chat"},
-        )
-    except MemoryOSError:
-        pass  # The answer is already available; retry ingestion separately if desired.
-    finally:
-        memory.close()
-    return response.output_text
-```
-
-```ts TypeScript
-import OpenAI from "openai";
-import { MemoryOS, MemoryOSError } from "memoryo-sdk";
-
-const BASE_PROMPT = "You are a helpful product assistant.";
-
-export async function answerUser(externalUserId: string, userMessage: string): Promise<string> {
-  const memory = new MemoryOS(process.env.MEMORYOS_API_KEY!);
-  const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY! });
-
-  let systemPrompt = BASE_PROMPT;
-  try {
-    const memories = await memory.get({
-      query: userMessage,
-      externalUserId,
-      limit: 5,
-      contextMaxTokens: 500,
-    });
-    if (memories.hasContext) {
-      systemPrompt = `${BASE_PROMPT}\n\n${memories.systemPromptAddition}`;
-    }
-  } catch (error) {
-    if (!(error instanceof MemoryOSError)) throw error;
-    // Log in server telemetry; continue the customer conversation.
-  }
-
-  const response = await openai.responses.create({
-    model: "gpt-4.1-mini",
-    input: [
-      { role: "system", content: systemPrompt },
-      { role: "user", content: userMessage },
-    ],
-  });
-
-  try {
-    await memory.add(
-      [
-        { role: "user", content: userMessage },
-        { role: "assistant", content: response.output_text },
-      ],
-      externalUserId,
-      undefined,
-      { source: "chat" },
-    );
-  } catch (error) {
-    if (!(error instanceof MemoryOSError)) throw error;
-    // The answer is already available; retry ingestion separately if desired.
-  }
-
-  return response.output_text;
-}
-```
-
-</CodeGroup>
-
-## Production handling
-
-Always treat MemoryOS as additive. Your app should answer even when memory is empty, passthrough, or unavailable.
-
-```python
-memories = memory.get(query=user_message, external_user_id=external_user_id)
-
-prompt_addition = ""
-if memories.has_context:
-    prompt_addition = memories.system_prompt_addition
-```
-
-For writes, check `status` before assuming a memory was stored:
-
-```python
-result = memory.add(messages=messages, external_user_id=external_user_id)
-
-if result.was_queued:
-    pass  # queued for extraction
-elif result.nothing_to_extract:
-    pass  # valid conversation, nothing durable to store
-elif result.status == "passthrough":
-    pass  # write skipped by quota mode
-```
-
-## What to send to `add()`
-
-Send meaningful turns. The quality gate blocks filler.
-
-**Good:** `"I prefer short technical answers with Python examples."` or `"My main goal is to prepare for the AWS Solutions Architect exam."`
-
-**Poor:** `"hi"`, `"ok"`, empty messages, repeated copies of the same turn.
-
-## Retrieval query design
-
-Use the current task as the query, not a generic term.
-
-```python
-# Good
-memory.get(query="Write a follow-up email for this customer", external_user_id="customer-123")
-
-# Poor
-memory.get(query="preferences", external_user_id="customer-123")
-```
-
-## Related pages
-
-- [Quickstart](/quickstart)
-- [MemoryEngine](/concepts/memory-engine)
-- [POST /v1/memories/add](/api-reference/add)
-- [POST /v1/memories/retrieve](/api-reference/retrieve)
+Record setup/integration effort, custom logic and operational dependencies. Compare with an implementation using your own database and policy logic. Passing a synthetic workflow is useful integration evidence, not proof that developers need this service or that it outperforms every alternative.

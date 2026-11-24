@@ -1,498 +1,123 @@
 ---
 title: "Python SDK"
-description: "Reference for the supported tenant-scoped MemoryOS Python clients."
+description: "Tenant-scoped synchronous and asynchronous clients, job polling, visibility and source review."
 ---
 
-Install or upgrade the Python SDK from main PyPI:
-
 ```bash
-pip install --upgrade "memoryo-sdk>=0.1.1"
+pip install memoryo-sdk==0.1.2
 ```
 
-Version `0.1.1` includes the source-review methods below. Installation and the
-sync/async method exports were verified against main PyPI on 2026-10-02.
+The distribution is `memoryo-sdk`; the import is `memoryos`. PyPI version `0.1.2` was checked on 24 November 2026. Package availability does not establish backend availability or feature enablement.
 
-The client connects to `https://api.memoryo.dev` by default. Do not pass `base_url` for the hosted service.
-
-## Clients
-
-- Sync client: `Memory`
-- Async client: `AsyncMemory`
-- Private-beta cross-agent client: `UniversalMemory` (disabled by default)
-
-```python
-from memoryos import AsyncMemory, Memory
-from memoryos.universal import UniversalMemory
-```
-
-<Warning>
-`UniversalMemory` is retained for the frozen Memory Passport private beta. It will receive `404 memory_passport_not_available` unless MemoryOS explicitly enables the feature for your deployment. Use `Memory` or `AsyncMemory` for supported production integrations.
-</Warning>
-
-There is no separate SDK for domain schemas. If your tenant enables EdTech or Support, `add()` and `get()` remain the main integration path. Optional domain helper methods expose structured profile data for dashboards.
-
-## Tenant-scoped memory
-
-Use `Memory` from your backend with a tenant API key.
-
-This path uses your application's existing user identity. It does not require Memory Passport, a user consent redirect, or the `UniversalMemory` client.
-
-## First integration: simple mode
-
-<Tip>
-Start here when one backend writer supplies context for a stable user. You do not need `event_id`, `run_id`, service writers, or authority rules. MemoryOS creates safe internal source metadata automatically.
-</Tip>
+## Connect from your server
 
 ```python
 import os
-from memoryos import Memory
+from memoryos import Memory, AsyncMemory
 
-client = Memory(api_key=os.environ["MEMORYOS_API_KEY"])
+memory = Memory(
+    api_key=os.environ["MEMORYOS_API_KEY"],
+    base_url=os.environ["MEMORYOS_API_URL"],
+)
 ```
 
-### `add()`
+`base_url` is the backend root, without `/v1`. Its SDK default is `https://api.memoryo.dev`; applicants must use their supplied endpoint while hosted access is pending. An API key never belongs in browser code. Your server supplies a stable `external_user_id` after authenticating the user.
 
-`add()` queues a conversation for extraction. It returns quickly; extraction runs in the background.
+## Save and poll
 
 ```python
-result = client.add(
+admitted = memory.add(
+    external_user_id="synthetic-customer-123",
+    conversation_id="synthetic-thread-1",
+    idempotency_key="synthetic-thread-1-turn-1",
     messages=[{
         "role": "user",
-        "content": "I prefer Python examples.",
-        "external_turn_id": "support-884:turn-12",
+        "content": "I prefer concise explanations.",
+        "external_turn_id": "synthetic-thread-1-turn-1",
         "source_kind": "direct_user_input",
     }],
-    external_user_id="customer-123",
-    agent_id="support-bot",
-    metadata={"source": "chat"},
 )
-
-print(result.status)
-print(result.job_id)
-```
-
-You may submit the completed user and assistant turns. In simple mode,
-assistant text is retained as conversation context but is not authoritative
-user evidence. MemoryOS stores a claim only when a user turn directly states or
-confirms it.
-
-
-For a durable evidence trail, provide an `external_turn_id` for each persisted
-turn. It is a stable identifier from your chat system, not a claim created by
-the model. Use `source_kind` when the role alone is insufficient to describe the
-origin, such as `tool_output` or `fetched_document`. Keep one `conversation_id`
-for every `add()` call in the same chat. Messages are limited to 64 per request
-and 16,000 characters each.
-
-### Explicit assistant proposals
-
-<Warning>
-Preview Phase 3A contract: requires the structured-proposal backend migration and
-an SDK release containing `ProposedMemory`. Confirmation is feature-gated and
-remains off until the deployment passes its release evaluation.
-</Warning>
-
-For an assistant statement that your application deliberately presents as a
-memory proposal, mark only that assistant turn with
-`is_memory_proposal=True`, `source_kind="assistant_output"`, a stable
-`external_turn_id`, and `proposed_memory`. The structured claim must appear in
-the user-visible assistant text. MemoryOS records an immutable proposal and
-returns its id in `result.proposal_ids` when ingestion is admitted; this marker
-never turns assistant text into user evidence and does not itself create or
-promote a memory.
-
-```python
-result = client.add(
-    external_user_id="customer-123",
-    conversation_id="support-884",
-    messages=[
-        {
-            "role": "assistant",
-            "content": (
-                "I can remember this. Proposed memory: "
-                "User prefers a one-line diagnosis before numbered troubleshooting steps."
-            ),
-            "external_turn_id": "support-884:turn-13",
-            "source_kind": "assistant_output",
-            "is_memory_proposal": True,
-            "proposed_memory": {
-                "content": "User prefers a one-line diagnosis before numbered troubleshooting steps.",
-                "category": "preference",
-            },
-        }
-    ],
-)
-if result.proposal_ids:
-    print("Registered proposal:", result.proposal_ids[0])
+if admitted.status == "queued" and admitted.job_id:
+    job = memory.wait_for_job(admitted.job_id, timeout=120, poll_interval=1)
+    print(job.status, job.memories_created, job.created_memory_ids)
+    print(job.pending_candidates_buffered)
 else:
-    print("No proposal registered:", result.status, result.blocked_reason)
+    print(admitted.status, admitted.blocked_reason)
 ```
 
-Job status exposes `proposal_ids` and `operational_metrics.queue_wait_ms` when
-available. A proposal ID is not a stored memory ID or proof of user consent.
-When confirmation is enabled, submit the proposal turn and the later direct
-user reply with the same `conversation_id` and stable turn IDs. MemoryOS binds
-the reply to the immutable proposal and stores the registered claim only after
-the evidence policy accepts it. Model confidence never grants authority.
-Registration is tenant-scoped; the universal client does not support this marker.
+Queued is admission, not storage. Inspect the original job; a completed job may create no records or retain a pending candidate. On a timeout, inspect that same job later. Reuse the same key and request for a network retry; do not create new operations to hide a failure. `was_stored` is a legacy convenience property, not evidence of application.
 
-## For multi-service companies: source-aware mode
+`add()` accepts optional `metadata`, `source` and `preference_claims`. Do not label assistant/tool/document output as direct user input. The application must preserve actual evidence origin; a role or metadata value cannot grant higher authority.
 
-<Warning>
-Use this when Billing, Support, CRM, Product, or another backend service can write facts about the same user. Source metadata enables auditability, deduplication, conflict handling, and authority rules.
-</Warning>
-
-Use `Memory.source(...)` so your app does not have to manually generate every ID while testing.
+## Read and gate
 
 ```python
-result = client.add(
-    external_user_id="customer-123",
-    messages=[
-        {"role": "user", "content": "What plan am I using?"},
-        {"role": "assistant", "content": "Your current subscription plan is Growth."},
-    ],
-    source=Memory.source(
-        "billing-service",
-        event_id="billing-plan-2026-06-30-001",
-        scope={"workspace_id": "ws_123"},
-        evidence=[
-            {
-                "source_type": "subscription_record",
-                "reference": "billing/subscriptions/ws_123",
-            }
-        ],
-    ),
+result = memory.get(query="How should I explain this?", external_user_id="synthetic-customer-123")
+if result.memory_visibility is not None:
+    print("Context processing or unavailable; withhold dependent answer.")
+elif result.preference_scope_request is not None or result.preference_decisions:
+    print("Scope or explicit user choice required.")
+elif result.is_passthrough:
+    print("Memory bypassed; apply the application's no-memory policy.")
+else:
+    for record in result.items:
+        print(record.id, record.content, record.source_event_id)
+    # Only now consider result.system_prompt_addition for the model request.
+```
+
+Read properties include `items`, `has_context`, `system_prompt_addition`, `retrieval_id`, `cached`, `quota_mode`, `is_degraded`, `is_passthrough`, `memory_visibility`, `clarification`, `source_reviews`, `preference_reviews`, `preference_decisions` and `preference_scope_request`.
+
+`get()` supports `limit`, `categories`, `format`, `context_max_tokens`, `time_filter_days`, timezone-aware `as_of` and `preference_context`. Explicit preference context cannot be combined with historical `as_of` or agent-bound SDK reads. See [scoped preferences](/guides/scoped-preferences) and [visibility](/concepts/degradation).
+
+## Respond to a source review
+
+```python
+# selected_action must be the actual user's selection from this card's actions.
+answer = memory.answer_source_review(
+    review_id=card.id,
+    external_user_id="synthetic-customer-123",
+    version=card.version,
+    action=selected_action,
+)
+print(answer.resolved, answer.next_step)
+```
+
+`keep_current` and `dismiss` close an eligible review without storing pending text. `restate` returns `resolved=False`, `next_step="add_memory"`: it requests a new statement, not a completed correction. For an intentional typed replacement, supply the actual target ID/version under the [replacement contract](/guides/scoped-preferences). Do not invent bindings from a similarity search or silently resolve a review with model output.
+
+Source review is separate from A/B clarification (`answer_clarification()`) and administrative service correction. See the [native review contract](/api-reference/retrieve#review-an-uncertain-source-statement-in-your-existing-chat) for refusal behavior and card handling.
+
+## Registered service events
+
+```python
+source = Memory.source(
+    "billing-service",
+    event_id="synthetic-subscription-event-1",
+    observed_at="2026-11-24T09:00:00Z",
+    scope={"account_id": "synthetic-account-1"},
 )
 ```
 
-Register `billing-service` in the Tenant Dashboard before sending it as `source.service`; unknown or inactive service keys are rejected. For production, bind a dedicated API key to the writer so its authority is explicit.
+Pass `source=source` to `add()` only after the owner registers that writer and binds appropriate credentials/policy. Normal chat applications can omit it. A source-aware event uses a different authority path from ordinary conversation evidence. See [provenance](/concepts/provenance).
 
-Only use source-aware mode for authenticated backend observations. It can treat
-a registered service's declarative assistant-role message as authoritative; it
-must not be used to promote an ordinary chatbot answer into user memory.
-
-#### Parameters
-
-| Parameter | Type | Required | Notes |
-| --- | --- | --- | --- |
-| `messages` | `list[ConversationMessage \| dict[str, Any]]` | Yes | 1-64 messages; roles are `user`, `assistant`, or `system`; each content value is at most 16,000 characters |
-| `external_user_id` | `str` | Yes | End-user identifier inside your tenant |
-| `agent_id` | `str \| None` | No | Optional agent identifier |
-| `metadata` | `dict[str, Any] \| None` | No | Optional metadata attached to the ingestion job |
-| `idempotency_key` | `str \| None` | No | Prevents duplicate jobs when your app retries |
-| `source` | `MemorySource \| dict \| None` | No | Provenance source block for multi-service governance |
-| `conversation_id` | `str \| None` | No | Stable chat identifier; use the same value for turns in one conversation |
-
-#### Return fields
-
-| Field | Type | Meaning |
-| --- | --- | --- |
-| `job_id` | `str \| None` | Extraction job id when queued |
-| `status` | `str` | `queued`, `passthrough`, `L1`, `L2`, `L3`, `L4`, or `blocked` |
-| `blocked_reason` | `str \| None` | Reason when blocked |
-| `nothing_to_extract` | `bool` | Request passed the gate but had no durable memory |
-| `retry_after_seconds` | `int \| None` | Retry hint for rate-limit blocks |
-| `budget_remaining_pct` | `float \| None` | Remaining quota estimate |
-| `proposal_ids` | `list[str]` | Explicit assistant proposal records registered by this request |
-| `was_queued` | `bool` | `True` when extraction was queued; this does not confirm storage |
-| `was_stored` | `bool` | Deprecated compatibility alias for `was_queued` |
-| `quota_mode` | `str` | Current quota mode |
-| `processing_eta_seconds` | `int \| None` | Queue ETA when ingestion is delayed |
-| `processing_status` | `str` | Background ingestion health |
-| `circuit_status` | `str` | Platform dependency status |
-
-### Check extraction job status
-
-Use `get_job_status()` for one check or `wait_for_job()` when setup, tests, or a workflow must confirm persistence before continuing.
+## Async client
 
 ```python
-job = client.wait_for_job(result.job_id, timeout=120, poll_interval=1)
-
-print(job.status)
-print(job.memories_created)
-print(job.created_memory_ids)
-print(job.pending_candidates_buffered)
-print(job.extraction_metadata)
+async def read_context(owner):
+    async with AsyncMemory(
+        api_key=os.environ["MEMORYOS_API_KEY"],
+        base_url=os.environ["MEMORYOS_API_URL"],
+    ) as client:
+        result = await client.get(query="What is current?", external_user_id=owner)
+        return result  # Apply the same visibility/scope/choice gate before use.
 ```
 
-`pending_candidates_buffered > 0` means MemoryOS kept a weak signal for reinforcement instead of dropping it. Normal user-facing requests should queue `add()` without waiting.
-Use `created_memory_ids` when you need the exact records created by this job.
+The async client exposes corresponding awaited write, job, retrieval and review methods. Close the sync client with `memory.close()` or a `with` block; use `async with` for the async client.
 
-### `get()`
+## Other contracts
 
-```python
-result = client.get(
-    query="How should I answer this user?",
-    external_user_id="customer-123",
-    limit=5,
-    categories=["preference", "goal"],
-    as_of=None,  # or a timezone-aware datetime for historical retrieval
-)
+- `get_job_status()` / `wait_for_job()`: inspect the original admission.
+- `list()`: authorized management listing; use the native history endpoint for version history, not as current answer context.
+- `feedback()`: optional retrieval outcome reporting; a correction can queue another job.
+- Delete/export and domain helpers: require their endpoint-specific permissions and enabled configuration.
 
-prompt_addition = result.system_prompt_addition if result.has_context else ""
-```
-
-#### Parameters
-
-| Parameter | Type | Required | Notes |
-| --- | --- | --- | --- |
-| `query` | `str` | Yes | Natural-language retrieval query |
-| `external_user_id` | `str` | Yes | End-user identifier inside your tenant |
-| `limit` | `int` | No | Default `10` |
-| `categories` | `list[str] \| None` | No | Optional category filter |
-| `agent_id` | `str \| None` | No | Optional agent filter |
-| `time_filter_days` | `int \| None` | No | Return only memories from the last N days |
-| `format` | `"bullets" \| "json" \| "xml"` | No | Format for `system_prompt_addition` |
-| `context_max_tokens` | `int` | No | Prompt context token budget, default `500` |
-| `as_of` | `datetime \| None` | No | Historical validity boundary; must include a timezone |
-
-#### Return fields
-
-| Field | Type | Meaning |
-| --- | --- | --- |
-| `retrieval_id` | `str \| None` | Use this when sending feedback |
-| `items` | `list[MemoryResult]` | Retrieved memories |
-| `cached` | `bool` | Whether the result came from the hot cache |
-| `system_prompt_addition` | `str` | Prompt-ready context block |
-| `context_token_count` | `int` | Tokens used by `system_prompt_addition` |
-| `memories_from_hot_tier` | `int` | Number of returned memories served from hot tier |
-| `quota_mode` | `str` | Quota envelope mode |
-| `is_passthrough` | `bool` | `True` when you should skip memory context |
-| `is_degraded` | `bool` | `True` when retrieval is degraded |
-| `circuit_status` | `str` | Platform dependency status |
-| `clarification_question` | `str \| None` | User clarification required by an unresolved personal conflict |
-| `clarification` | `MemoryClarification \| None` | Structured clarification id, options, conflict id, and expiry |
-| `source_reviews` | `list[MemorySourceReview]` | Non-activating source reviews; available since `0.1.1`, defaults to `[]` |
-
-### Resolve a clarification in the same chat
-
-```python
-if result.clarification:
-    # Render result.clarification.question in your existing chat and map the
-    # user's selection to one of: A, B, both, neither.
-    resolution = client.answer_clarification(
-        result.clarification.id,
-        external_user_id="customer-123",
-        answer="B",
-        free_text="The Scale plan is current.",
-    )
-```
-
-The backend verifies tenant and user ownership, expiry, conflict state, and the
-allowed transition. The model may present the question, but it must not invent
-the resolution or decide authority.
-
-### Respond to a source review (since `0.1.1`)
-
-When recognized uncertainty has no usable alternative, `result.source_reviews`
-may include a non-activating review. Present its `question` and `actions` in
-your existing chat, then submit the actual user's selection:
-
-```python
-if result.source_reviews:
-    review = result.source_reviews[0]
-    # user_action is the user's selection from review.actions in your chat.
-    resolution = client.answer_source_review(
-        review.id,
-        external_user_id="customer-123",
-        version=review.version,
-        action=user_action,
-    )
-```
-
-The same method is available with `await` on `AsyncMemory`. `keep_current`
-and `dismiss` close the pending interpretation without changing stored memory
-or increasing authority. `restate` returns `resolved=False` and
-`next_step="add_memory"` while leaving the review pending: obtain the user's
-actual new statement and submit it through normal `add()` ingestion. Do not
-report completed storage or submit a model paraphrase as direct user evidence.
-
-See the [HTTP review contract](/api-reference/retrieve#review-an-uncertain-source-statement-in-your-existing-chat)
-for ownership checks, version conflicts, expiry and bounded-view limitations.
-This fallback does not guarantee semantic accuracy or automatic suppression
-of all pending-property context.
-
-### `feedback()`
-
-Use feedback after retrieval to tell MemoryOS whether the memory helped. This improves lifecycle scoring and can queue retrospective extraction after user corrections.
-
-```python
-result = client.get(
-    query="What language should I use for this user?",
-    external_user_id="customer-123",
-)
-
-# Call your LLM here using result.system_prompt_addition.
-
-if result.retrieval_id:
-    feedback = client.feedback(
-        retrieval_id=result.retrieval_id,
-        outcome="used_successfully",
-        used_memory_ids=[item.id for item in result.items],
-        agent_confidence=0.86,
-        metadata={"agent_id": "support-bot"},
-    )
-
-    print(feedback.feedback_id)
-```
-
-When a user corrects the answer, send the correction text:
-
-```python
-feedback = client.feedback(
-    retrieval_id=result.retrieval_id,
-    outcome="user_corrected",
-    used_memory_ids=[item.id for item in result.items],
-    correction="Actually I prefer Hindi explanations for billing questions, not English.",
-    agent_confidence=0.2,
-    metadata={"agent_id": "support-bot"},
-)
-
-print(feedback.correction_job_id)
-```
-
-If `correction_job_id` is present, MemoryOS queued an async retrospective extraction pass. Do not block your user flow while that job runs.
-
-## Domain schemas
-
-Domain schemas are configured on the tenant, not in SDK code.
-
-| Tenant setting | What `add()` does | What `get()` returns |
-| --- | --- | --- |
-| General Engine | Generic memory extraction | Generic prompt-ready memory |
-| EdTech Schema | Generic memory + EdTech overlay | Generic memory + tutoring/student context |
-| Customer Support Schema | Generic memory + Support overlay | Generic memory + support/customer context |
-
-Your code stays the same across domain modes. For Support, your own backend tools still provide live truth such as order status, invoice status, refunds, or ticket updates.
-
-### Domain profile helpers
-
-For domain-aware tenants, normal `get()` already includes domain-aware context. Use profile helpers only when your product needs structured UI data.
-
-```python
-profile = client.get_edtech_profile("student_123")
-
-if profile and profile.has_exam_context:
-    print(profile.exam_name, profile.exam_date)
-```
-
-## AsyncMemory
-
-`AsyncMemory` has the same method surface as `Memory`, but every method is async.
-
-```python
-import asyncio
-from memoryos import AsyncMemory
-
-async def main() -> None:
-    async with AsyncMemory(api_key="mem_live_xxx") as client:
-        add_result = await client.add(
-            messages=[{"role": "user", "content": "I prefer weekly summaries."}],
-            external_user_id="customer-123",
-        )
-
-        result = await client.get(
-            query="What does this user prefer?",
-            external_user_id="customer-123",
-            limit=5,
-        )
-
-        if result.retrieval_id:
-            await client.feedback(
-                retrieval_id=result.retrieval_id,
-                outcome="used_successfully",
-                used_memory_ids=[item.id for item in result.items],
-            )
-
-        print(add_result.status)
-        print(result.system_prompt_addition)
-
-asyncio.run(main())
-```
-
-## Other tenant methods
-
-### `delete()`
-
-```python
-deleted = client.delete(
-    memory_id="1c5d5ab6-73c8-4b12-90e9-0f7f9db8db4f",
-    hard_delete=False,
-)
-```
-
-Archives by default. Set `hard_delete=True` to permanently delete. The backend derives tenant scope from the API key and verifies the memory ID; an external user ID is not required.
-
-### `list()`
-
-```python
-page = client.list(external_user_id="customer-123", limit=50)
-
-for memory in page.items:
-    print(memory.content)
-```
-
-### `export()`
-
-```python
-bundle = client.export(external_user_id="customer-123")
-```
-
-`export()` maps to `GET /v1/users/{external_user_id}/export`. It returns the tenant and proxy-user IDs plus that user's memories and complete version history.
-
-## UniversalMemory
-
-`UniversalMemory` is retained for explicitly enabled Memory Passport private-beta deployments. It uses:
-
-- an agent API key (`agent_sk_...`)
-- a user UUI token (`uui_...`) for the approved Memory Passport user
-
-```python
-import os
-from memoryos.universal import UniversalMemory
-
-client = UniversalMemory(
-    agent_api_key=os.environ["MEMORYOS_AGENT_API_KEY"],
-    uui_token=os.environ["MEMORYOS_UUI_TOKEN"],
-)
-```
-
-Generate the user consent URL from your tenant app. If you omit `redirect_uri`, MemoryOS shows a hosted completion page after approval.
-
-```python
-consent_url = UniversalMemory.consent_url(
-    agent_id="your_global_agent_id",
-    state="user_session_id",
-    categories=["preference", "goal"],
-)
-```
-
-Users can add or remove categories before approving.
-
-Universal writes support durable retry identity, and retrieval supports the same prompt formatting controls as tenant retrieval:
-
-```python
-universal.add(
-    [{"role": "user", "content": "I prefer short technical answers."}],
-    metadata={"source": "chat"},
-    idempotency_key="conversation-event-123",
-)
-
-result = universal.get(
-    "How should I personalize this answer?",
-    limit=5,
-    format="json",
-    context_max_tokens=900,
-)
-```
-
-Retrieved universal memory items preserve source-event and provenance fields returned by the API.
-
-## Related pages
-
-- [POST /v1/memories/add](/api-reference/add)
-- [POST /v1/memories/retrieve](/api-reference/retrieve)
-- [Extraction Quality Loop](/concepts/extraction-quality)
-- [Memory Provenance](/concepts/provenance)
-- [Memory Passport](/concepts/memory-passport)
-- [Cross-agent memory sharing](/guides/cross-agent-sharing)
+`UniversalMemory` belongs to disabled-by-default Memory Passport. Assistant-proposal confirmation and automatic interpretation are experimental; their presence in source or types is not an enabled applicant feature. Use only capabilities confirmed for your assigned runtime.

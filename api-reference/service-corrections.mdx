@@ -1,0 +1,52 @@
+---
+title: "Service correction review"
+description: "An explicit administrator preview and decision for eligible pending service-event candidates."
+---
+
+This operator workflow is separate from source-review cards and typed preference review. It requires an active **tenant-admin API key** and an eligible registered-service candidate. Ordinary application read/write keys and public MCP bearer access are not substitutes.
+
+Applicants should request the assigned operator's help if this path is included. Do not distribute an administrator key to every client. Hosted availability and installed support must be confirmed for the assigned environment.
+
+## 1. Discover eligible candidates
+
+```http
+GET /v1/memories/service-corrections?external_user_id=synthetic-customer-123&limit=20
+Authorization: ApiKey <operator key>
+```
+
+The envelope contains `data` and an optional `next_cursor`. Use the returned candidate ID. Not every pending candidate belongs to this operator workflow.
+
+## 2. Preview the explicit target
+
+```http
+GET /v1/memories/service-corrections/{candidate_id}?external_user_id=synthetic-customer-123&target_memory_id={target_id}
+Authorization: ApiKey <operator key>
+```
+
+Choose the intended target through authorized inspection, not similarity, order or a model's guess. The preview supplies candidate/target content, scope, source identity, incoming/target priorities, `target_version`, `review_version`, `actions` and `apply_blockers`.
+
+Inspect that preview before deciding. It reflects current writer rules; a version is an opaque current-state binding, not a permanent approval.
+
+## 3. Apply or decline
+
+```http
+POST /v1/memories/service-corrections/{candidate_id}/decision
+Authorization: ApiKey <operator key>
+Content-Type: application/json
+```
+
+```json
+{
+  "external_user_id": "synthetic-customer-123",
+  "target_memory_id": "<UUID from the preview>",
+  "target_version": "<opaque token from the preview>",
+  "review_version": "<opaque token from the same preview>",
+  "action": "apply"
+}
+```
+
+Use `apply` only if offered and the operator actually intends that transition; `decline` is the alternative. Changed permissions, policy, candidate or target can invalidate a decision. Preserve the refusal and fetch a new preview; do not drop bindings or silently retarget.
+
+An applied result returns candidate status, memory/claim/winning-revision IDs, `replayed` and `indexing_state`. `indexing_state: "pending"` means vector publication is subsequent, not already complete. Verify current retrieval and provenance after publication. A replay returns the original decision result rather than authorizing another mutation.
+
+This reference describes existing backend behavior. The published SDK references do not promise dedicated operator convenience methods; use an authorized native HTTP client or the repository's local-beta operator example. Apply can use embeddings; obtain provider authorization first.

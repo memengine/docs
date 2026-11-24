@@ -1,123 +1,72 @@
 ---
-title: "Authentication"
-description: "How tenant API keys and end-user identity work in MemoryOS."
+title: "Authentication and identity"
+description: "Tenant API keys, signed-in MCP users and stable application-owned user identities."
 ---
 
-The generally available MemoryOS API uses tenant API keys. A separate cross-agent model remains documented only for private-beta compatibility:
+## Choose the correct access path
 
-- **Tenant API key** — for `/v1/memories/*` and all workspace APIs
-- **Cross-agent dual auth (private beta)** — disabled by default for `/v1/universal/*`
+| Integration | Authentication | Who selects the owner? |
+| --- | --- | --- |
+| Server-side Python, TypeScript or native API | Tenant API key | Your authenticated application supplies `external_user_id` |
+| Public authenticated MCP gateway | Gateway sign-in and backend-validated bearer identity | Server derives the tenant and user from the signed-in workspace/subject |
+| Private MCP sidecar | Server-side tenant API key | Your trusted application uses its normal tenant owner mapping |
 
-## Tenant API key
+Public MCP sign-in is not the disabled-by-default Memory Passport universal-memory flow. Do not substitute one credential type for another.
 
-```http
-Authorization: ApiKey mem_...
-```
-
-All current keys use the `mem_` prefix. The header format is exact — these all return `AUTH_001`:
-
-```http
-Authorization: mem_...
-Authorization: Bearer mem_...
-X-API-Key: mem_...
-```
-
-Keep your API key server-side. Never send it to the browser.
-
-## Cross-agent auth
-
-<Warning>
-Cross-agent authentication is part of the frozen Memory Passport private beta. Registration and Universal Memory endpoints return `404 memory_passport_not_available` unless MemoryOS explicitly enables the feature.
-</Warning>
+## Tenant API keys
 
 ```http
-Authorization: ApiKey agent_sk_...
-X-MemoryOS-UUI: uui_...
+Authorization: ApiKey mem_example_placeholder
+Content-Type: application/json
 ```
 
-Both headers are required for every universal memory call. `agent_sk_...` identifies the agent. `uui_...` identifies which Memory Passport user has granted access.
+Use the exact `ApiKey` scheme for tenant API routes. A raw key, `Bearer mem_...` or `X-API-Key` is not an alternative. Never put a tenant key in browser/mobile code, a public repository, screenshots or a submission.
 
-Get your `agent_sk_...` key by registering a global agent:
+Applicants receive synthetic access from the assessment owner once the assigned backend is available. A dashboard login is separate from an API key; installing the SDK creates neither.
 
-```http
-POST /v1/agents/global
-Authorization: ApiKey mem_...
-```
+## Stable user identity
 
-The response includes `raw_agent_api_key` once. Store it in your backend secret manager — it's never shown again.
-
-If either header is missing or invalid, the API returns `403 UAT_001`. A read-only grant attempting a write returns `403 UAT_002`.
-
-## Identity model
-
-Every tenant-scoped request combines **tenant identity** (from the API key) with **end-user identity** (from `external_user_id` in the request body):
+Your application authenticates the user, then resolves a stable pseudonymous owner:
 
 ```json
-{ "external_user_id": "customer-123" }
+{"external_user_id": "synthetic-customer-123"}
 ```
 
-One tenant safely stores memories for many users. Memories are isolated by `(tenant_id, external_user_id)`.
+The key supplies the tenant identity. Resolve owner IDs **on your server**; an API key can act for owners within its permitted tenant, so arbitrary browser-supplied IDs are not end-user authorization. Use the same mapping across sessions and services. A conversation ID identifies a conversation, not a person.
 
-For cross-agent calls, identity is: **agent** (`agent_sk_...`) + **user** (`uui_...`) + **scope** (active `PermissionGrant` categories). The grant must be active and the requested category must be in `categories_allowed`.
+For public MCP, do not provide an `external_user_id` or use a project selector to choose another person. Identity is server-derived from the authenticated user and active workspace. Use the MCP URL and sign-in instructions supplied for that deployment.
 
-Human users manage their Memory Passport through the consent app using email + OTP — not raw `uui_...` tokens.
+## Permissions
 
-## Common mistakes
-
-| Mistake | Error | Fix |
-| --- | --- | --- |
-| Raw key without scheme | `AUTH_001` | `Authorization: ApiKey mem_...` |
-| `Bearer mem_...` | `AUTH_001` | `Authorization: ApiKey mem_...` |
-| Only one credential on `/v1/universal/*` | `UAT_001` | Send both `agent_sk_...` and `uui_...` |
-| Revoked or expired grant | Empty retrieve result | Re-run the consent flow |
-| Missing `external_user_id` on tenant routes | `REQ_422` | Always include it in write and retrieve requests |
-| Key stored in browser code | Secret leak | Keep MemoryOS keys server-side only |
-
-## Key permissions
-
-| Permission | Use |
+| Permission | Purpose |
 | --- | --- |
-| `read` | Retrieve memories and read list/export data |
-| `write` | Add memories and create extraction jobs |
-| `delete` | Delete memories or run GDPR cleanup |
-| `admin` | Broad operational control |
+| `read` | Authorized retrieval/list/detail/job reads |
+| `write` | Admission and supported user-review decisions |
+| `delete` | Destructive memory/cleanup operations |
+| `admin` | Tenant administration and eligible service-correction operations |
 
-Permissions are enforced by the API on every tenant API-key request. `admin`
-includes all permissions. New keys default to `read` + `write`; create a
-separate key with `delete` or `admin` only for the backend process that needs
-those operations. The key's configured `rate_limit_per_minute` is also enforced
-per key. Do not rely on the label alone as documentation—the stored permission
-list is the authorization boundary.
+Use least privilege. Normal applicants and application clients need only the permissions assigned for their work; operator review does not justify distributing an administrator key. Registered service writers may also bind a particular credential and authority policy. A service name or metadata field alone cannot grant authority.
 
-## Security checklist
+## Configure an SDK
 
-- Load keys from environment variables
-- Use separate keys for dev, staging, and production
-- Rotate immediately if a key is exposed
-- Never commit keys to source control
-- Never log `uui_...` tokens in analytics or error payloads
-- Treat `agent_sk_...` like any other backend secret
-
-## Quick example
-
-<CodeGroup>
-
-```python Python
+```python
 import os
 from memoryos import Memory
 
-client = Memory(api_key=os.environ["MEMORYOS_API_KEY"])
+client = Memory(
+    api_key=os.environ["MEMORYOS_API_KEY"],
+    base_url=os.environ["MEMORYOS_API_URL"],
+)
 ```
 
-```ts TypeScript
-import { MemoryOS } from "memoryo-sdk";
+TypeScript takes the base URL as the second positional string argument: `new MemoryOS(key, apiUrl)`. Use the backend root without `/v1`; dashboard and MCP gateway URLs are not native API base URLs.
 
-const client = new MemoryOS(process.env.MEMORYOS_API_KEY!);
-```
+## Troubleshooting
 
-</CodeGroup>
+- **401:** verify endpoint, key scheme, current key and workspace. Do not paste secrets into a report.
+- **403:** check permissions, blocked owner and writer binding with the owner; do not bypass them.
+- **Workspace not ready:** verify the intended signed-in workspace and backend access. A fresh organization token may be needed after a workspace change.
+- **Connection refused/unreachable:** report an access blocker. Do not create another key to repair a stopped API.
+- **Feature unavailable:** confirm the assigned backend supports/enables that contract; an SDK field alone does not enable it.
 
-## Related pages
-
-- [Memory Passport private-beta reference](/concepts/memory-passport)
-- [Python SDK reference](/sdk/python)
+Memory Passport and `/v1/universal/*` remain a separate disabled-by-default private-beta contract. See its [reference](/concepts/memory-passport) only if explicitly assigned; ordinary tenant integration requires no global-agent registration or universal consent.

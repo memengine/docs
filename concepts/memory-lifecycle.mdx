@@ -61,7 +61,7 @@ See [Extraction Quality Loop](/concepts/extraction-quality) for working SDK exam
 
 ## Lifecycle manager
 
-The lifecycle manager runs during off-peak hours and performs these jobs:
+When configured and running, the lifecycle manager can perform these jobs. Scheduling and installed tasks depend on the deployment:
 
 1. **Decay** - reduce `importance_score` for stale memories when appropriate. The original score stays in `original_importance_score`.
 2. **Auto-archive** - soft-remove stale low-value memories from search without deleting them from PostgreSQL.
@@ -84,7 +84,7 @@ Every meaningful change creates an append-only row in `memory_versions`.
 | `importance_boost` | Importance increased through access or feedback |
 | `archived` | Archived or deleted from active search |
 
-Version rows are never updated or deleted.
+Version rows record change history. Explicit user/tenant deletion and configured retention can remove associated data; this is not a promise of permanent audit storage.
 
 ## GDPR export
 
@@ -95,3 +95,7 @@ The export endpoint returns active memories, archived memories, and version hist
 - [Extraction Quality Loop](/concepts/extraction-quality)
 - [Memory Provenance](/concepts/provenance)
 - [POST /v1/memories/retrieve](/api-reference/retrieve)
+
+## Pending visibility and recovery
+
+A pending candidate is not active context. Retrieval can withhold the affected identity/category/scope with `memory_visibility`, even though previous records remain stored. Show safe source-review cards separately and use the appropriate versioned decision path. `restate` is a request for a new statement, not activation. See [visibility handling](/concepts/degradation), [scoped preferences](/guides/scoped-preferences) and [service correction](/api-reference/service-corrections).

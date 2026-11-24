@@ -108,7 +108,8 @@
             "pages": [
               "introduction",
               "quickstart",
-              "authentication"
+              "authentication",
+              "guides/applicant-setup"
             ]
           },
           {
@@ -116,7 +117,8 @@
             "pages": [
               "concepts/general-engine",
               "concepts/memory-lifecycle",
-              "concepts/provenance"
+              "concepts/provenance",
+              "guides/scoped-preferences"
             ]
           },
           {
@@ -156,7 +158,8 @@
             "group": "Memory APIs",
             "pages": [
               "api-reference/add",
-              "api-reference/retrieve"
+              "api-reference/retrieve",
+              "api-reference/service-corrections"
             ]
           },
           {

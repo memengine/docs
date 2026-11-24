@@ -1,0 +1,76 @@
+---
+title: "Explicit scoped preferences"
+description: "Declare the property, value and scope explicitly rather than inferring project isolation from prose."
+---
+
+Use this contract when your application knows which preference and applicability the user selected. It is optional: the backend must enable `EXPLICIT_PREFERENCE_CLAIMS_ENABLED`. If unavailable, it returns `409 PREF_409` with `explicit_preferences_unavailable`; do not enable flags yourself during an applicant assessment.
+
+The application owns the property catalog, user intent and project-access check. MemoryOS validates and governs the supplied declaration. It does not prove that the user meant it or that your model interpreted the conversation correctly.
+
+## Declare a save
+
+The following is a **synthetic contract example**, using an application-defined property `response.layout`. Confirm the property catalog and enabled path with the environment owner before using it. Send this body to `POST /v1/memories/add` with a tenant key and a stable idempotency key.
+
+```json
+{
+  "external_user_id": "synthetic-customer-123",
+  "conversation_id": "synthetic-thread-1",
+  "messages": [{"role": "user", "content": "Use numbered outlines for this project."}],
+  "preference_claims": [{
+    "property_key": "response.layout",
+    "value": "numbered outlines",
+    "applicability": {"kind": "context", "namespace": "project", "key": "synthetic-project-a"},
+    "turn_index": 0,
+    "quote": "Use numbered outlines for this project.",
+    "commitment": "asserted"
+  }]
+}
+```
+
+- `turn_index` points into the submitted message array; preserve the actual user evidence.
+- The value must appear verbatim in the quote, and the quote must match the referenced evidence. A declaration does not turn an assistant suggestion or fetched document into user authority.
+- `applicability` is `{"kind":"global"}` or an explicit context namespace/key. `unresolved` can represent an unresolved declaration but is not a valid read scope.
+- This v1 write path does not accept a registered `source` block or an `agent_id` together with `preference_claims`.
+
+Poll the original job and verify returned/current records. Do not equate a queued response with an applied declaration.
+
+## Read the selected scope
+
+Send to `POST /v1/memories/retrieve`:
+
+```json
+{
+  "external_user_id": "synthetic-customer-123",
+  "query": "What response layout should I use?",
+  "preference_context": {
+    "applicability": {"kind": "context", "namespace": "project", "key": "synthetic-project-a"},
+    "property_keys": ["response.layout"]
+  }
+}
+```
+
+A contextual read can select its scoped value or an eligible global fallback. It must not use another project's value. A held/unresolved scoped identity must not silently fall back to global. Missing applicability on an old untyped record is not proof of global scope. Typed preference reads do not support `as_of` historical queries.
+
+Inspect `memory_visibility`, `preference_scope_request` and `preference_decisions` before using context. A review card is separate decision UI, not active memory. See [visibility handling](/concepts/degradation).
+
+## Intentional replacement
+
+Keep the same property and applicability. Set `commitment` to `replacement` and supply **both** `replaces_memory_id` and `replaces_version` for the current target. Obtain the ID and `provenance.preference_version` from an authorized current record; treat the version as opaque. Do not compute it, assume two targets have different tokens, or use another property's target.
+
+If the target has already been superseded, do not report the stale write as a successful correction or silently rebind it to the successor. Inspect the original job and retrieve again; obtain new user intent and a current binding before a new replacement. The client must not bypass a refusal by removing the binding.
+
+Uncertain declarations use `commitment: "uncertain"`. `choice_state: "candidate_only"` does not by itself suspend the current default. `choice_state: "current_choice_unresolved"` requires a known scope and both target ID/version; it declares that the current choice must be withheld pending a supported user decision. It is not an automatic natural-language judgment.
+
+## SDK and MCP field names
+
+| Native/Python | TypeScript |
+| --- | --- |
+| `preference_claims` | `preferenceClaims` in object-form `add()` |
+| `preference_context` | `preferenceContext` in object-form `get()` |
+| `property_key`, `turn_index` | `propertyKey`, `turnIndex` |
+| `choice_state` | `choiceState` |
+| `replaces_memory_id`, `replaces_version` | `replacesMemoryId`, `replacesVersion` |
+
+The `applicability` object uses `kind`, `namespace` and `key` in all three. Published Python `0.1.2` and npm `0.1.3` expose these fields. Public MCP uses snake_case `preference_claims` on `memoryos_remember` and `preference_context` on `memoryos_my_context`, when the installed adapter/backend both support them.
+
+Project words in a message, arbitrary metadata and registered service `source.scope` are **not** substitutes for this typed contract. Applicability also grants no access: your application must authorize the selected project independently.

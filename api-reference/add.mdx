@@ -27,7 +27,6 @@ For solo builders, MVPs, small teams, and single-agent products, omit `source`. 
 ```json
 {
   "external_user_id": "customer_123",
-  "agent_id": "support-bot",
   "messages": [
     {
       "role": "user",
@@ -49,6 +48,8 @@ For solo builders, MVPs, small teams, and single-agent products, omit `source`. 
 | `messages` | `ConversationMessage[]` | Yes | 1-64 messages; each content value is at most 16,000 characters |
 | `metadata` | `object` | No | Arbitrary JSON metadata |
 | `source` | `MemorySource \| null` | No | Provenance source block for multi-service governance |
+| `conversation_id` | `string \| null` | No | Stable application conversation reference |
+| `preference_claims` | `PreferenceClaimRequest[] \| null` | No | Explicit property/value/scope declarations; backend enablement required |
 
 ### ConversationMessage
 
@@ -259,8 +260,8 @@ not commitment or authority. The general extraction quote checks remain strict.
 ## Working PowerShell polling example
 
 ```powershell
-$Api = $env:MEMORYOS_API_BASE_URL
-if (-not $Api) { $Api = "https://api.memoryo.dev" }
+$Api = $env:MEMORYOS_API_URL
+if (-not $Api) { throw "Set MEMORYOS_API_URL to the assigned backend root." }
 
 $TenantKey = $env:MEMORYOS_API_KEY
 if (-not $TenantKey) { throw "Set MEMORYOS_API_KEY before running this example." }
@@ -352,3 +353,15 @@ MemoryOS replays the same queued response for duplicate requests instead of crea
 - [Extraction Quality Loop](/concepts/extraction-quality)
 - [Quality Gate](/concepts/quality-gate)
 - [Memory Provenance](/concepts/provenance)
+
+## Explicit scoped preferences
+
+Use the [typed preference contract](/guides/scoped-preferences) for explicit property/value/applicability and target-version-bound replacement. Natural-language project qualifiers do not establish this contract. It requires backend enablement; it cannot be combined with a registered source event or agent-bound write in v1.
+
+## Retry and replay boundary
+
+Send `Idempotency-Key` for a retryable application write. Persist the key with the original authorized request before submitting it; reuse both unchanged after a network failure. Do not generate a new key for a retry.
+
+For eligible durable tenant admissions, the receipt retains the request-key hash and request binding for at least 24 hours after acceptance and longer while the job is nonterminal. Raw-payload redaction does not remove that binding. Current permissions are rechecked before replay information is returned; changed owner/payload conflicts instead of rebinding the receipt. Redis is an optimization, not the authoritative durable receipt.
+
+Protection ends when the receipt/job row is deleted, including explicit tenant/user deletion. A later request may be admitted under current permissions. This is not permanent duplicate prevention. A persisted receipt proves admission, not application; admission uniqueness alone does not prove one logical worker mutation. Registered source-event replay is a separate provenance contract. Confirm the eligible path for your runtime rather than assuming every optional/universal route uses this receipt policy.

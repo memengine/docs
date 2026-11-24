@@ -1,158 +1,142 @@
 ---
 title: "Quickstart"
+description: "Try a no-key simulation, then connect to an assigned or isolated local MemoryOS backend."
 ---
 
-Get your first stored and retrieved memory working from a backend in about ten minutes.
+## 1. Choose simulation or a real backend
 
-<Note>
-This is the normal tenant-memory path. You do not need Memory Passport, a consent screen, a connector, or a global agent to complete it. Memory Passport is frozen in private beta and should be considered only through an approved design-partner engagement.
-</Note>
+### No-key simulation
 
-## 1. Create an API key
+From a fresh clone of the [repository](https://github.com/memengine/memory-api):
 
-Sign in to the [MemoryOS dashboard](https://app.memoryo.dev/sdk), open **Get started**, then choose **Open API Keys** to create and copy a key once. Keep it on your server—never expose it in browser code or commit it to Git.
-
-Set it in the terminal where your backend runs:
-
-<CodeGroup>
-
-```powershell PowerShell
-$env:MEMORYOS_API_KEY="mem_live_your_key"
+```bash
+git clone https://github.com/memengine/memory-api.git
+cd memory-api
+python examples/demo/run.py
 ```
 
-```bash macOS / Linux
-export MEMORYOS_API_KEY="mem_live_your_key"
-```
+This uses local fixtures and requires no SDK, API key, model or running backend. It demonstrates the shape of a governed-context workflow. It does **not** verify ingestion, authentication, retrieval or model behavior. Keep simulation results separate from live evidence.
 
-</CodeGroup>
+### Real integration
 
-## 2. Install the SDK
+Applicants: follow [Applicant setup](/guides/applicant-setup) and wait for your assigned endpoint and credentials. Hosted backend access is pending launch.
+
+For self-hosted exploration, follow the repository's [local beta instructions](https://github.com/memengine/memory-api/blob/main/beta/README.md). That profile uses isolated Docker resources and exposes its API at `http://127.0.0.1:18000`. Dependency/image downloads need internet. Ingestion and some retrieval paths can use paid extraction/embedding providers; a chat-model stub alone does not make the backend free.
+
+Do not reuse another project's database, queues or credentials. No agent registration, Memory Passport or Clerk account is required for the tenant API-key example below.
+
+## 2. Install the SDK and configure your server
 
 <CodeGroup>
 
 ```bash Python
-pip install memoryo-sdk
+pip install memoryo-sdk==0.1.2
 ```
 
 ```bash TypeScript
-npm install memoryo-sdk
+npm install memoryo-sdk@0.1.3
 ```
 
 </CodeGroup>
 
-Both SDKs use `https://api.memoryo.dev` by default. The Python package is named `memoryo-sdk`, while its import remains `memoryos`.
+Set `MEMORYOS_API_KEY`, `MEMORYOS_API_URL` and `MEMORYOS_TEST_OWNER` in your server environment. Use the supplied URL without a trailing `/v1`; use the backend API address, not a dashboard or MCP gateway URL. Keep credentials out of browser code and source control.
 
-## 3. Verify one complete write
+## 3. Submit once and inspect the original job
 
-Use the same stable user ID your application already uses. Do not use an email address if your internal customer ID is available.
-
-Memory extraction runs asynchronously. The verification example waits for the write job to finish before retrieval, avoiding a race on the first run.
+Use one fresh synthetic owner and keep its ID stable when reopening the application. The sample statement is evidence for extraction, not a forced storage result.
 
 <CodeGroup>
 
 ```python Python
 import os
+from uuid import uuid4
 from memoryos import Memory
 
-with Memory(api_key=os.environ["MEMORYOS_API_KEY"]) as memory:
-    write = memory.add(
-        messages=[
-            {"role": "user", "content": "Please remember that I prefer concise Python examples."}
-        ],
-        external_user_id="customer-123",
+owner = os.environ["MEMORYOS_TEST_OWNER"]
+with Memory(
+    api_key=os.environ["MEMORYOS_API_KEY"],
+    base_url=os.environ["MEMORYOS_API_URL"],
+) as memory:
+    admitted = memory.add(
+        external_user_id=owner,
+        messages=[{"role": "user", "content": "I prefer concise explanations."}],
+        idempotency_key=str(uuid4()),
     )
-
-    if not write.job_id:
-        raise RuntimeError(f"Memory write was not queued: {write.status}")
-
-    job = memory.wait_for_job(write.job_id)
-    if not job.succeeded:
-        raise RuntimeError(f"Memory write failed: {job.error_summary or job.status}")
-
-    result = memory.get(
-        query="How should you explain technical topics to me?",
-        external_user_id="customer-123",
-    )
-    print(result.system_prompt_addition)
+    if admitted.status != "queued" or not admitted.job_id:
+        raise RuntimeError("Write was not queued; inspect status and blocked_reason.")
+    job = memory.wait_for_job(admitted.job_id, timeout=120)
+    print(job.status, job.memories_created, job.pending_candidates_buffered)
+    if job.status != "completed":
+        raise RuntimeError("Processing failed; preserve the original job ID.")
 ```
 
 ```ts TypeScript
+import { randomUUID } from "node:crypto";
 import { MemoryOS } from "memoryo-sdk";
 
-const memory = new MemoryOS(process.env.MEMORYOS_API_KEY!);
-
-const write = await memory.add(
-  [{ role: "user", content: "Please remember that I prefer concise TypeScript examples." }],
-  "customer-123",
-);
-
-if (!write.jobId) {
-  throw new Error(`Memory write was not queued: ${write.status}`);
+function required(name: string): string {
+  const value = process.env[name];
+  if (!value) throw new Error(`Missing ${name}`);
+  return value;
 }
-
-const job = await memory.waitForJob(write.jobId);
-if (!job.succeeded) {
-  throw new Error(`Memory write failed: ${job.errorSummary ?? job.status}`);
-}
-
-const result = await memory.get({
-  query: "How should you explain technical topics to me?",
-  externalUserId: "customer-123",
+const owner = required("MEMORYOS_TEST_OWNER");
+const memory = new MemoryOS(required("MEMORYOS_API_KEY"), required("MEMORYOS_API_URL"));
+const admitted = await memory.add({
+  externalUserId: owner,
+  messages: [{ role: "user", content: "I prefer concise explanations." }],
+  idempotencyKey: randomUUID(),
 });
-console.log(result.systemPromptAddition);
+if (admitted.status !== "queued" || !admitted.jobId) {
+  throw new Error("Write was not queued; inspect status and blockedReason.");
+}
+const job = await memory.waitForJob(admitted.jobId, { timeoutMs: 120_000 });
+console.log(job.status, job.memoriesCreated, job.pendingCandidatesBuffered);
+if (job.status !== "completed") throw new Error("Processing failed; retain the original job ID.");
 ```
 
 </CodeGroup>
 
-If the printed context reflects the saved preference, your API key, user mapping, worker, persistence, and retrieval path are connected.
+If polling times out, retain the job ID and inspect it later. Do not submit another save merely to make polling succeed. A new key is a new operation. For a network retry, reuse the same key and identical authorized request; see [write replay](/api-reference/add#retry-and-replay-boundary).
 
-## 4. Put it around your model call
+## 4. Retrieve before answering
 
-In normal application traffic, retrieve context before the model call and queue the completed conversation afterward. You normally do not block the user response while extraction finishes.
+Use the same client/owner variables as above, in the same process or after reopening with the same environment.
+
+<CodeGroup>
 
 ```python Python
-external_user_id = "customer-123"
-user_message = "Explain why this API request failed."
-
-context = memory.get(query=user_message, external_user_id=external_user_id)
-
-# Pass context.system_prompt_addition to your model when context.has_context is true.
-# After the model responds, queue the completed conversation:
-memory.add(
-    messages=[
-        {"role": "user", "content": user_message},
-        {"role": "assistant", "content": assistant_reply},
-    ],
-    external_user_id=external_user_id,
-)
+with Memory(
+    api_key=os.environ["MEMORYOS_API_KEY"],
+    base_url=os.environ["MEMORYOS_API_URL"],
+) as memory:
+    result = memory.get(query="How should you explain things to me?", external_user_id=owner)
+    if result.memory_visibility is not None:
+        print("Memory context is processing or unavailable; do not answer from it.")
+    elif result.preference_scope_request is not None or result.preference_decisions:
+        print("Obtain the application's scope or the user's explicit choice first.")
+    elif result.is_passthrough:
+        print("Memory is bypassed; decide whether this request can proceed without it.")
+    else:
+        print([(record.id, record.content) for record in result.items])
+        print(result.system_prompt_addition)
 ```
 
-Submitting the completed turn gives extraction useful conversational context,
-but the assistant does not become an authority about the user. In normal mode,
-durable memory must be grounded in a user statement or explicit user
-confirmation. Use source-aware ingestion only for registered backend services
-with real provenance—not for ordinary model responses.
+```ts TypeScript
+const result = await memory.get({ query: "How should you explain things to me?", externalUserId: owner });
+if (result.memoryVisibility) {
+  console.log("Memory context is processing or unavailable; do not answer from it.");
+} else if (result.preferenceScopeRequest || result.preferenceDecisions?.length) {
+  console.log("Obtain the application's scope or the user's explicit choice first.");
+} else if (result.isPassthrough) {
+  console.log("Memory is bypassed; decide whether this request can proceed without it.");
+} else {
+  console.log(result.items.map(record => ({ id: record.id, content: record.content })));
+  console.log(result.systemPromptAddition);
+}
+```
 
-Always call your model even when MemoryOS returns no context or reports passthrough mode.
+</CodeGroup>
 
-If retrieval returns `clarification`, ask `clarification.question` in this same
-chat. After the user chooses `A`, `B`, `both`, or `neither`, call
-`answer_clarification()` in Python or `answerClarification()` in TypeScript.
-MemoryOS verifies the tenant, user, expiry, and conflict transition on the
-backend; your model only presents the question and passes back the user's
-selection.
+A completed job can still be followed by processing visibility while publication catches up. Do not report successful recall until a subsequent authorized read actually returns the expected current record. These examples make no chat-model calls.
 
-## Common first-run problems
-
-- **Unauthorized:** create a new key in the dashboard and confirm the environment variable is available to the backend process.
-- **Empty result immediately after `add`:** wait for the job when verifying; production writes are asynchronous.
-- **Different users share context:** pass your authenticated application's stable user ID on every `add` and `get` call.
-- **Browser exposes the key:** move MemoryOS calls into a backend route or server process.
-
-## Next steps
-
-- [Python SDK](/sdk/python) or [TypeScript SDK](/sdk/typescript)
-- [Authentication and identity](/authentication)
-- [OpenAI integration](/guides/openai) or [Anthropic integration](/guides/anthropic)
-- [Source-aware multi-service writes](/concepts/provenance) after the basic flow works
-- Contact MemoryOS if you are an approved design partner evaluating the frozen Memory Passport private beta
+For corrections, inspect [source review](/api-reference/retrieve#review-an-uncertain-source-statement-in-your-existing-chat) or the [explicit preference contract](/guides/scoped-preferences), rather than assuming a second sentence automatically replaces the first.
